@@ -377,18 +377,28 @@ impl<'l> Doc<'l> {
             .collect()
     }
 
+    pub fn call_with_callee_at(&self, p: Pos) -> Option<CallSite<'_>> {
+        let off = self.byte_offset(p)?;
+        self.calls_containing(p)
+            .into_iter()
+            .find(|c| c.callee.0.start_byte() <= off && off < c.callee.0.end_byte())
+    }
+
+    /// Spelled as in the source, qualifier included: no separator lives here.
     pub fn callee_text(&self, call: &CallSite) -> String {
-        let name = self.text_of(call.callee);
-        if let Some(p) = call.node.0.parent()
-            && self.has_cap(N(p), vocab::THROUGH)
-            && let Some(m) = self
-                .caps_within(vocab::CALLEE_MODULE, p.start_byte(), p.end_byte())
-                .into_iter()
-                .find(|m| m.0.end_byte() <= call.node.0.start_byte())
-        {
-            return format!("{}:{}", self.text_of(m), name);
-        }
-        name.to_string()
+        let end = call.callee.0.end_byte();
+        let start = call
+            .node
+            .0
+            .parent()
+            .filter(|p| self.has_cap(N(*p), vocab::THROUGH))
+            .and_then(|p| {
+                self.caps_within(vocab::CALLEE_MODULE, p.start_byte(), p.end_byte())
+                    .into_iter()
+                    .find(|m| m.0.end_byte() <= call.node.0.start_byte())
+            })
+            .map_or(call.callee.0.start_byte(), |m| m.0.start_byte());
+        self.text[start..end].to_string()
     }
 
     pub fn returns_of(&self, f: &FnDecl) -> Vec<N<'_>> {

@@ -333,7 +333,7 @@ fn param(
     let arity = func.params.len();
     let mut sites: Vec<ExprRef> = Vec::new();
     // An `-export` entry or a `fun f/1` value is a reference, not a caller.
-    let mut strays: Vec<(PathBuf, Pos)> = Vec::new();
+    let mut strays: Vec<(PathBuf, Pos, String)> = Vec::new();
     let mut refs_seen = 0u32;
     for r in refs {
         if !ctx.in_root(&r.file) || ctx.reg.for_file(&r.file).is_none() {
@@ -345,19 +345,22 @@ fn param(
             continue;
         }
         refs_seen += 1;
-        let mut matched = false;
-        for call in rdoc.calls_containing(r.range.start) {
-            if !names(&rdoc.callee_text(&call), &func.name) || call.args.len() != arity {
-                continue;
-            }
-            if let Some(a) = call.args.get(index) {
-                sites.push((r.file.clone(), Span::of(*a)));
-            }
-            matched = true;
-            break;
-        }
-        if !matched {
-            strays.push((r.file.clone(), r.range.start));
+        // The server already tied the reference to this function; what is left is
+        // structural: is it the callee of a call, and does that call pass this argument?
+        match rdoc.call_with_callee_at(r.range.start) {
+            Some(call) => match call.args.get(index) {
+                Some(a) => sites.push((r.file.clone(), Span::of(*a))),
+                None => strays.push((
+                    r.file.clone(),
+                    r.range.start,
+                    format!("call has no argument {}", index + 1),
+                )),
+            },
+            None => strays.push((
+                r.file.clone(),
+                r.range.start,
+                "reference is not a call site".to_string(),
+            )),
         }
     }
 
@@ -367,12 +370,14 @@ fn param(
             let detail = format!("no call sites of {}/{arity}", func.name);
             stop(ctx, site, StopReason::EntryPoint, detail)
         } else {
-            sort_local(&mut strays, file, |p| (p.line, p.col));
-            strays.dedup();
+            strays.sort_by(|a, b| {
+                (a.0 != file, &a.0, a.1.line, a.1.col).cmp(&(b.0 != file, &b.0, b.1.line, b.1.col))
+            });
+            strays.dedup_by(|a, b| a.0 == b.0 && a.1 == b.1);
             let dropped = fanout(ctx, &mut strays);
             let mut kids = Vec::new();
-            for (f, p) in strays {
-                kids.push(stray_stop(ctx, &f, p, &func.name)?);
+            for (f, p, detail) in strays {
+                kids.push(stray_stop(ctx, &f, p, &func.name, detail)?);
             }
             let detail = format!(
                 "{refs_seen} reference(s) to {}/{arity} are not call sites",
@@ -404,7 +409,13 @@ fn param(
     ))
 }
 
-fn stray_stop(ctx: &mut Ctx, file: &Path, p: Pos, name: &str) -> Result<Node, TraceError> {
+fn stray_stop(
+    ctx: &mut Ctx,
+    file: &Path,
+    p: Pos,
+    name: &str,
+    detail: String,
+) -> Result<Node, TraceError> {
     let doc = ctx.doc(file)?;
     let (label, snippet) = match doc.ident_at(p) {
         Some(n) => (label_of(&doc, n), doc.line_of(n).to_string()),
@@ -422,7 +433,7 @@ fn stray_stop(ctx: &mut Ctx, file: &Path, p: Pos, name: &str) -> Result<Node, Tr
         &label,
         &snippet,
         StopReason::Unresolved,
-        "reference is not a call site",
+        detail,
         0,
     ))
 }
@@ -430,11 +441,6 @@ fn stray_stop(ctx: &mut Ctx, file: &Path, p: Pos, name: &str) -> Result<Node, Tr
 /// Same file first, then by path and position: the nearest candidates survive the fan-out cut.
 fn sort_local<T, K: Ord>(items: &mut [(PathBuf, T)], file: &Path, key: impl Fn(&T) -> K) {
     items.sort_by(|a, b| (a.0 != file, &a.0, key(&a.1)).cmp(&(b.0 != file, &b.0, key(&b.1))));
-}
-
-/// `mod:fun` and `fun` both name `fun`; `flag` does not.
-fn names(callee_text: &str, name: &str) -> bool {
-    callee_text == name || callee_text.ends_with(&format!(":{name}"))
 }
 
 fn fanout<T>(ctx: &mut Ctx, items: &mut Vec<T>) -> u32 {

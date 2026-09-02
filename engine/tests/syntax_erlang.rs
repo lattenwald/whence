@@ -40,6 +40,16 @@ fn role_of_binding_param_and_branch() {
 }
 
 #[test]
+fn call_with_callee_at_needs_the_position_on_the_callee() {
+    let (d, text) = doc();
+    let call = d.call_with_callee_at(at(text, "get(limit", 0)).unwrap();
+    assert_eq!(d.callee_text(&call), "maps:get");
+    assert!(d.call_with_callee_at(at(text, "limit, Opts", 0)).is_none());
+    let call = d.call_with_callee_at(at(text, "pick(Limit", 0)).unwrap();
+    assert_eq!(d.callee_text(&call), "pick");
+}
+
+#[test]
 fn returns_of_handle_goes_through_case() {
     let (d, text) = doc();
     let f = d
