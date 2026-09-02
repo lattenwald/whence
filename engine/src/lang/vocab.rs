@@ -36,6 +36,8 @@ pub const FIELD_NAME: &str = "field.name";
 pub const CONSTRUCT: &str = "construct";
 pub const CONSTRUCT_FIELD_NAME: &str = "construct.field.name";
 pub const CONSTRUCT_FIELD_VALUE: &str = "construct.field.value";
+/// On a construct whose elements are not positionally addressable (a cons/spread tail).
+pub const CONSTRUCT_CONS: &str = "construct.cons";
 
 pub const IDENT: &str = "ident";
 

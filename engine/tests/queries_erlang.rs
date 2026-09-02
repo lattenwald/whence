@@ -72,6 +72,8 @@ fn fields_constructs_literals_opaque() {
     assert!(has(&c, vocab::CONSTRUCT_FIELD_NAME, "body"));
     assert!(has(&c, vocab::CONSTRUCT_FIELD_VALUE, "Body"));
     assert!(has(&c, vocab::CONSTRUCT, "{ok, V}"));
+    assert!(has(&c, vocab::CONSTRUCT_CONS, "[H | T]"));
+    assert!(!has(&c, vocab::CONSTRUCT_CONS, "[1, 2, 3]"));
     assert!(has(&c, vocab::LITERAL, "10"));
     assert!(has(&c, vocab::IDENT, "Opts"));
     assert!(has(&c, vocab::OPAQUE, "fun(X) -> X end"));

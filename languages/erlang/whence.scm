@@ -26,6 +26,8 @@
 (record_field name: (_) @construct.field.name expr: (field_expr (_) @construct.field.value))
 (map_field key: (_) @construct.field.name value: (_) @construct.field.value)
 (record_field_expr expr: (_) @field.container field: (record_field_name (_) @field.name)) @field
+;; `[H | T]`: the pipe tail is not a positional element
+(list (pipe)) @construct.cons
 
 [(integer) (float) (string) (atom) (char)] @literal
 

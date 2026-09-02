@@ -152,3 +152,107 @@ fn enclosing_function_and_snippet() {
     assert!(matches!(d.role_of(b), Role::Param { index: 0, .. }));
     assert_eq!(d.text_of(rb.params[0]), "#req{body = B}");
 }
+
+#[test]
+fn plain_call_next_to_a_remote_one_keeps_its_bare_name() {
+    let (reg, text) = doc();
+    let lang = reg.by_name("erlang").unwrap();
+    let d = Doc::parse(lang, "/s.erl".into(), text.clone());
+    // `case pick(X) of _ -> tag(other(), maps:get(k, M)) end`
+    let subject = d.calls_containing(at(&text, "X) of", 0));
+    assert_eq!(subject.len(), 1);
+    assert_eq!(d.callee_text(&subject[0]), "pick");
+    let inner = d.calls_containing(at(&text, "other()", 0));
+    assert_eq!(d.callee_text(&inner[0]), "other");
+    assert_eq!(d.callee_text(&inner[1]), "tag");
+    let remote = d.calls_containing(at(&text, "k, M)", 0));
+    assert_eq!(d.callee_text(&remote[0]), "maps:get");
+}
+
+#[test]
+fn branch_without_subject_and_compound_binding_value() {
+    let (reg, text) = doc();
+    let lang = reg.by_name("erlang").unwrap();
+    let d = Doc::parse(lang, "/s.erl".into(), text.clone());
+    let w = d.ident_at(at(&text, "W} -> case", 0)).unwrap();
+    let Role::Opaque(recv) = d.role_of(w) else {
+        panic!("receive clause pattern must not borrow the nested case's subject")
+    };
+    assert!(d.text_of(recv).starts_with("receive"));
+
+    let c = d.ident_at(at(&text, "C} = V", 0)).unwrap();
+    let Role::BoundBy { pattern, value } = d.role_of(c) else {
+        panic!()
+    };
+    assert_eq!(d.text_of(pattern), "{A = B, C}");
+    assert_eq!(d.text_of(value), "V");
+}
+
+#[test]
+fn nested_field_access_reports_the_outer_field() {
+    let (reg, text) = doc();
+    let lang = reg.by_name("erlang").unwrap();
+    let d = Doc::parse(lang, "/s.erl".into(), text.clone());
+    let f = d
+        .enclosing_function(d.ident_at(at(&text, "State#state", 0)).unwrap())
+        .unwrap();
+    let outer = d.returns_of(&f)[0];
+    let (cont, field) = d.field_access(outer).unwrap();
+    assert_eq!(
+        (d.text_of(cont), field.as_str()),
+        ("State#state.conn", "sock")
+    );
+    let (inner, field) = d.field_access(cont).unwrap();
+    assert_eq!((d.text_of(inner), field.as_str()), ("State", "conn"));
+}
+
+#[test]
+fn cons_pattern_does_not_destructure() {
+    let (reg, text) = doc();
+    let lang = reg.by_name("erlang").unwrap();
+    let d = Doc::parse(lang, "/s.erl".into(), text.clone());
+    let t = d.ident_at(at(&text, "T] = [1", 0)).unwrap();
+    let Role::BoundBy { pattern, value } = d.role_of(t) else {
+        panic!()
+    };
+    assert_eq!(d.text_of(pattern), "[H | T]");
+    assert_eq!(d.text_of(value), "[1, 2, 3]");
+    assert!(d.destructure(pattern, t, value).is_none());
+
+    let q = d.ident_at(at(&text, "Q] = [1", 0)).unwrap();
+    let Role::BoundBy { pattern, value } = d.role_of(q) else {
+        panic!()
+    };
+    assert_eq!(d.text_of(pattern), "[P, Q]");
+    assert!(d.destructure(pattern, q, value).is_none());
+}
+
+#[test]
+fn returns_do_not_leak_out_of_an_anonymous_fun() {
+    let (reg, text) = doc();
+    let lang = reg.by_name("erlang").unwrap();
+    let d = Doc::parse(lang, "/s.erl".into(), text.clone());
+    let f = d
+        .enclosing_function(d.ident_at(at(&text, "X of\n        _ -> fun", 0)).unwrap())
+        .unwrap();
+    let rs: Vec<&str> = d.returns_of(&f).iter().map(|n| d.text_of(*n)).collect();
+    assert_eq!(rs, vec!["fun() -> 1 end"]);
+}
+
+#[test]
+fn empty_construct_is_literal() {
+    let (reg, text) = doc();
+    let lang = reg.by_name("erlang").unwrap();
+    let d = Doc::parse(lang, "/s.erl".into(), text.clone());
+    let l = d.ident_at(at(&text, "Limit = ", 0)).unwrap();
+    let Role::BoundBy { value, .. } = d.role_of(l) else {
+        panic!()
+    };
+    let call = d.call_at(value).unwrap();
+    assert!(d.is_literal(call.args[0]));
+    let e = d.ident_at(at(&text, "E = {[]", 0)).unwrap();
+    let Role::BoundBy { value, .. } = d.role_of(e) else {
+        panic!()
+    };
+    assert!(d.is_literal(value));
+}

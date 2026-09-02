@@ -19,3 +19,30 @@ pick(N) when N > 5 -> {ok, N * 2};
 pick(_) -> error.
 
 read_body(#req{body = B}) -> B.
+
+cons() ->
+    [H | T] = [1, 2, 3],
+    [P, Q] = [1, 2, 3],
+    E = {[], {}},
+    {H, T, E, P, Q}.
+
+compound(V) ->
+    {A = B, C} = V,
+    {A, B, C}.
+
+wrap(X) ->
+    case X of
+        _ -> fun() -> 1 end
+    end.
+
+nearby(X, M) ->
+    case pick(X) of
+        _ -> tag(other(), maps:get(k, M))
+    end.
+
+recv(X) ->
+    receive
+        {msg, W} -> case X of _ -> W end
+    end.
+
+sock(State) -> State#state.conn#conn.sock.

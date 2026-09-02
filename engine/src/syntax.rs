@@ -113,6 +113,34 @@ impl<'l> Doc<'l> {
             .collect()
     }
 
+    fn caps_owned_by<'a>(&'a self, cap: &str, owner_cap: &str, owner: N<'a>) -> Vec<N<'a>> {
+        self.caps_within(cap, owner.0.start_byte(), owner.0.end_byte())
+            .into_iter()
+            .filter(|n| {
+                self.nearest_ancestor_with(*n, owner_cap)
+                    .is_some_and(|a| a.0.id() == owner.0.id())
+            })
+            .collect()
+    }
+
+    fn nearest_ancestor_with<'a>(&'a self, n: N<'a>, cap: &str) -> Option<N<'a>> {
+        let mut cur = n.0.parent();
+        while let Some(c) = cur {
+            if self.has_cap(N(c), cap) {
+                return Some(N(c));
+            }
+            cur = c.parent();
+        }
+        None
+    }
+
+    fn caps_child_of<'a>(&'a self, cap: &str, parent: N<'a>) -> Vec<N<'a>> {
+        self.caps_within(cap, parent.0.start_byte(), parent.0.end_byte())
+            .into_iter()
+            .filter(|n| n.0.parent().is_some_and(|p| p.id() == parent.0.id()))
+            .collect()
+    }
+
     pub fn has_cap(&self, n: N, cap: &str) -> bool {
         let Some(idx) = self.cap_index(cap) else {
             return false;
@@ -199,12 +227,9 @@ impl<'l> Doc<'l> {
             if self.has_cap(n, vocab::BINDING_PATTERN)
                 && let Some(binding) = c.parent()
                 && self.has_cap(N(binding), vocab::BINDING)
+                && let Some(binding) = self.reborrow(N(binding))
                 && let Some(value) = self
-                    .caps_within(
-                        vocab::BINDING_VALUE,
-                        binding.start_byte(),
-                        binding.end_byte(),
-                    )
+                    .caps_child_of(vocab::BINDING_VALUE, binding)
                     .into_iter()
                     .next()
                 && let Some(pattern) = self.reborrow(n)
@@ -217,11 +242,13 @@ impl<'l> Doc<'l> {
             {
                 return Role::Param { func, index };
             }
+            // A branch clause need not have a subject: receive and try reuse it.
             if self.has_cap(n, vocab::BRANCH_PATTERN)
                 && let Some(branch) = c.parent()
                 && let Some(case) = branch.parent()
+                && let Some(case) = self.reborrow(N(case))
                 && let Some(subject) = self
-                    .caps_within(vocab::BRANCH_SUBJECT, case.start_byte(), case.end_byte())
+                    .caps_child_of(vocab::BRANCH_SUBJECT, case)
                     .into_iter()
                     .next()
                 && let Some(pattern) = self.reborrow(n)
@@ -281,12 +308,14 @@ impl<'l> Doc<'l> {
     }
 
     fn call_site<'a>(&'a self, call: N<'a>) -> Option<CallSite<'a>> {
-        let (s, e) = (call.0.start_byte(), call.0.end_byte());
         let callee = self
-            .caps_within(vocab::CALL_CALLEE, s, e)
+            .caps_owned_by(vocab::CALL_CALLEE, vocab::CALL, call)
             .first()
             .copied()?;
-        let args = self.caps_within(vocab::CALL_ARGS, s, e).first().copied()?;
+        let args = self
+            .caps_owned_by(vocab::CALL_ARGS, vocab::CALL, call)
+            .first()
+            .copied()?;
         Some(CallSite {
             node: call,
             callee,
@@ -323,11 +352,13 @@ impl<'l> Doc<'l> {
     pub fn callee_text(&self, call: &CallSite) -> String {
         let name = self.text_of(call.callee);
         if let Some(p) = call.node.0.parent()
+            && self.has_cap(N(p), vocab::THROUGH)
             && let Some(m) = self
                 .caps_within(vocab::CALLEE_MODULE, p.start_byte(), p.end_byte())
-                .first()
+                .into_iter()
+                .find(|m| m.0.end_byte() <= call.node.0.start_byte())
         {
-            return format!("{}:{}", self.text_of(*m), name);
+            return format!("{}:{}", self.text_of(m), name);
         }
         name.to_string()
     }
@@ -341,7 +372,13 @@ impl<'l> Doc<'l> {
             warn_returns_unsupported(self.lang.name, self.lang.quirks.returns);
         }
         let mut cursor = f.body.0.walk();
-        let Some(last) = f.body.0.named_children(&mut cursor).last() else {
+        let Some(last) = f
+            .body
+            .0
+            .named_children(&mut cursor)
+            .filter(|c| !c.is_extra())
+            .last()
+        else {
             return Vec::new();
         };
         let Some(last) = self.reborrow(N(last)) else {
@@ -368,11 +405,16 @@ impl<'l> Doc<'l> {
         }
     }
 
+    /// `None` once the walk leaves the current function: a nested fun's tail is not
+    /// a return of the enclosing function.
     fn nearest_return_container<'a>(&'a self, n: N<'a>) -> Option<N<'a>> {
         let mut cur = n.0.parent();
         while let Some(c) = cur {
             if self.has_cap(N(c), vocab::RETURN_CONTAINER) {
                 return Some(N(c));
+            }
+            if self.has_cap(N(c), vocab::OPAQUE) || self.has_cap(N(c), vocab::FUNCTION) {
+                return None;
             }
             cur = c.parent();
         }
@@ -386,25 +428,25 @@ impl<'l> Doc<'l> {
         if !self.has_cap(n, vocab::CONSTRUCT) {
             return false;
         }
-        let mut leaves = Vec::new();
-        named_leaves(n.0, &mut leaves);
-        leaves.iter().all(|l| self.has_cap(N(*l), vocab::LITERAL))
+        named_children(n).iter().all(|c| self.is_literal(*c))
     }
 
     pub fn is_opaque(&self, n: N) -> bool {
         self.has_cap(n, vocab::OPAQUE)
     }
 
-    pub fn field_access(&self, n: N) -> Option<(N<'_>, String)> {
+    pub fn field_access<'a>(&'a self, n: N<'a>) -> Option<(N<'a>, String)> {
         if !self.has_cap(n, vocab::FIELD) {
             return None;
         }
-        let (s, e) = (n.0.start_byte(), n.0.end_byte());
         let container = self
-            .caps_within(vocab::FIELD_CONTAINER, s, e)
+            .caps_owned_by(vocab::FIELD_CONTAINER, vocab::FIELD, n)
             .first()
             .copied()?;
-        let name = self.caps_within(vocab::FIELD_NAME, s, e).first().copied()?;
+        let name = self
+            .caps_owned_by(vocab::FIELD_NAME, vocab::FIELD, n)
+            .first()
+            .copied()?;
         Some((container, self.text_of(name).to_string()))
     }
 
@@ -441,6 +483,8 @@ impl<'l> Doc<'l> {
         if pattern.0.kind_id() != value.0.kind_id()
             || !self.has_cap(pattern, vocab::CONSTRUCT)
             || !self.has_cap(value, vocab::CONSTRUCT)
+            || self.has_cap(pattern, vocab::CONSTRUCT_CONS)
+            || self.has_cap(value, vocab::CONSTRUCT_CONS)
         {
             return None;
         }
@@ -458,10 +502,12 @@ impl<'l> Doc<'l> {
             .collect();
 
         if direct.is_empty() {
+            let (pc, vc) = (named_children(pattern), named_children(value));
+            if pc.len() != vc.len() {
+                return None;
+            }
             let index = index_of_child_containing(pattern.0, ident.0)?;
-            let sub_pattern = named_children(pattern).into_iter().nth(index)?;
-            let sub_value = named_children(value).into_iter().nth(index)?;
-            return self.destructure(sub_pattern, ident, sub_value);
+            return self.destructure(*pc.get(index)?, ident, *vc.get(index)?);
         }
 
         for name in direct {
@@ -501,18 +547,6 @@ fn index_of_child_containing(parent: tree_sitter::Node, inner: tree_sitter::Node
     parent
         .named_children(&mut cursor)
         .position(|c| contains(c, inner))
-}
-
-fn named_leaves<'t>(n: tree_sitter::Node<'t>, out: &mut Vec<tree_sitter::Node<'t>>) {
-    let mut cursor = n.walk();
-    let children: Vec<_> = n.named_children(&mut cursor).collect();
-    if children.is_empty() {
-        out.push(n);
-        return;
-    }
-    for c in children {
-        named_leaves(c, out);
-    }
 }
 
 fn warn_returns_unsupported(lang: &str, returns: Returns) {
