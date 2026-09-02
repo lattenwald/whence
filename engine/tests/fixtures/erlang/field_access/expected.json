@@ -9,7 +9,7 @@
                 "children": [
                   {
                     "children": [],
-                    "id": "4d4162e41128dfe4",
+                    "id": "ae2152ffdbfd9d43",
                     "kind": "stop",
                     "label": "Req0",
                     "loc": {
@@ -26,7 +26,7 @@
                     "via": null
                   }
                 ],
-                "id": "eb3499c27d1cb333",
+                "id": "22937bee8be8554c",
                 "kind": "param",
                 "label": "Req0",
                 "loc": {
@@ -40,7 +40,7 @@
                 "via": "field"
               }
             ],
-            "id": "1cc7cac65980478f",
+            "id": "d38d99a671b37ad1",
             "kind": "field",
             "label": "peer of Req0",
             "loc": {
@@ -54,7 +54,7 @@
             "via": "field"
           }
         ],
-        "id": "173f9fd4f0a3bfad",
+        "id": "aeacf5b822d5f116",
         "kind": "field",
         "label": "R#req.peer",
         "loc": {
@@ -68,7 +68,7 @@
         "via": "field_set"
       }
     ],
-    "id": "f75976ac1ae43e35",
+    "id": "d02c6f3c501cf4af",
     "kind": "binding",
     "label": "P",
     "loc": {

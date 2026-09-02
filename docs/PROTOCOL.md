@@ -139,7 +139,8 @@ Highlight = { "range": { "start": {"line","col"}, "end": {"line","col"} },
 }
 
 Node = {
-  "id": string,          // stable hash of (root-relative path, line, col, kind, frame)
+  "id": string,          // stable hash of (parent path, root-relative file, line, col, kind);
+                         // unique within a tree, path-dependent, checkout-independent
   "kind": "binding" | "branch" | "param" | "call_result" | "field" | "stop",
   "label": string,       // identifier or short expression text
   "loc": { "file": string, "line": int, "col": int },

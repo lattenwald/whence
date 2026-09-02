@@ -102,7 +102,8 @@ stop); a host returning an error aborts the trace with an error.
 }
 
 Node = {
-  "id": string,          // stable: hash(file, line, col, kind, frame)
+  "id": string,          // stable: hash(parent path, root-relative file, line, col, kind)
+                         // path-dependent, so a place reached twice is two ids
   "kind": "binding" | "branch" | "param" | "call_result" | "field" | "stop",
   "label": string,       // identifier or short expression text
   "loc": { "file", "line", "col" },

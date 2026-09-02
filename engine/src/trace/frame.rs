@@ -29,6 +29,8 @@ pub struct Ctx<'a> {
     defs: HashMap<(PathBuf, Pos), Vec<Location>>,
     refs: HashMap<(PathBuf, Pos, bool), Vec<Location>>,
     pub frames: Vec<Frame>,
+    /// Path keys of the nodes being expanded, root first; ids derive from the top.
+    pub path: Vec<u64>,
     /// The expressions on the *current* expansion path, not everything seen (spec §5.4).
     pub visited: HashSet<(PathBuf, Span, u64)>,
     pub limits: Limits,
@@ -53,6 +55,7 @@ impl<'a> Ctx<'a> {
             defs: HashMap::new(),
             refs: HashMap::new(),
             frames: Vec::new(),
+            path: Vec::new(),
             visited: HashSet::new(),
             limits,
             deadline: start + Duration::from_millis(limits.time_ms),
@@ -98,6 +101,10 @@ impl<'a> Ctx<'a> {
         let v = self.host.references(file, pos, include_decl)?;
         self.refs.insert(key, v.clone());
         Ok(v)
+    }
+
+    pub fn parent(&self) -> u64 {
+        self.path.last().copied().unwrap_or(0)
     }
 
     pub fn frame_hash(&self) -> u64 {

@@ -1,6 +1,6 @@
 ---
 id: whe-j1zt
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-09-02T11:29:06Z

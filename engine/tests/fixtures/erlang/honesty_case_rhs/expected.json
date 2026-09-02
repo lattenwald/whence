@@ -5,7 +5,7 @@
         "children": [
           {
             "children": [],
-            "id": "ab6cd71d48c73dac",
+            "id": "6761745509241b8c",
             "kind": "stop",
             "label": "one",
             "loc": {
@@ -23,7 +23,7 @@
           },
           {
             "children": [],
-            "id": "42a21c738ded3ae1",
+            "id": "e15412ce1aacbe2d",
             "kind": "stop",
             "label": "two",
             "loc": {
@@ -40,7 +40,7 @@
             "via": "match"
           }
         ],
-        "id": "8e9153f4d39c502a",
+        "id": "8fd3b20c13e3ace5",
         "kind": "branch",
         "label": "case K of",
         "loc": {
@@ -54,7 +54,7 @@
         "via": "match"
       }
     ],
-    "id": "e32e5f37878e2223",
+    "id": "b527145ed48dd1ad",
     "kind": "binding",
     "label": "Z",
     "loc": {

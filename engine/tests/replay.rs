@@ -282,6 +282,18 @@ fn a_diamond_is_not_recursion() {
         assert_eq!(k["children"][0]["label"], "3");
     }
     assert!(!serde_json::to_string(&v).unwrap().contains("recursion"));
+    assert_ne!(kids[0]["children"][0]["id"], kids[1]["children"][0]["id"]);
+    let ids = collect_ids(&v["root"]);
+    let distinct: std::collections::HashSet<&str> = ids.iter().copied().collect();
+    assert_eq!(ids.len(), distinct.len());
+}
+
+fn collect_ids(n: &serde_json::Value) -> Vec<&str> {
+    let mut out = vec![n["id"].as_str().unwrap()];
+    for c in n["children"].as_array().unwrap() {
+        out.extend(collect_ids(c));
+    }
+    out
 }
 
 #[test]

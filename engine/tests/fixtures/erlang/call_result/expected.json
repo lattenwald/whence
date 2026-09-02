@@ -5,7 +5,7 @@
         "children": [
           {
             "children": [],
-            "id": "06536fe6e9022533",
+            "id": "597f102e12bf45b2",
             "kind": "stop",
             "label": "{ok, N}",
             "loc": {
@@ -23,7 +23,7 @@
           },
           {
             "children": [],
-            "id": "ab8172ba760b6821",
+            "id": "b611cbb323af77f0",
             "kind": "stop",
             "label": "error",
             "loc": {
@@ -40,7 +40,7 @@
             "via": null
           }
         ],
-        "id": "7f98a51ca2fcffa8",
+        "id": "30d4f9dcb0a2d038",
         "kind": "call_result",
         "label": "pick",
         "loc": {
@@ -54,7 +54,7 @@
         "via": "return"
       }
     ],
-    "id": "c556f07c9bfd8589",
+    "id": "e83c4d03f2787fe4",
     "kind": "binding",
     "label": "R",
     "loc": {

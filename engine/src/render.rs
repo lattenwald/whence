@@ -61,12 +61,14 @@ mod tests {
     #[test]
     fn renders_indented_lines_with_via_stop_and_truncation() {
         let child = Node::stop(
+            0,
             Path::new("a.erl"),
             loc(3, 2),
             "X",
             "f(X) ->",
             StopReason::EntryPoint,
             "no call sites",
+            0,
         );
         let root = Node {
             id: "id".into(),

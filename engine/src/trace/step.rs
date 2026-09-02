@@ -9,7 +9,7 @@ use crate::pos::Pos;
 use crate::syntax::{Doc, FnDecl, N, Role, Span};
 use crate::trace::TraceError;
 use crate::trace::frame::{Ctx, ExprRef, Frame};
-use crate::tree::{Loc, Node, NodeKind, StopReason, Via, node_id};
+use crate::tree::{Loc, Node, NodeKind, StopReason, Via, node_id, path_id};
 
 pub enum Expr {
     Ident(PathBuf, Pos),
@@ -94,11 +94,12 @@ fn make(
     truncated: u32,
 ) -> Node {
     let id = node_id(
+        ctx.parent(),
         &site.rel,
         site.loc.line,
         site.loc.col,
         &kind,
-        ctx.frame_hash(),
+        0,
     );
     Node {
         id,
@@ -113,19 +114,31 @@ fn make(
     }
 }
 
-fn stop(site: &Site, reason: StopReason, detail: impl Into<String>) -> Node {
+fn stop(ctx: &Ctx, site: &Site, reason: StopReason, detail: impl Into<String>) -> Node {
+    stop_nth(ctx, site, reason, detail, 0)
+}
+
+fn stop_nth(
+    ctx: &Ctx,
+    site: &Site,
+    reason: StopReason,
+    detail: impl Into<String>,
+    nth: u32,
+) -> Node {
     Node::stop(
+        ctx.parent(),
         &site.rel,
         site.loc.clone(),
         &site.label,
         &site.snippet,
         reason,
         detail,
+        nth,
     )
 }
 
-fn unresolved(site: &Site, detail: impl Into<String>) -> Node {
-    stop(site, StopReason::Unresolved, detail)
+fn unresolved(ctx: &Ctx, site: &Site, detail: impl Into<String>) -> Node {
+    stop(ctx, site, StopReason::Unresolved, detail)
 }
 
 pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
@@ -154,30 +167,37 @@ pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
             label: String::new(),
             snippet: String::new(),
         };
-        return Ok(unresolved(&site, "expression not found in the source"));
+        return Ok(unresolved(ctx, &site, "expression not found in the source"));
     };
     let is_ident = doc.has_cap(node, vocab::IDENT);
     let site = Site::new(ctx, &doc, &file, node);
 
     if depth >= ctx.limits.depth {
-        return Ok(stop(&site, StopReason::Limit, "depth"));
+        return Ok(stop(ctx, &site, StopReason::Limit, "depth"));
     }
     if ctx.node_count > ctx.limits.nodes {
-        return Ok(stop(&site, StopReason::Limit, "nodes"));
+        return Ok(stop(ctx, &site, StopReason::Limit, "nodes"));
     }
     if Instant::now() >= ctx.deadline {
-        return Ok(stop(&site, StopReason::Limit, "time"));
+        return Ok(stop(ctx, &site, StopReason::Limit, "time"));
     }
     let path_key = (file.clone(), Span::of(node), ctx.frame_hash());
     if !ctx.visited.insert(path_key.clone()) {
-        return Ok(unresolved(&site, "recursion"));
+        return Ok(unresolved(ctx, &site, "recursion"));
     }
 
+    ctx.path.push(path_id(
+        ctx.parent(),
+        &site.rel,
+        site.loc.line,
+        site.loc.col,
+    ));
     let out = if is_ident {
         ident(ctx, &file, &site, depth)
     } else {
         value(ctx, &doc, &file, node, &site, depth)
     };
+    ctx.path.pop();
     // Leaving the path: a later branch may reach this expression again legitimately.
     ctx.visited.remove(&path_key);
     out
@@ -186,17 +206,17 @@ pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
 fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, TraceError> {
     let defs = distinct(&ctx.definition(file, site.pos())?);
     let def = match defs.len() {
-        0 => return Ok(unresolved(site, "no definition from language server")),
+        0 => return Ok(unresolved(ctx, site, "no definition from language server")),
         1 => &defs[0],
-        n => return Ok(unresolved(site, format!("{n} definitions"))),
+        n => return Ok(unresolved(ctx, site, format!("{n} definitions"))),
     };
     if !ctx.in_root(&def.file) {
-        return Ok(stop(site, StopReason::External, site.label.clone()));
+        return Ok(stop(ctx, site, StopReason::External, site.label.clone()));
     }
 
     let doc = ctx.doc(&def.file)?;
     let Some(ident) = doc.ident_at(def.range.start) else {
-        return Ok(unresolved(site, "definition is not an identifier"));
+        return Ok(unresolved(ctx, site, "definition is not an identifier"));
     };
     let dsite = Site::new(ctx, &doc, &def.file, ident);
 
@@ -221,8 +241,12 @@ fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, Tr
         Role::Param { func, index } => {
             param(ctx, &doc, &def.file, &func, index, ident, &dsite, depth)
         }
-        Role::Opaque(n) => Ok(unresolved(&dsite, format!("bound inside {}", n.0.kind()))),
-        Role::Use => Ok(unresolved(&dsite, "definition site not recognised")),
+        Role::Opaque(n) => Ok(unresolved(
+            ctx,
+            &dsite,
+            format!("bound inside {}", n.0.kind()),
+        )),
+        Role::Use => Ok(unresolved(ctx, &dsite, "definition site not recognised")),
     }
 }
 
@@ -283,6 +307,7 @@ fn param(
             None => {
                 ctx.node_count += 1;
                 Ok(unresolved(
+                    ctx,
                     site,
                     format!("frame has no argument {index} for {func_id}"),
                 ))
@@ -301,7 +326,7 @@ fn param(
         .into_iter()
         .next()
     else {
-        return Ok(unresolved(site, "function declaration has no name"));
+        return Ok(unresolved(ctx, site, "function declaration has no name"));
     };
     let refs = ctx.references(file, doc.pos_of(name), false)?;
 
@@ -340,9 +365,10 @@ fn param(
         ctx.node_count += 1;
         let child = if refs_seen == 0 {
             let detail = format!("no call sites of {}/{arity}", func.name);
-            stop(site, StopReason::EntryPoint, detail)
+            stop(ctx, site, StopReason::EntryPoint, detail)
         } else {
             sort_local(&mut strays, file, |p| (p.line, p.col));
+            strays.dedup();
             let dropped = fanout(ctx, &mut strays);
             let mut kids = Vec::new();
             for (f, p) in strays {
@@ -352,7 +378,7 @@ fn param(
                 "{refs_seen} reference(s) to {}/{arity} are not call sites",
                 func.name
             );
-            let mut n = unresolved(site, detail);
+            let mut n = unresolved(ctx, site, detail);
             n.children = kids;
             n.truncated = dropped;
             n
@@ -361,6 +387,7 @@ fn param(
     }
 
     sort_local(&mut sites, file, |s| s.start);
+    sites.dedup();
     let dropped = fanout(ctx, &mut sites);
     let mut children = Vec::new();
     for a in sites {
@@ -385,6 +412,7 @@ fn stray_stop(ctx: &mut Ctx, file: &Path, p: Pos, name: &str) -> Result<Node, Tr
     };
     ctx.node_count += 1;
     Ok(Node::stop(
+        ctx.parent(),
         ctx.rel(file),
         Loc {
             file: file.to_path_buf(),
@@ -395,6 +423,7 @@ fn stray_stop(ctx: &mut Ctx, file: &Path, p: Pos, name: &str) -> Result<Node, Tr
         &snippet,
         StopReason::Unresolved,
         "reference is not a call site",
+        0,
     ))
 }
 
@@ -428,10 +457,10 @@ fn value(
     depth: u32,
 ) -> Result<Node, TraceError> {
     if doc.is_literal(n) {
-        return Ok(stop(site, StopReason::Literal, n.0.kind()));
+        return Ok(stop(ctx, site, StopReason::Literal, n.0.kind()));
     }
     if doc.is_opaque(n) {
-        return Ok(unresolved(site, n.0.kind()));
+        return Ok(unresolved(ctx, site, n.0.kind()));
     }
     if doc.has_cap(n, vocab::RETURN_CONTAINER) {
         return branch(ctx, doc, file, n, site, depth);
@@ -493,11 +522,12 @@ fn value(
     }
     if doc.has_cap(n, vocab::CONSTRUCT) {
         return Ok(unresolved(
+            ctx,
             site,
             format!("constructed value {}", n.0.kind()),
         ));
     }
-    Ok(unresolved(site, n.0.kind()))
+    Ok(unresolved(ctx, site, n.0.kind()))
 }
 
 #[derive(PartialEq)]
@@ -524,14 +554,15 @@ fn call_result(
 ) -> Result<Node, TraceError> {
     let defs = distinct(&ctx.definition(file, name_pos)?);
     if defs.is_empty() {
-        return Ok(unresolved(site, "callee not found"));
+        return Ok(unresolved(ctx, site, "callee not found"));
     }
     let outside = defs.iter().filter(|l| !ctx.in_root(&l.file)).count();
     if outside == defs.len() {
-        return Ok(stop(site, StopReason::External, callee));
+        return Ok(stop(ctx, site, StopReason::External, callee));
     }
     if outside > 0 {
         return Ok(unresolved(
+            ctx,
             site,
             format!("{} definitions, some outside root", defs.len()),
         ));
@@ -543,6 +574,7 @@ fn call_result(
         let doc = ctx.doc(&d.file)?;
         let Some(decl) = doc.function_at(d.range.start) else {
             return Ok(unresolved(
+                ctx,
                 site,
                 format!("definition of {callee} is not a function"),
             ));
@@ -583,6 +615,7 @@ fn call_result(
     if plan.is_empty() && !recursive.is_empty() {
         let t = &targets[recursive[0]];
         return Ok(unresolved(
+            ctx,
             site,
             format!("recursive call to {}/{}", t.name, t.arity),
         ));
@@ -602,10 +635,16 @@ fn call_result(
         ctx.frames.pop();
         children.push(child?);
     }
-    for i in recursive {
+    for (nth, i) in recursive.into_iter().enumerate() {
         let t = &targets[i];
         let detail = format!("recursive call to {}/{}", t.name, t.arity);
-        children.push(stop(site, StopReason::Unresolved, detail));
+        children.push(stop_nth(
+            ctx,
+            site,
+            StopReason::Unresolved,
+            detail,
+            nth as u32,
+        ));
         ctx.node_count += 1;
     }
 
@@ -656,7 +695,7 @@ fn branch(
     tails.sort_by_key(|s| s.start);
     tails.dedup();
     if tails.is_empty() {
-        return Ok(unresolved(site, n.0.kind()));
+        return Ok(unresolved(ctx, site, n.0.kind()));
     }
     let dropped = fanout(ctx, &mut tails);
     let mut children = Vec::new();

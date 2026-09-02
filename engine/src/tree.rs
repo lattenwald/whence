@@ -97,17 +97,21 @@ impl Default for Limits {
 
 impl Node {
     /// `id_path`: the root-relative path, so ids do not depend on the checkout location.
+    /// `nth`: which of several stops at the same place under the same parent this is.
+    #[allow(clippy::too_many_arguments)]
     pub fn stop(
+        parent: u64,
         id_path: &Path,
         loc: Loc,
         label: &str,
         snippet: &str,
         reason: StopReason,
         detail: impl Into<String>,
+        nth: u32,
     ) -> Node {
         let kind = NodeKind::Stop;
         Node {
-            id: node_id(id_path, loc.line, loc.col, &kind, 0),
+            id: node_id(parent, id_path, loc.line, loc.col, &kind, nth),
             kind,
             label: label.to_string(),
             loc,
@@ -127,12 +131,19 @@ impl Node {
     }
 }
 
-pub fn node_id(file: &Path, line: u32, col: u32, kind: &NodeKind, frame_hash: u64) -> String {
+/// Path-dependent (spec §5.1): one place under two parents is two nodes.
+pub fn node_id(parent: u64, file: &Path, line: u32, col: u32, kind: &NodeKind, nth: u32) -> String {
     let digest = Sha256::digest(format!(
-        "{}:{line}:{col}:{kind:?}:{frame_hash}",
+        "{parent:016x}:{}:{line}:{col}:{kind:?}:{nth}",
         file.display()
     ));
     digest[..8].iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// The path key a node hands to its children: its parent's key plus its own place.
+pub fn path_id(parent: u64, file: &Path, line: u32, col: u32) -> u64 {
+    let digest = Sha256::digest(format!("{parent:016x}:{}:{line}:{col}", file.display()));
+    u64::from_be_bytes(digest[..8].try_into().expect("8 bytes"))
 }
 
 #[cfg(test)]
@@ -142,6 +153,7 @@ mod tests {
     #[test]
     fn serializes_to_spec_shape() {
         let n = Node::stop(
+            0,
             Path::new("a.erl"),
             Loc {
                 file: "/root/a.erl".into(),
@@ -152,6 +164,7 @@ mod tests {
             "X = 1",
             StopReason::Literal,
             "integer",
+            0,
         );
         let v = serde_json::to_value(&n).unwrap();
         assert_eq!(v["kind"], "stop");
@@ -173,6 +186,7 @@ mod tests {
     fn stop_id_ignores_the_absolute_location() {
         let stop = |dir: &str| {
             Node::stop(
+                0,
                 Path::new("a.erl"),
                 Loc {
                     file: format!("{dir}/a.erl").into(),
@@ -183,6 +197,7 @@ mod tests {
                 "X = 1",
                 StopReason::Literal,
                 "integer",
+                0,
             )
             .id
         };
@@ -190,11 +205,13 @@ mod tests {
     }
 
     #[test]
-    fn node_id_is_stable_and_frame_sensitive() {
+    fn node_id_is_stable_and_path_sensitive() {
         let p = Path::new("/a.erl");
-        let a = node_id(p, 1, 2, &NodeKind::Param, 0);
-        assert_eq!(a, node_id(p, 1, 2, &NodeKind::Param, 0));
-        assert_ne!(a, node_id(p, 1, 2, &NodeKind::Param, 1));
-        assert_ne!(a, node_id(p, 1, 2, &NodeKind::Binding, 0));
+        let a = node_id(0, p, 1, 2, &NodeKind::Param, 0);
+        assert_eq!(a, node_id(0, p, 1, 2, &NodeKind::Param, 0));
+        assert_ne!(a, node_id(1, p, 1, 2, &NodeKind::Param, 0));
+        assert_ne!(a, node_id(0, p, 1, 2, &NodeKind::Param, 1));
+        assert_ne!(a, node_id(0, p, 1, 2, &NodeKind::Binding, 0));
+        assert_ne!(path_id(0, p, 1, 2), path_id(path_id(0, p, 1, 2), p, 1, 2));
     }
 }
