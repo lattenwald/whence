@@ -49,7 +49,9 @@ only issue them.
 ids are hashed from root-relative paths so a tree is identical at any checkout
 path. `capabilities` is optional and each flag defaults to false;
 `capabilities.documentHighlight` declares whether the host can answer
-`host/documentHighlight`, and when false the engine never sends it.
+`host/documentHighlight`, and when false the engine never sends it. The M1
+engine has no rebinding pass and never sends it either way; the Neovim host
+declares `false` until M2.
 
 ### `whence/trace`
 

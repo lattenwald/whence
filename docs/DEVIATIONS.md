@@ -136,3 +136,7 @@ Rulings from the M1 branch review; each landed with the spec section it changes.
   injection, which nothing has passed since Task 12 routed the recorder through
   `host.handle`. `pos::to_point`/`from_point` and `RpcHost::new` are used only by tests
   and are `#[cfg(test)]`-gated rather than deleted.
+- Spec §5.2 variable-use row: the `documentHighlight` rebinding pass is marked as M2, not
+  as M1 behaviour, and `nvim/lua/whence/engine.lua` declares
+  `capabilities.documentHighlight = false` — the engine never sends the request in M1, so
+  declaring support was misleading.

@@ -35,7 +35,7 @@ end
 
 function M.start(opts)
   -- Resolved per request so a recorder installed after the client started still sees them.
-  local handler = opts.handle or function(method, params)
+  local handler = function(method, params)
     return require("whence.host").handle(method, params)
   end
   local state = { pending = {} }
@@ -64,7 +64,8 @@ function M.start(opts)
   }
 
   local done, ierr, info = false, nil, nil
-  client.request("initialize", { root = opts.root, capabilities = { documentHighlight = true } }, function(e, r)
+  -- false until M2: the engine has no rebinding pass and never sends documentHighlight.
+  client.request("initialize", { root = opts.root, capabilities = { documentHighlight = false } }, function(e, r)
     ierr, info, done = e, r, true
   end)
   if not vim.wait(5000, function()
