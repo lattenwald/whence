@@ -18,12 +18,11 @@ See [docs/INTENT.md](docs/INTENT.md) for what it is meant to do and
 Needs Neovim 0.11+, a language server attached to the buffer (Erlang: `elp`
 or `erlang_ls`), and the `whence` engine binary.
 
-The plugin is the `nvim/` directory of this repository. Clone the repository
-and point your plugin manager at that directory; with lazy.nvim:
+Install the plugin from GitHub; with lazy.nvim:
 
 ```lua
 {
-  dir = "/path/to/whence/nvim",
+  "lattenwald/whence",
   config = function()
     require("whence").setup({
       -- bin = "/path/to/whence",   -- engine binary; see below
@@ -54,3 +53,7 @@ The plugin looks for the binary in `setup({ bin = ... })`, `vim.g.whence_bin`,
 Commands: `:Whence` traces the identifier under the cursor into a side panel
 (`<CR>` jumps, `p` previews, `R` re-runs from a node, `q` closes).
 `:WhenceRecord <dir>` records the same trace as a replay fixture.
+
+## License
+
+[MIT](LICENSE).
