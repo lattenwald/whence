@@ -93,22 +93,22 @@ fn make(
     children: Vec<Node>,
     truncated: u32,
 ) -> Node {
+    let outcome = Node::construct(kind);
     let id = node_id(
         ctx.parent(),
         &site.rel,
         site.loc.line,
         site.loc.col,
-        &kind,
+        &outcome,
         0,
     );
     Node {
         id,
-        kind,
+        outcome,
         label: site.label.clone(),
         loc: site.loc.clone(),
         via: Some(via),
         snippet: site.snippet.clone(),
-        stop: None,
         children,
         truncated,
     }
@@ -281,7 +281,7 @@ fn definition(
 
 /// `via` is the edge from the parent: through a pattern a parameter is matched, not passed.
 fn matched(mut n: Node) -> Node {
-    if n.kind == NodeKind::Param && n.via == Some(Via::Arg) {
+    if n.outcome.kind() == Some(&NodeKind::Param) && n.via == Some(Via::Arg) {
         n.via = Some(Via::Match);
     }
     n

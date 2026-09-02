@@ -25,7 +25,7 @@ fn line(out: &mut String, node: &Node, depth: usize, root: &Path) {
         node.loc.line + 1,
         node.loc.col + 1
     );
-    if let Some(stop) = &node.stop {
+    if let Some(stop) = node.outcome.stop() {
         let _ = write!(out, "  [{}: {}]", tag(&stop.reason), stop.detail);
     }
     if node.truncated > 0 {
@@ -72,12 +72,11 @@ mod tests {
         );
         let root = Node {
             id: "id".into(),
-            kind: NodeKind::Binding,
+            outcome: Node::construct(NodeKind::Binding),
             label: "Z".into(),
             loc: loc(5, 4),
             via: Some(Via::Match),
             snippet: "Z = Y,".into(),
-            stop: None,
             children: vec![child],
             truncated: 2,
         };

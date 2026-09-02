@@ -5,7 +5,7 @@ use whence::{
     lang::Registry,
     pos::Pos,
     trace::{TraceRequest, trace},
-    tree::Limits,
+    tree::{Limits, Tree},
 };
 
 struct Case {
@@ -95,6 +95,7 @@ fn check(c: Case) -> serde_json::Value {
     });
     let exp: serde_json::Value = serde_json::from_str(&raw).unwrap();
     pretty_assertions::assert_eq!(got, exp);
+    serde_json::from_value::<Tree>(exp).expect("golden is a well-formed Tree");
     got
 }
 

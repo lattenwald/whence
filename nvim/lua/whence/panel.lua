@@ -41,7 +41,7 @@ function M.render(tree, root)
       local detail = present(stop.detail)
       stopText = "  [" .. stop.reason .. (detail and (": " .. detail) or "") .. "]"
     end
-    local marker = node.kind == "stop" and "■ " or "● "
+    local marker = stop and "■ " or "● "
     local loc = node.loc
 
     lines[#lines + 1] = pad

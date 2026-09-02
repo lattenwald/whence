@@ -10,7 +10,6 @@ pub enum NodeKind {
     Param,
     CallResult,
     Field,
-    Stop,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
@@ -48,15 +47,68 @@ pub struct Loc {
     pub col: u32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StopTag {
+    #[default]
+    Stop,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Null;
+
+impl Serialize for Null {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_none()
+    }
+}
+
+impl<'de> Deserialize<'de> for Null {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Option::<()>::deserialize(d).map(|_| Null)
+    }
+}
+
+/// One field behind the wire's `kind` and `stop`, so they cannot disagree.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(untagged)]
+pub enum Outcome {
+    Stop { kind: StopTag, stop: Stop },
+    Construct { kind: NodeKind, stop: Null },
+}
+
+impl Outcome {
+    pub fn kind(&self) -> Option<&NodeKind> {
+        match self {
+            Outcome::Construct { kind, .. } => Some(kind),
+            Outcome::Stop { .. } => None,
+        }
+    }
+
+    pub fn stop(&self) -> Option<&Stop> {
+        match self {
+            Outcome::Stop { stop, .. } => Some(stop),
+            Outcome::Construct { .. } => None,
+        }
+    }
+
+    fn id_tag(&self) -> String {
+        match self {
+            Outcome::Construct { kind, .. } => format!("{kind:?}"),
+            Outcome::Stop { .. } => "Stop".to_string(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Node {
     pub id: String,
-    pub kind: NodeKind,
+    #[serde(flatten)]
+    pub outcome: Outcome,
     pub label: String,
     pub loc: Loc,
     pub via: Option<Via>,
     pub snippet: String,
-    pub stop: Option<Stop>,
     pub children: Vec<Node>,
     pub truncated: u32,
 }
@@ -112,21 +164,27 @@ impl Node {
         detail: impl Into<String>,
         nth: u32,
     ) -> Node {
-        let kind = NodeKind::Stop;
+        let outcome = Outcome::Stop {
+            kind: StopTag::Stop,
+            stop: Stop {
+                reason,
+                detail: detail.into(),
+            },
+        };
         Node {
-            id: node_id(parent, id_path, loc.line, loc.col, &kind, nth),
-            kind,
+            id: node_id(parent, id_path, loc.line, loc.col, &outcome, nth),
+            outcome,
             label: label.to_string(),
             loc,
             via: None,
             snippet: snippet.to_string(),
-            stop: Some(Stop {
-                reason,
-                detail: detail.into(),
-            }),
             children: Vec::new(),
             truncated: 0,
         }
+    }
+
+    pub fn construct(kind: NodeKind) -> Outcome {
+        Outcome::Construct { kind, stop: Null }
     }
 
     pub fn count(&self) -> u32 {
@@ -135,10 +193,18 @@ impl Node {
 }
 
 /// Path-dependent (spec §5.1): one place under two parents is two nodes.
-pub fn node_id(parent: u64, file: &Path, line: u32, col: u32, kind: &NodeKind, nth: u32) -> String {
+pub fn node_id(
+    parent: u64,
+    file: &Path,
+    line: u32,
+    col: u32,
+    outcome: &Outcome,
+    nth: u32,
+) -> String {
     let digest = Sha256::digest(format!(
-        "{parent:016x}:{}:{line}:{col}:{kind:?}:{nth}",
-        file.display()
+        "{parent:016x}:{}:{line}:{col}:{}:{nth}",
+        file.display(),
+        outcome.id_tag()
     ));
     digest[..8].iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -172,11 +238,32 @@ mod tests {
         let v = serde_json::to_value(&n).unwrap();
         assert_eq!(v["kind"], "stop");
         assert_eq!(v["stop"]["reason"], "literal");
+        assert_eq!(serde_json::from_value::<Node>(v.clone()).unwrap(), n);
         assert_eq!(v["via"], serde_json::Value::Null);
         assert_eq!(v["truncated"], 0);
         assert_eq!(v["children"], serde_json::json!([]));
         assert_eq!(v["id"].as_str().unwrap().len(), 16);
         assert_eq!(n.count(), 1);
+    }
+
+    #[test]
+    fn kind_and_stop_cannot_disagree() {
+        let bad = r#"{"id":"x","kind":"stop","stop":null,"label":"","loc":{"file":"a","line":0,"col":0},
+                      "via":null,"snippet":"","children":[],"truncated":0}"#;
+        assert!(serde_json::from_str::<Node>(bad).is_err());
+        let bad = bad.replace(
+            r#""kind":"stop","stop":null"#,
+            r#""kind":"param","stop":{"reason":"literal","detail":""}"#,
+        );
+        assert!(serde_json::from_str::<Node>(&bad).is_err());
+        let good = bad.replace(
+            r#""stop":{"reason":"literal","detail":""}"#,
+            r#""stop":null"#,
+        );
+        let n: Node = serde_json::from_str(&good).unwrap();
+        assert_eq!(n.outcome.kind(), Some(&NodeKind::Param));
+        let v = serde_json::to_value(&n).unwrap();
+        assert_eq!(v["stop"], serde_json::Value::Null);
     }
 
     #[test]
@@ -210,11 +297,15 @@ mod tests {
     #[test]
     fn node_id_is_stable_and_path_sensitive() {
         let p = Path::new("/a.erl");
-        let a = node_id(0, p, 1, 2, &NodeKind::Param, 0);
-        assert_eq!(a, node_id(0, p, 1, 2, &NodeKind::Param, 0));
-        assert_ne!(a, node_id(1, p, 1, 2, &NodeKind::Param, 0));
-        assert_ne!(a, node_id(0, p, 1, 2, &NodeKind::Param, 1));
-        assert_ne!(a, node_id(0, p, 1, 2, &NodeKind::Binding, 0));
+        let (param, binding) = (
+            Node::construct(NodeKind::Param),
+            Node::construct(NodeKind::Binding),
+        );
+        let a = node_id(0, p, 1, 2, &param, 0);
+        assert_eq!(a, node_id(0, p, 1, 2, &param, 0));
+        assert_ne!(a, node_id(1, p, 1, 2, &param, 0));
+        assert_ne!(a, node_id(0, p, 1, 2, &param, 1));
+        assert_ne!(a, node_id(0, p, 1, 2, &binding, 0));
         assert_ne!(path_id(0, p, 1, 2), path_id(path_id(0, p, 1, 2), p, 1, 2));
     }
 }
