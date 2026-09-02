@@ -1,0 +1,18 @@
+{
+  "definition": {
+    "n.erl:5:4": [
+      { "file": "n.erl", "range": { "start": { "line": 4, "col": 4 }, "end": { "line": 4, "col": 5 } } }
+    ],
+    "n.erl:4:8": [
+      { "file": "n.erl", "range": { "start": { "line": 7, "col": 0 }, "end": { "line": 7, "col": 4 } } }
+    ],
+    "n.erl:7:22": [
+      { "file": "n.erl", "range": { "start": { "line": 7, "col": 5 }, "end": { "line": 7, "col": 6 } } }
+    ],
+    "n.erl:8:11": [
+      { "file": "n.erl", "range": { "start": { "line": 8, "col": 5 }, "end": { "line": 8, "col": 6 } } }
+    ]
+  },
+  "references": {},
+  "documentHighlight": {}
+}

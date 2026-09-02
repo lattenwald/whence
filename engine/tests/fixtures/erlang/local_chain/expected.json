@@ -7,7 +7,7 @@
             "children": [
               {
                 "children": [],
-                "id": "533a33d9dcf93662",
+                "id": "f44bf1016bee2cd0",
                 "kind": "stop",
                 "label": "X",
                 "loc": {
@@ -24,7 +24,7 @@
                 "via": null
               }
             ],
-            "id": "1e3076367a105846",
+            "id": "ec2f1a90d3cb941b",
             "kind": "param",
             "label": "X",
             "loc": {
@@ -38,7 +38,7 @@
             "via": "arg"
           }
         ],
-        "id": "71c9ab1ee5fe0330",
+        "id": "8562c1ef8da36e4c",
         "kind": "binding",
         "label": "Y",
         "loc": {
@@ -52,7 +52,7 @@
         "via": "match"
       }
     ],
-    "id": "73bb283c596e7207",
+    "id": "f71905781ce44925",
     "kind": "binding",
     "label": "Z",
     "loc": {

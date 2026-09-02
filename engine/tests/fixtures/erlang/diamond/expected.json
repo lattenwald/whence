@@ -1,0 +1,108 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "db9f3c11d80cab00",
+                "kind": "stop",
+                "label": "3",
+                "loc": {
+                  "col": 13,
+                  "file": "n.erl",
+                  "line": 4
+                },
+                "snippet": "R = pick(3),",
+                "stop": {
+                  "detail": "integer",
+                  "reason": "literal"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "895124ea884a28a8",
+            "kind": "param",
+            "label": "N",
+            "loc": {
+              "col": 5,
+              "file": "n.erl",
+              "line": 7
+            },
+            "snippet": "pick(N) when N > 5 -> N;",
+            "stop": null,
+            "truncated": 0,
+            "via": "arg"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "db9f3c11d80cab00",
+                "kind": "stop",
+                "label": "3",
+                "loc": {
+                  "col": 13,
+                  "file": "n.erl",
+                  "line": 4
+                },
+                "snippet": "R = pick(3),",
+                "stop": {
+                  "detail": "integer",
+                  "reason": "literal"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "cdeadf0313b6e7a4",
+            "kind": "param",
+            "label": "N",
+            "loc": {
+              "col": 5,
+              "file": "n.erl",
+              "line": 8
+            },
+            "snippet": "pick(N) -> N.",
+            "stop": null,
+            "truncated": 0,
+            "via": "arg"
+          }
+        ],
+        "id": "59120e38a3bd4c21",
+        "kind": "call_result",
+        "label": "pick",
+        "loc": {
+          "col": 8,
+          "file": "n.erl",
+          "line": 4
+        },
+        "snippet": "R = pick(3),",
+        "stop": null,
+        "truncated": 0,
+        "via": "return"
+      }
+    ],
+    "id": "007be1ac10b01360",
+    "kind": "binding",
+    "label": "R",
+    "loc": {
+      "col": 4,
+      "file": "n.erl",
+      "line": 4
+    },
+    "snippet": "R = pick(3),",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 5,
+    "ms": 0,
+    "nodes": 6,
+    "truncated": 0
+  }
+}

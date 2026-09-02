@@ -7,66 +7,66 @@
             "children": [
               {
                 "children": [],
-                "id": "f3821bf93920fc1a",
+                "id": "3613176140fcd5a8",
                 "kind": "stop",
-                "label": "7",
+                "label": "loop(S)",
                 "loc": {
                   "col": 11,
-                  "file": "d.erl",
-                  "line": 8
+                  "file": "r.erl",
+                  "line": 7
                 },
-                "snippet": "R = id(7),",
+                "snippet": "loop(S) -> loop(S).",
                 "stop": {
-                  "detail": "integer",
-                  "reason": "literal"
+                  "detail": "recursive call to loop/1",
+                  "reason": "unresolved"
                 },
                 "truncated": 0,
                 "via": null
               }
             ],
-            "id": "92fe3f66c37f60c6",
-            "kind": "param",
-            "label": "N",
+            "id": "9cb3831bb413ade3",
+            "kind": "call_result",
+            "label": "loop",
             "loc": {
-              "col": 3,
-              "file": "d.erl",
-              "line": 14
+              "col": 11,
+              "file": "r.erl",
+              "line": 7
             },
-            "snippet": "id(N) -> N.",
+            "snippet": "loop(S) -> loop(S).",
             "stop": null,
             "truncated": 0,
-            "via": "arg"
+            "via": "return"
           }
         ],
-        "id": "c58ca300ddc35db7",
+        "id": "5ded00a7663be410",
         "kind": "call_result",
-        "label": "id",
+        "label": "loop",
         "loc": {
           "col": 8,
-          "file": "d.erl",
-          "line": 8
+          "file": "r.erl",
+          "line": 4
         },
-        "snippet": "R = id(7),",
+        "snippet": "R = loop(7),",
         "stop": null,
         "truncated": 0,
         "via": "return"
       }
     ],
-    "id": "93f5b4182aaf45db",
+    "id": "2f536cafc48e87a2",
     "kind": "binding",
     "label": "R",
     "loc": {
       "col": 4,
-      "file": "d.erl",
-      "line": 8
+      "file": "r.erl",
+      "line": 4
     },
-    "snippet": "R = id(7),",
+    "snippet": "R = loop(7),",
     "stop": null,
     "truncated": 0,
     "via": "match"
   },
   "stats": {
-    "host_requests": 4,
+    "host_requests": 5,
     "ms": 0,
     "nodes": 4,
     "truncated": 0

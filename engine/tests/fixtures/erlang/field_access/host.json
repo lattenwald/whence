@@ -1,0 +1,9 @@
+{
+  "definition": {
+    "g.erl:8:4": [
+      { "file": "g.erl", "range": { "start": { "line": 7, "col": 4 }, "end": { "line": 7, "col": 5 } } }
+    ]
+  },
+  "references": {},
+  "documentHighlight": {}
+}

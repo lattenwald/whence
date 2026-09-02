@@ -148,8 +148,16 @@ call-result descent from expanding into every caller of every callee.
 - Defaults: `depth = 64`, `fanout = 8`, `nodes = 400`; overridable per
   request. Hitting a bound emits `stop: limit` (never a silent cut); dropped
   siblings are counted in the parent's `truncated`.
-- Cycle cut: visited set keyed on `(loc, hash(frame_stack))` →
-  `stop: unresolved: recursion`.
+- Cycle cut: an expression already on the current expansion path with the same
+  frame stack → `stop: unresolved: recursion`. Revisiting an expression on a
+  different path is allowed (diamonds are common: multi-clause callees, case
+  branches sharing a subject).
+- A call whose callee and argument expressions are already on the frame stack is
+  not entered again → `stop: unresolved: recursion`. Descending into the same
+  callee with *different* argument expressions is a genuine deeper call and
+  proceeds, bounded by `depth`.
+- Node ids and the frame hash are built from root-relative paths, so the same
+  workspace yields the same tree wherever it is checked out.
 - Wall-clock budget: 10 s default, then `stop: limit: time` on open branches
   and the partial tree is returned.
 

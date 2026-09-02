@@ -23,7 +23,11 @@ fn fixture(dir: &str) -> PathBuf {
 }
 
 fn run(c: &Case) -> serde_json::Value {
-    let dir = fixture(c.dir);
+    run_in(c, &fixture(c.dir))
+}
+
+fn run_in(c: &Case, dir: &Path) -> serde_json::Value {
+    let dir = dir.to_path_buf();
     let mut host = ReplayHost::load(&dir).unwrap();
     let reg = Registry::embedded().unwrap();
     let req = TraceRequest {
@@ -250,6 +254,98 @@ fn node_limit_stops() {
         v["root"]["children"][0]["children"][0]["stop"]["detail"],
         "nodes"
     );
+}
+
+#[test]
+fn a_diamond_is_not_recursion() {
+    let v = check(Case {
+        dir: "diamond",
+        file: "n.erl",
+        pos: (5, 4),
+        limits: Limits::default(),
+        expected: "expected.json",
+    });
+    // Both clauses of pick/1 return their parameter, so both reach the same argument.
+    let kids = v["root"]["children"][0]["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 2);
+    for k in kids {
+        assert_eq!(k["children"][0]["stop"]["reason"], "literal");
+        assert_eq!(k["children"][0]["label"], "3");
+    }
+    assert!(!serde_json::to_string(&v).unwrap().contains("recursion"));
+}
+
+#[test]
+fn self_recursive_call_is_cut() {
+    let v = check(Case {
+        dir: "recursion",
+        file: "r.erl",
+        pos: (5, 4),
+        limits: Limits::default(),
+        expected: "expected_loop.json",
+    });
+    let s = serde_json::to_string(&v).unwrap();
+    assert!(s.contains("recursive call to loop/1"), "{s}");
+    assert!(!s.contains("\"limit\""), "{s}");
+    assert!(v["stats"]["nodes"].as_u64().unwrap() < 10);
+}
+
+#[test]
+fn accumulator_recursion_keeps_the_base_case() {
+    let v = check(Case {
+        dir: "recursion",
+        file: "r.erl",
+        pos: (11, 4),
+        limits: Limits::default(),
+        expected: "expected_sum.json",
+    });
+    let call = &v["root"]["children"][0];
+    assert_eq!(call["label"], "sum");
+    let kids = call["children"].as_array().unwrap();
+    // The recursive clause is cut; the base clause resolves Acc to the call's argument.
+    assert_eq!(
+        kids[0]["children"][0]["stop"]["detail"],
+        "recursive call to sum/2"
+    );
+    assert_eq!(kids[1]["kind"], "param");
+    assert_eq!(kids[1]["children"][0]["stop"]["reason"], "literal");
+    assert!(!serde_json::to_string(&v).unwrap().contains("\"limit\""));
+}
+
+#[test]
+fn field_set_is_followed_to_the_construction() {
+    let v = check(Case {
+        dir: "field_access",
+        file: "g.erl",
+        pos: (8, 4),
+        limits: Limits::default(),
+        expected: "expected.json",
+    });
+    let field = &v["root"]["children"][0];
+    assert_eq!(field["kind"], "field");
+    assert_eq!(field["via"], "field_set");
+    let stop = &field["children"][0]["stop"];
+    assert_eq!(stop["reason"], "unresolved");
+    assert_eq!(stop["detail"], "field peer of Req0");
+}
+
+#[test]
+fn ids_do_not_depend_on_the_checkout_path() {
+    let case = Case {
+        dir: "call_result",
+        file: "d.erl",
+        pos: (5, 4),
+        limits: Limits::default(),
+        expected: "expected.json",
+    };
+    let tmp = tempfile::tempdir().unwrap();
+    let copy = tmp.path().join("elsewhere");
+    std::fs::create_dir(&copy).unwrap();
+    for f in std::fs::read_dir(fixture(case.dir)).unwrap() {
+        let f = f.unwrap().path();
+        std::fs::copy(&f, copy.join(f.file_name().unwrap())).unwrap();
+    }
+    pretty_assertions::assert_eq!(run_in(&case, &copy), run(&case));
 }
 
 #[test]

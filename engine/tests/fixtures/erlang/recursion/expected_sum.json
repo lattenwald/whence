@@ -1,0 +1,142 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "b95742732b63c2a9",
+                "kind": "stop",
+                "label": "sum(T, Acc + H)",
+                "loc": {
+                  "col": 21,
+                  "file": "r.erl",
+                  "line": 13
+                },
+                "snippet": "sum([H | T], Acc) -> sum(T, Acc + H);",
+                "stop": {
+                  "detail": "recursive call to sum/2",
+                  "reason": "unresolved"
+                },
+                "truncated": 0,
+                "via": null
+              },
+              {
+                "children": [
+                  {
+                    "children": [],
+                    "id": "2bb32394316e982c",
+                    "kind": "stop",
+                    "label": "Acc + H",
+                    "loc": {
+                      "col": 28,
+                      "file": "r.erl",
+                      "line": 13
+                    },
+                    "snippet": "sum([H | T], Acc) -> sum(T, Acc + H);",
+                    "stop": {
+                      "detail": "binary_op_expr",
+                      "reason": "unresolved"
+                    },
+                    "truncated": 0,
+                    "via": null
+                  }
+                ],
+                "id": "cd41da1e2c77eb9e",
+                "kind": "param",
+                "label": "Acc",
+                "loc": {
+                  "col": 8,
+                  "file": "r.erl",
+                  "line": 14
+                },
+                "snippet": "sum([], Acc) -> Acc.",
+                "stop": null,
+                "truncated": 0,
+                "via": "arg"
+              }
+            ],
+            "id": "4695957084fc7544",
+            "kind": "call_result",
+            "label": "sum",
+            "loc": {
+              "col": 21,
+              "file": "r.erl",
+              "line": 13
+            },
+            "snippet": "sum([H | T], Acc) -> sum(T, Acc + H);",
+            "stop": null,
+            "truncated": 0,
+            "via": "return"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "2af6ff60700d5974",
+                "kind": "stop",
+                "label": "0",
+                "loc": {
+                  "col": 20,
+                  "file": "r.erl",
+                  "line": 10
+                },
+                "snippet": "S = sum([1, 2], 0),",
+                "stop": {
+                  "detail": "integer",
+                  "reason": "literal"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "61028c93752d467c",
+            "kind": "param",
+            "label": "Acc",
+            "loc": {
+              "col": 8,
+              "file": "r.erl",
+              "line": 14
+            },
+            "snippet": "sum([], Acc) -> Acc.",
+            "stop": null,
+            "truncated": 0,
+            "via": "arg"
+          }
+        ],
+        "id": "cb65633e1be457e5",
+        "kind": "call_result",
+        "label": "sum",
+        "loc": {
+          "col": 8,
+          "file": "r.erl",
+          "line": 10
+        },
+        "snippet": "S = sum([1, 2], 0),",
+        "stop": null,
+        "truncated": 0,
+        "via": "return"
+      }
+    ],
+    "id": "e481681331d6a4b3",
+    "kind": "binding",
+    "label": "S",
+    "loc": {
+      "col": 4,
+      "file": "r.erl",
+      "line": 10
+    },
+    "snippet": "S = sum([1, 2], 0),",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 7,
+    "ms": 0,
+    "nodes": 8,
+    "truncated": 0
+  }
+}

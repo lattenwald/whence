@@ -101,9 +101,21 @@ impl Node {
         reason: StopReason,
         detail: impl Into<String>,
     ) -> Node {
+        Node::stop_rel(&loc.file.clone(), loc, label, snippet, reason, detail)
+    }
+
+    /// `id_path`: the root-relative path, so ids do not depend on the checkout location.
+    pub fn stop_rel(
+        id_path: &Path,
+        loc: Loc,
+        label: &str,
+        snippet: &str,
+        reason: StopReason,
+        detail: impl Into<String>,
+    ) -> Node {
         let kind = NodeKind::Stop;
         Node {
-            id: node_id(&loc.file, loc.line, loc.col, &kind, 0),
+            id: node_id(id_path, loc.line, loc.col, &kind, 0),
             kind,
             label: label.to_string(),
             loc,
@@ -139,7 +151,7 @@ mod tests {
     fn serializes_to_spec_shape() {
         let n = Node::stop(
             Loc {
-                file: "/a.erl".into(),
+                file: "/root/a.erl".into(),
                 line: 1,
                 col: 2,
             },
@@ -162,6 +174,26 @@ mod tests {
     fn limits_default_and_partial_override() {
         let l: Limits = serde_json::from_str(r#"{"fanout":3}"#).unwrap();
         assert_eq!((l.depth, l.fanout, l.nodes), (64, 3, 400));
+    }
+
+    #[test]
+    fn stop_id_ignores_the_absolute_location() {
+        let stop = |dir: &str| {
+            Node::stop_rel(
+                Path::new("a.erl"),
+                Loc {
+                    file: format!("{dir}/a.erl").into(),
+                    line: 1,
+                    col: 2,
+                },
+                "X",
+                "X = 1",
+                StopReason::Literal,
+                "integer",
+            )
+            .id
+        };
+        assert_eq!(stop("/home/one"), stop("/build/two"));
     }
 
     #[test]

@@ -43,4 +43,16 @@ Each entry: which task, what the plan said, what was done instead, why. Entries 
 - Enumerating a file's function clauses and locating a clause's `@function.name` are done by walking the tree and testing `has_cap`; `Doc` exposes neither. Both are vocabulary-only and belong in `syntax.rs` if a second caller appears.
 - A reference outside the language registry (a hit in a file with no grammar) is skipped rather than failing the trace.
 - `stats.host_requests` counts `host/text` alongside `definition`/`references`: it is the count of requests the editor answered.
+- Review round 1 (three rulings, spec §5.4 updated in the same commit):
+  node ids, `func_id` and the frame hash are built from root-relative paths
+  (`Node::stop_rel` takes the id path; `Node::stop` keeps its signature for other callers),
+  so a trace is identical at any checkout path;
+  the cycle set holds only the *current expansion path* (`(file, Span, frame hash)`,
+  inserted on entry and removed on return) so diamonds — two clauses returning the same
+  parameter, two case branches sharing a subject — are expanded rather than falsely called
+  recursion;
+  a call whose `func_id` *and* argument spans already sit on the frame stack is not entered
+  again (`unresolved: recursive call to <name>/<arity>`), which is what actually terminates
+  `loop(S) -> loop(S).` and accumulator recursion — the frame hash grows with every push, so
+  the path cut alone never fired for them.
 - Not implemented, deliberately: the `documentHighlight` rebinding pass of §5.2. Erlang is single-assignment, so it would emit nothing; `Via::Rebind`/`Mutation` wait for M2.

@@ -18,12 +18,14 @@ pub enum Expr {
 
 struct Site {
     loc: Loc,
+    /// Root-relative; only this reaches node ids.
+    rel: PathBuf,
     label: String,
     snippet: String,
 }
 
 impl Site {
-    fn new(doc: &Doc, file: &Path, n: N) -> Site {
+    fn new(ctx: &Ctx, doc: &Doc, file: &Path, n: N) -> Site {
         let p = doc.pos_of(n);
         Site {
             loc: Loc {
@@ -31,6 +33,7 @@ impl Site {
                 line: p.line,
                 col: p.col,
             },
+            rel: ctx.rel(file).to_path_buf(),
             label: label_of(doc, n),
             snippet: doc.line_of(n).to_string(),
         }
@@ -66,7 +69,7 @@ fn make(
     truncated: u32,
 ) -> Node {
     let id = node_id(
-        &site.loc.file,
+        &site.rel,
         site.loc.line,
         site.loc.col,
         &kind,
@@ -86,7 +89,14 @@ fn make(
 }
 
 fn stop(site: &Site, reason: StopReason, detail: impl Into<String>) -> Node {
-    Node::stop(site.loc.clone(), &site.label, &site.snippet, reason, detail)
+    Node::stop_rel(
+        &site.rel,
+        site.loc.clone(),
+        &site.label,
+        &site.snippet,
+        reason,
+        detail,
+    )
 }
 
 fn unresolved(site: &Site, detail: impl Into<String>) -> Node {
@@ -107,26 +117,24 @@ pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
         Expr::Value(_, s) => node_at(&doc, *s),
     };
     let Some(node) = node else {
-        let loc = Loc {
-            file: file.clone(),
-            line: match e {
-                Expr::Ident(_, p) => p.line,
-                Expr::Value(..) => 0,
-            },
-            col: match e {
-                Expr::Ident(_, p) => p.col,
-                Expr::Value(..) => 0,
-            },
+        let p = match e {
+            Expr::Ident(_, p) => *p,
+            Expr::Value(_, s) => pos::pos_of(&doc.text, s.start),
         };
         let site = Site {
-            loc,
+            loc: Loc {
+                file: file.clone(),
+                line: p.line,
+                col: p.col,
+            },
+            rel: ctx.rel(&file).to_path_buf(),
             label: String::new(),
             snippet: String::new(),
         };
         return Ok(unresolved(&site, "expression not found in the source"));
     };
     let is_ident = doc.has_cap(node, vocab::IDENT);
-    let site = Site::new(&doc, &file, node);
+    let site = Site::new(ctx, &doc, &file, node);
 
     if depth >= ctx.limits.depth {
         return Ok(stop(&site, StopReason::Limit, "depth"));
@@ -137,18 +145,19 @@ pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
     if Instant::now() > ctx.deadline {
         return Ok(stop(&site, StopReason::Limit, "time"));
     }
-    if !ctx
-        .visited
-        .insert((file.clone(), site.pos(), ctx.frame_hash()))
-    {
+    let path_key = (file.clone(), Span::of(node), ctx.frame_hash());
+    if !ctx.visited.insert(path_key.clone()) {
         return Ok(unresolved(&site, "recursion"));
     }
 
-    if is_ident {
+    let out = if is_ident {
         ident(ctx, &file, &site, depth)
     } else {
         value(ctx, &doc, &file, node, &site, depth)
-    }
+    };
+    // Leaving the path: a later branch may reach this expression again legitimately.
+    ctx.visited.remove(&path_key);
+    out
 }
 
 fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, TraceError> {
@@ -164,7 +173,7 @@ fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, Tr
     let Some(ident) = doc.ident_at(def.range.start) else {
         return Ok(unresolved(site, "definition is not an identifier"));
     };
-    let dsite = Site::new(&doc, &def.file, ident);
+    let dsite = Site::new(ctx, &doc, &def.file, ident);
 
     match doc.role_of(ident) {
         Role::BoundBy { pattern, value } => {
@@ -212,17 +221,25 @@ fn param(
     site: &Site,
     depth: u32,
 ) -> Result<Node, TraceError> {
-    let func_id = format!("{}:{}/{}", file.display(), func.name, func.params.len());
+    let func_id = format!(
+        "{}:{}/{}",
+        ctx.rel(file).display(),
+        func.name,
+        func.params.len()
+    );
 
     if let Some(frame) = ctx.frames.pop_if(|f| f.func_id == func_id) {
         let arg = frame.args.get(index).cloned();
         // The argument is the caller's expression: expand it in the caller's frame.
         let child = match arg {
             Some((f, s)) => expand(ctx, &Expr::Value(f, s), depth + 1),
-            None => Ok(unresolved(
-                site,
-                format!("call site has no argument {index}"),
-            )),
+            None => {
+                ctx.node_count += 1;
+                Ok(unresolved(
+                    site,
+                    format!("frame has no argument {index} for {func_id}"),
+                ))
+            }
         };
         ctx.frames.push(frame);
         return Ok(make(ctx, NodeKind::Param, site, Via::Arg, vec![child?], 0));
@@ -379,6 +396,18 @@ fn call_result(
         ));
     };
     let arity = decl.params.len();
+    let func_id = format!("{}:{}/{}", ctx.rel(&def.file).display(), decl.name, arity);
+    if ctx
+        .frames
+        .iter()
+        .any(|f| f.func_id == func_id && f.args == args)
+    {
+        return Ok(unresolved(
+            site,
+            format!("recursive call to {}/{arity}", decl.name),
+        ));
+    }
+
     let mut returns: Vec<Span> = functions(&doc)
         .iter()
         .filter(|c| c.name == decl.name && c.params.len() == arity)
@@ -388,10 +417,7 @@ fn call_result(
     returns.sort_by_key(|s| s.start);
     let dropped = fanout(ctx, &mut returns);
 
-    ctx.frames.push(Frame {
-        func_id: format!("{}:{}/{}", def.file.display(), decl.name, arity),
-        args,
-    });
+    ctx.frames.push(Frame { func_id, args });
     let mut children = Vec::new();
     let mut failure = None;
     for s in returns {
@@ -410,6 +436,7 @@ fn call_result(
 
     let site = Site {
         loc: site.loc.clone(),
+        rel: site.rel.clone(),
         label: callee.to_string(),
         snippet: site.snippet.clone(),
     };

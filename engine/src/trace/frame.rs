@@ -7,7 +7,6 @@ use std::time::{Duration, Instant};
 
 use crate::host::Host;
 use crate::lang::Registry;
-use crate::pos::Pos;
 use crate::syntax::{Doc, N};
 use crate::trace::TraceError;
 use crate::tree::Limits;
@@ -57,7 +56,8 @@ pub struct Ctx<'a> {
     pub root: &'a Path,
     pub docs: HashMap<PathBuf, Rc<Doc<'a>>>,
     pub frames: Vec<Frame>,
-    pub visited: HashSet<(PathBuf, Pos, u64)>,
+    /// The expressions on the *current* expansion path, not everything seen (spec §5.4).
+    pub visited: HashSet<(PathBuf, Span, u64)>,
     pub limits: Limits,
     pub deadline: Instant,
     pub node_count: u32,
@@ -105,11 +105,16 @@ impl<'a> Ctx<'a> {
         for f in &self.frames {
             f.func_id.hash(&mut h);
             for (file, span) in &f.args {
-                file.hash(&mut h);
+                self.rel(file).hash(&mut h);
                 span.start.hash(&mut h);
             }
         }
         h.finish()
+    }
+
+    /// Ids and hashes use this, so the same workspace traces alike at any checkout path.
+    pub fn rel<'p>(&self, file: &'p Path) -> &'p Path {
+        file.strip_prefix(self.root).unwrap_or(file)
     }
 
     pub fn in_root(&self, file: &Path) -> bool {

@@ -1,0 +1,27 @@
+{
+  "definition": {
+    "r.erl:5:4": [
+      { "file": "r.erl", "range": { "start": { "line": 4, "col": 4 }, "end": { "line": 4, "col": 5 } } }
+    ],
+    "r.erl:4:8": [
+      { "file": "r.erl", "range": { "start": { "line": 7, "col": 0 }, "end": { "line": 7, "col": 4 } } }
+    ],
+    "r.erl:7:11": [
+      { "file": "r.erl", "range": { "start": { "line": 7, "col": 0 }, "end": { "line": 7, "col": 4 } } }
+    ],
+    "r.erl:11:4": [
+      { "file": "r.erl", "range": { "start": { "line": 10, "col": 4 }, "end": { "line": 10, "col": 5 } } }
+    ],
+    "r.erl:10:8": [
+      { "file": "r.erl", "range": { "start": { "line": 13, "col": 0 }, "end": { "line": 13, "col": 3 } } }
+    ],
+    "r.erl:13:21": [
+      { "file": "r.erl", "range": { "start": { "line": 13, "col": 0 }, "end": { "line": 13, "col": 3 } } }
+    ],
+    "r.erl:14:16": [
+      { "file": "r.erl", "range": { "start": { "line": 14, "col": 8 }, "end": { "line": 14, "col": 11 } } }
+    ]
+  },
+  "references": {},
+  "documentHighlight": {}
+}

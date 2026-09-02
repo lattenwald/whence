@@ -1,0 +1,58 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "34d2832ed76db9a0",
+            "kind": "stop",
+            "label": "Req0#req.peer",
+            "loc": {
+              "col": 20,
+              "file": "g.erl",
+              "line": 6
+            },
+            "snippet": "R = #req{peer = Req0#req.peer},",
+            "stop": {
+              "detail": "field peer of Req0",
+              "reason": "unresolved"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "173f9fd4f0a3bfad",
+        "kind": "field",
+        "label": "R#req.peer",
+        "loc": {
+          "col": 8,
+          "file": "g.erl",
+          "line": 7
+        },
+        "snippet": "P = R#req.peer,",
+        "stop": null,
+        "truncated": 0,
+        "via": "field_set"
+      }
+    ],
+    "id": "f75976ac1ae43e35",
+    "kind": "binding",
+    "label": "P",
+    "loc": {
+      "col": 4,
+      "file": "g.erl",
+      "line": 7
+    },
+    "snippet": "P = R#req.peer,",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 2,
+    "ms": 0,
+    "nodes": 3,
+    "truncated": 0
+  }
+}
