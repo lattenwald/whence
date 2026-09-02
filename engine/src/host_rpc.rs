@@ -20,13 +20,28 @@ pub struct RpcHost<'a, W: Write> {
 
 impl<'a, W: Write> RpcHost<'a, W> {
     pub fn new(writer: W, inbox: &'a mut Receiver<Message>, supports_highlight: bool) -> Self {
+        Self::resume(writer, inbox, supports_highlight, 1)
+    }
+
+    /// Continues an earlier host's id sequence, so a late response to a previous
+    /// trace is never mistaken for a reply to this one.
+    pub fn resume(
+        writer: W,
+        inbox: &'a mut Receiver<Message>,
+        supports_highlight: bool,
+        next_id: i64,
+    ) -> Self {
         Self {
             writer,
             inbox,
             supports_highlight,
-            next_id: 1,
+            next_id,
             count: 0,
         }
+    }
+
+    pub fn next_id(&self) -> i64 {
+        self.next_id
     }
 
     fn call<T: DeserializeOwned>(&mut self, method: &str, params: Value) -> Result<T, HostError> {

@@ -18,7 +18,7 @@ language-agnostic Rust engine driven by the editor.
 | Question | Decision | Why |
 |---|---|---|
 | Who answers definition/references? | The editor's already-running language servers, via the host plugin. The engine never spawns servers. | Both target editors (Neovim, VS Code) can answer these; avoids duplicate servers, cold indexing and per-project LSP config. |
-| Standalone CLI? | Dropped as a product. `whence --replay <fixture>` remains for tests and debugging only. | All users are in Neovim or VS Code. |
+| Standalone CLI? | Dropped as a product. `whence replay <fixture>` remains for tests and debugging only. | All users are in Neovim or VS Code. |
 | Engine language | Rust, single static binary. | tree-sitter bindings, distribution as one file. |
 | Interaction model | One-shot bounded tree per invocation (depth generous, fan-out bounded). Lazy expansion later. | Matches INTENT; node IDs kept stable so expansion can be added. |
 | Boundary rules in v1 | literal, external (outside root), entry point (no callers), unresolved. Curated "input source" lists later. | Mechanical rules first; the curated list is data added later. |
@@ -65,10 +65,13 @@ initialize      { root: string, capabilities: { documentHighlight: bool } }
 whence/trace    { file, line, col, limits?: { depth?, fanout?, nodes? } }
                 → Tree | error
 shutdown        {} → {}
+exit            (notification) ends the loop; so does EOF on stdin
 ```
 
 `whence/trace` errors (JSON-RPC error, not a tree): no language for file,
-cursor not on an identifier, host request failed.
+cursor not on an identifier, host request failed. `whence/trace` before
+`initialize` is an invalid request. Traces are single-flight: a request that
+arrives while one is running is answered "busy".
 
 ### Engine → host (only during a trace)
 
@@ -239,13 +242,14 @@ logic. Detailed UX deferred to M3.
 - **Trace tests** with a **replay host**: a fixture is a directory of source
   files plus `host.json` mapping each `host/*` request (method + params) to
   its recorded answer; the test runs `whence/trace` and diffs against a
-  golden tree. Unmatched requests fail the test. `whence --replay <dir>
-  file:line:col [--json]` runs the same from a terminal for debugging.
+  golden tree. Unmatched requests fail the test. `whence replay <dir>
+  file:line:col [--json] [--fanout N] [--depth N]` runs the same from a
+  terminal for debugging (`line:col` are 1-based there, unlike the protocol).
 - Fixtures are seeded from real sessions with `:WhenceRecord`, so goldens
   reflect actual `erlang_ls` / `rust-analyzer` / `gopls` behavior.
 - **Protocol tests**: framing, error paths, host returning empty/error.
 - **Neovim plugin**: plenary smoke tests using the replay engine
-  (`whence --serve-replay <dir>`), checking panel content and jump targets.
+  (`whence replay --serve <dir>`), checking panel content and jump targets.
 - **Bounds**: synthetic fixtures for fan-out, depth, recursion, and time
   budget each produce the expected `stop: limit` shape.
 
