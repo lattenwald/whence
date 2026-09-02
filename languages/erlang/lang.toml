@@ -2,7 +2,6 @@ name = "erlang"
 extensions = ["erl", "hrl"]
 
 [quirks]
-returns = "tail"
 multi_assign = false
 single_assignment = true
 mutable_ref_markers = []

@@ -1,7 +1,7 @@
 //! Structural questions over a parsed document, answered only through the
 //! capture vocabulary in [`crate::lang::vocab`]: no grammar names live here.
 
-use crate::lang::{Language, Returns, vocab};
+use crate::lang::{Language, vocab};
 use crate::pos::{Lines, Pos};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -402,25 +402,29 @@ impl<'l> Doc<'l> {
     }
 
     pub fn returns_of(&self, f: &FnDecl) -> Vec<N<'_>> {
-        if self.lang.quirks.returns != Returns::Tail {
-            warn_returns_unsupported(self.lang.name, self.lang.quirks.returns);
-        }
-        let mut cursor = f.body.0.walk();
-        let Some(last) = f
-            .body
-            .0
-            .named_children(&mut cursor)
-            .filter(|c| !c.is_extra())
-            .last()
-        else {
-            return Vec::new();
-        };
-        let Some(last) = self.node(Span::of(N(last))) else {
-            return Vec::new();
-        };
         let mut out = Vec::new();
-        self.expand_return(last, &mut out);
+        for root in self.caps_within(vocab::RETURN, f.body.0.start_byte(), f.body.0.end_byte()) {
+            if self.owning_function(root).map(|o| o.0.id()) == Some(f.node.0.id()) {
+                self.expand_return(root, &mut out);
+            }
+        }
+        out.sort_by_key(|n| (n.0.start_byte(), n.0.end_byte()));
+        out.dedup_by_key(|n| Span::of(*n));
         out
+    }
+
+    fn owning_function<'a>(&'a self, n: N<'a>) -> Option<N<'a>> {
+        let mut cur = n.0.parent();
+        while let Some(c) = cur {
+            if self.has_cap(N(c), vocab::FUNCTION) {
+                return Some(N(c));
+            }
+            if self.has_cap(N(c), vocab::OPAQUE) {
+                return None;
+            }
+            cur = c.parent();
+        }
+        None
     }
 
     /// Every branch tail of a `@return.container`, nested containers expanded in turn.
@@ -588,15 +592,4 @@ fn index_of_child_containing(parent: tree_sitter::Node, inner: tree_sitter::Node
     parent
         .named_children(&mut cursor)
         .position(|c| contains(c, inner))
-}
-
-fn warn_returns_unsupported(lang: &str, returns: Returns) {
-    use std::sync::Once;
-    static ONCE: Once = Once::new();
-    ONCE.call_once(|| {
-        log::warn!(
-            "{lang}: quirks.returns = {returns:?} is not implemented (M2); \
-             falling back to tail-expression returns"
-        );
-    });
 }

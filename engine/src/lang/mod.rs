@@ -8,32 +8,12 @@ use anyhow::{Context, anyhow};
 use serde::Deserialize;
 use std::path::Path;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Returns {
-    Tail,
-    Return,
-    Both,
-}
-
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct Quirks {
-    pub returns: Returns,
     pub multi_assign: bool,
     pub single_assignment: bool,
     pub mutable_ref_markers: Vec<String>,
-}
-
-impl Default for Quirks {
-    fn default() -> Self {
-        Self {
-            returns: Returns::Return,
-            multi_assign: false,
-            single_assignment: false,
-            mutable_ref_markers: Vec::new(),
-        }
-    }
 }
 
 #[derive(Deserialize)]

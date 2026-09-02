@@ -13,6 +13,8 @@ pub const FUNCTION_NAME: &str = "function.name";
 pub const FUNCTION_PARAMS: &str = "function.params";
 pub const FUNCTION_BODY: &str = "function.body";
 
+/// Where a value leaves the function: a body tail, a `return` operand.
+pub const RETURN: &str = "return";
 pub const RETURN_VALUE: &str = "return.value";
 pub const RETURN_CONTAINER: &str = "return.container";
 pub const LITERAL: &str = "literal";
@@ -53,6 +55,7 @@ pub fn required() -> &'static [&'static str] {
         FUNCTION_NAME,
         FUNCTION_PARAMS,
         FUNCTION_BODY,
+        RETURN,
         RETURN_VALUE,
         LITERAL,
         IDENT,

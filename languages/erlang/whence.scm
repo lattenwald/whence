@@ -14,6 +14,7 @@
   args: (expr_args) @function.params
   body: (clause_body) @function.body) @function
 
+(function_clause body: (clause_body (_) @return .))
 (clause_body (_) @return.value .)
 (block_expr (_) @return.value .)
 (paren_expr expr: (_) @return.value)

@@ -198,7 +198,7 @@ Vocabulary (v1; expected to grow in M2):
 @binding  @binding.pattern  @binding.value
 @call     @call.callee      @call.args
 @function @function.name    @function.params  @function.body
-@return.value
+@return   @return.value     @return.container
 @literal
 @field    @field.container  @field.name
 @construct  @construct.field.name  @construct.field.value
@@ -209,11 +209,18 @@ of `@call.args`; argument index is position among them; parameters likewise
 from `@function.params`; callee identifier position is the end of
 `@call.callee`.
 
-`lang.toml` quirks the engine understands: `returns = "tail" | "return" |
-"both"`, `multi_assign = true|false`, `mutable_ref_markers = ["&mut"]`,
-`single_assignment = true|false`. A construct that cannot be expressed by
-queries plus these flags is a reason to extend the vocabulary, not to add
-language-specific code.
+Returns are data, not a flag: `@return` marks every place a value leaves a
+function (a body tail, a `return` operand), and `@return.container` /
+`@return.value` let the engine descend from there to branch tails. A tail
+language marks its body tails, a statement language its `return` operands,
+a language with both marks both; the engine only ever asks "which `@return`
+nodes does this function own" (a nested `@opaque` or `@function` owns its
+own).
+
+`lang.toml` quirks the engine understands: `multi_assign = true|false`,
+`mutable_ref_markers = ["&mut"]`, `single_assignment = true|false`. A
+construct that cannot be expressed by queries plus these flags is a reason
+to extend the vocabulary, not to add language-specific code.
 
 nvim-treesitter-textobjects already ships `@assignment.lhs/rhs`,
 `@call.inner/outer`, `@parameter.inner`, `@return.inner` for all three
