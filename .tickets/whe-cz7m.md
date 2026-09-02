@@ -1,6 +1,6 @@
 ---
 id: whe-cz7m
-status: in_progress
+status: closed
 deps: [whe-h824]
 links: []
 created: 2026-09-02T07:00:24Z
