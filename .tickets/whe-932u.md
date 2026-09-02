@@ -1,6 +1,6 @@
 ---
 id: whe-932u
-status: in_progress
+status: closed
 deps: [whe-u1at]
 links: []
 created: 2026-09-02T07:00:24Z

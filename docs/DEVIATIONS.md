@@ -56,3 +56,8 @@ Each entry: which task, what the plan said, what was done instead, why. Entries 
   `loop(S) -> loop(S).` and accumulator recursion — the frame hash grows with every push, so
   the path cut alone never fired for them.
 - Not implemented, deliberately: the `documentHighlight` rebinding pass of §5.2. Erlang is single-assignment, so it would emit nothing; `Via::Rebind`/`Mutation` wait for M2.
+
+## Task 10 — Neovim engine and host
+
+- Plan: host errors (timeout, failure) are reported as JSON-RPC error `-32000`. Done: `-32603` (InternalError). `vim.lsp.rpc`'s `server_request` path asserts the error code is a member of `vim.lsp.protocol.ErrorCodes`; with `-32000` the assertion fires inside the scheduled coroutine and no response is ever sent, so the engine blocks forever on that request. The engine only uses the message text, so `HostError::Rpc` is unaffected.
+- Tests: LSP-backed paths of `host.lua` (encoding conversion, LocationLink flattening, multi-client merge) are not covered headlessly (no live server); `host/text`, the no-client case and dispatch are. Covered by the live dogfood in the M1 exit check instead.
