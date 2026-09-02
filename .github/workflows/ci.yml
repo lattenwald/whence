@@ -10,7 +10,7 @@ jobs:
     name: engine
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.98
         with:
           components: rustfmt, clippy
@@ -23,7 +23,7 @@ jobs:
     name: neovim plugin
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.98
       - uses: Swatinem/rust-cache@v2
       - uses: rhysd/action-setup-vim@v1
