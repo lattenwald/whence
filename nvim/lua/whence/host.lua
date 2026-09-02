@@ -7,9 +7,12 @@ local INTERNAL_ERROR = -32603
 local HIGHLIGHT_KIND = { "text", "read", "write" }
 
 function M.bufnr_for(file)
+  local fresh = vim.fn.bufexists(file) == 0
   local b = vim.fn.bufadd(file)
   vim.fn.bufload(b)
-  vim.bo[b].buflisted = false
+  if fresh then
+    vim.bo[b].buflisted = false
+  end
   vim.wait(2000, function()
     return #vim.lsp.get_clients({ bufnr = b }) > 0
   end)
@@ -20,7 +23,7 @@ local function line_of(bufnr, line)
   return vim.api.nvim_buf_get_lines(bufnr, line, line + 1, false)[1] or ""
 end
 
-local function from_utf16(text, col, encoding)
+function M._from_utf16(text, col, encoding)
   if encoding == "utf-16" then
     return col
   end
@@ -35,10 +38,11 @@ local function from_utf16(text, col, encoding)
   return ok2 and idx or col
 end
 
-local function to_utf16(text, col, encoding)
+function M._to_utf16(text, col, encoding)
   if encoding == "utf-16" then
     return col
   end
+  -- A utf-8 column already is the byte index; other encodings need the lookup.
   local byte = col
   if encoding ~= "utf-8" then
     local ok, b = pcall(vim.str_byteindex, text, encoding, col)
@@ -51,30 +55,63 @@ local function to_utf16(text, col, encoding)
   return ok and idx or col
 end
 
--- Re-encoding a result needs the text of the file it names, but not its LSP client.
-local function text_line(uri, line)
-  local b = vim.uri_to_bufnr(uri)
+local function buffer_line(file, line)
+  local b = vim.uri_to_bufnr(vim.uri_from_fname(file))
   if not vim.api.nvim_buf_is_loaded(b) then
     vim.fn.bufload(b)
   end
   return line_of(b, line)
 end
 
-local function range_to_utf16(uri, range, encoding)
+local function range_to_utf16(range, encoding, line_at)
   local function pos(p)
-    return { line = p.line, col = to_utf16(text_line(uri, p.line), p.character, encoding) }
+    local col = encoding == "utf-16" and p.character or M._to_utf16(line_at(p.line), p.character, encoding)
+    return { line = p.line, col = col }
   end
   return { start = pos(range.start), ["end"] = pos(range["end"]) }
 end
 
-local function range_key(uri, range)
+local function range_key(file, range)
   return table.concat({
-    uri,
+    file,
     range.start.line,
-    range.start.character,
+    range.start.col,
     range["end"].line,
-    range["end"].character,
+    range["end"].col,
   }, ":")
+end
+
+local function items_of(result)
+  if not result then
+    return {}
+  end
+  if result.uri or result.targetUri then
+    return { result }
+  end
+  return result
+end
+
+function M._locations_from(per_client, line_at)
+  line_at = line_at or buffer_line
+  local out, seen = {}, {}
+  for _, entry in ipairs(per_client) do
+    for _, item in ipairs(items_of(entry.result)) do
+      local uri = item.targetUri or item.uri
+      local range = item.targetUri and (item.targetSelectionRange or item.targetRange) or item.range
+      if uri and range then
+        local file = vim.uri_to_fname(uri)
+        local converted = range_to_utf16(range, entry.encoding, function(line)
+          return line_at(file, line)
+        end)
+        local key = range_key(file, converted)
+        if not seen[key] then
+          seen[key] = true
+          out[#out + 1] = { file = file, range = converted }
+        end
+      end
+    end
+  end
+  return out
 end
 
 local function request(lsp_method, params, extra)
@@ -88,7 +125,7 @@ local function request(lsp_method, params, extra)
   local results, err = vim.lsp.buf_request_sync(bufnr, lsp_method, function(client)
     return vim.tbl_extend("error", {
       textDocument = { uri = uri },
-      position = { line = params.line, character = from_utf16(text, params.col, client.offset_encoding) },
+      position = { line = params.line, character = M._from_utf16(text, params.col, client.offset_encoding) },
     }, extra or {})
   end, TIMEOUT)
   if not results then
@@ -97,49 +134,44 @@ local function request(lsp_method, params, extra)
   return results, uri
 end
 
-local function encoding_of(client_id)
-  local client = vim.lsp.get_client_by_id(client_id)
-  return client and client.offset_encoding or "utf-16"
-end
-
-local function check(r)
-  if r.err then
-    error(r.err.message or vim.inspect(r.err))
-  end
-  return r.result
-end
-
-local function locations(lsp_method, params, extra)
-  local results = request(lsp_method, params, extra)
-  local out, seen = {}, {}
+-- A failing client is dropped while another answers; only an all-client failure aborts the trace (spec §4).
+local function answers(results)
+  local out, failed = {}, {}
   for client_id, r in pairs(results or {}) do
-    local result = check(r)
-    local encoding = encoding_of(client_id)
-    local items = (result and result.uri) and { result } or result or {}
-    for _, item in ipairs(items) do
-      local uri = item.targetUri or item.uri
-      local range = item.targetUri and (item.targetSelectionRange or item.targetRange) or item.range
-      if uri and range and not seen[range_key(uri, range)] then
-        seen[range_key(uri, range)] = true
-        out[#out + 1] = { file = vim.uri_to_fname(uri), range = range_to_utf16(uri, range, encoding) }
-      end
+    local client = vim.lsp.get_client_by_id(client_id)
+    if r.err then
+      local name = client and client.name or ("client " .. client_id)
+      failed[#failed + 1] = name .. ": " .. (r.err.message or vim.inspect(r.err))
+    else
+      out[#out + 1] = { result = r.result, encoding = client and client.offset_encoding or "utf-16" }
     end
+  end
+  if #failed > 0 then
+    if #out == 0 then
+      error(table.concat(failed, "; "))
+    end
+    vim.notify("whence: " .. table.concat(failed, "; "), vim.log.levels.WARN)
   end
   return out
 end
 
+local function locations(lsp_method, params, extra)
+  return M._locations_from(answers(request(lsp_method, params, extra)))
+end
+
 local function highlights(params)
   local results, uri = request("textDocument/documentHighlight", params)
+  local file = vim.uri_to_fname(uri)
   local out, seen = {}, {}
-  for client_id, r in pairs(results or {}) do
-    local encoding = encoding_of(client_id)
-    for _, item in ipairs(check(r) or {}) do
-      if not seen[range_key(uri, item.range)] then
-        seen[range_key(uri, item.range)] = true
-        out[#out + 1] = {
-          range = range_to_utf16(uri, item.range, encoding),
-          kind = HIGHLIGHT_KIND[item.kind] or "text",
-        }
+  for _, entry in ipairs(answers(results)) do
+    for _, item in ipairs(entry.result or {}) do
+      local range = range_to_utf16(item.range, entry.encoding, function(line)
+        return buffer_line(file, line)
+      end)
+      local key = range_key(file, range)
+      if not seen[key] then
+        seen[key] = true
+        out[#out + 1] = { range = range, kind = HIGHLIGHT_KIND[item.kind] or "text" }
       end
     end
   end

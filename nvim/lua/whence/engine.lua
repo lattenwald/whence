@@ -3,6 +3,7 @@ local M = {}
 -- Neovim asserts server_request error codes are in vim.lsp.protocol.ErrorCodes,
 -- which excludes the engine's own -32000 (E_HOST); only the message reaches it.
 local INTERNAL_ERROR = -32603
+local E_HOST = -32000
 
 local function host_dispatcher(handler)
   return function(method, params)
@@ -17,23 +18,47 @@ local function host_dispatcher(handler)
   end
 end
 
+-- vim.lsp.rpc drops pending callbacks when the process dies, so they are failed here.
+local function fail_pending(state, code)
+  local pending = state.pending
+  state.pending = {}
+  if not next(pending) and code == 0 then
+    return
+  end
+  vim.schedule(function()
+    vim.notify("whence: engine exited " .. tostring(code), vim.log.levels.ERROR)
+    for _, cb in pairs(pending) do
+      cb({ code = E_HOST, message = "engine exited" }, nil)
+    end
+  end)
+end
+
 function M.start(opts)
   local handler = opts.handle or require("whence.host").handle
-  local ok, client = pcall(vim.lsp.rpc.start, opts.cmd, {
+  local state = { pending = {} }
+  local ok, rpc = pcall(vim.lsp.rpc.start, opts.cmd, {
     server_request = host_dispatcher(handler),
     notification = function() end,
     on_error = function(code, err)
       vim.notify("whence: rpc error " .. tostring(code) .. " " .. vim.inspect(err), vim.log.levels.ERROR)
     end,
     on_exit = function(code)
+      fail_pending(state, code)
       if opts.on_exit then
         opts.on_exit(code)
       end
     end,
   }, { cwd = opts.root })
-  if not ok or not client then
-    return nil, "failed to start " .. table.concat(opts.cmd, " ") .. (ok and "" or ": " .. tostring(client))
+  if not ok or not rpc then
+    return nil, "failed to start " .. table.concat(opts.cmd, " ") .. (ok and "" or ": " .. tostring(rpc))
   end
+  local client = {
+    request = rpc.request,
+    notify = rpc.notify,
+    is_closing = rpc.is_closing,
+    terminate = rpc.terminate,
+    _state = state,
+  }
 
   local done, ierr, info = false, nil, nil
   client.request("initialize", { root = opts.root, capabilities = { documentHighlight = true } }, function(e, r)
@@ -53,9 +78,27 @@ function M.start(opts)
 end
 
 function M.trace(client, params, cb)
-  client.request("whence/trace", params, function(err, result)
+  local state = client._state
+  local id, fired = nil, false
+  local function done(err, result)
+    if fired then
+      return
+    end
+    fired = true
+    if id then
+      state.pending[id] = nil
+    end
     cb(err, result)
-  end)
+  end
+  local sent, request_id = client.request("whence/trace", params, done)
+  if not sent then
+    done({ code = E_HOST, message = "engine exited" }, nil)
+    return
+  end
+  id = request_id
+  if not fired then
+    state.pending[id] = done
+  end
 end
 
 -- The engine answers shutdown "busy" while a trace runs; terminate() closes

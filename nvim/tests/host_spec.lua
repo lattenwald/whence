@@ -32,4 +32,101 @@ describe("host", function()
     assert.is_nil(result)
     assert.equals(-32601, err.code)
   end)
+
+  it("leaves an already-open buffer listed and unlists one it opened", function()
+    local open = vim.fn.tempname() .. ".txt"
+    vim.fn.writefile({ "listed" }, open)
+    vim.cmd.edit(vim.fn.fnameescape(open))
+    assert.is_true(vim.bo[vim.fn.bufnr(open)].buflisted)
+    assert.equals(vim.fn.bufnr(open), host.bufnr_for(open))
+    assert.is_true(vim.bo[vim.fn.bufnr(open)].buflisted)
+
+    local hidden = vim.fn.tempname() .. ".txt"
+    vim.fn.writefile({ "hidden" }, hidden)
+    assert.is_false(vim.bo[host.bufnr_for(hidden)].buflisted)
+  end)
+end)
+
+describe("host encoding", function()
+  local host = require("whence.host")
+  -- "b" sits at utf-16 4, utf-8 byte 7, utf-32 3.
+  local text = "aé𝄞b"
+
+  it("converts UTF-16 columns to the client encoding", function()
+    assert.equals(0, host._from_utf16(text, 0, "utf-8"))
+    assert.equals(1, host._from_utf16(text, 1, "utf-8"))
+    assert.equals(3, host._from_utf16(text, 2, "utf-8"))
+    assert.equals(7, host._from_utf16(text, 4, "utf-8"))
+    assert.equals(2, host._from_utf16(text, 2, "utf-32"))
+    assert.equals(3, host._from_utf16(text, 4, "utf-32"))
+    assert.equals(4, host._from_utf16(text, 4, "utf-16"))
+  end)
+
+  it("converts client columns back to UTF-16", function()
+    assert.equals(1, host._to_utf16(text, 1, "utf-8"))
+    assert.equals(2, host._to_utf16(text, 3, "utf-8"))
+    assert.equals(4, host._to_utf16(text, 7, "utf-8"))
+    assert.equals(2, host._to_utf16(text, 2, "utf-32"))
+    assert.equals(4, host._to_utf16(text, 3, "utf-32"))
+    assert.equals(7, host._to_utf16(text, 7, "utf-16"))
+  end)
+end)
+
+describe("host locations", function()
+  local host = require("whence.host")
+  local uri = "file:///tmp/whence-test/x.erl"
+  local file = "/tmp/whence-test/x.erl"
+  local function line_at()
+    return "aé𝄞b"
+  end
+  local function range(c1, c2)
+    return { start = { line = 2, character = c1 }, ["end"] = { line = 2, character = c2 } }
+  end
+
+  it("flattens a bare Location", function()
+    local out = host._locations_from({ { result = { uri = uri, range = range(7, 8) }, encoding = "utf-8" } }, line_at)
+    assert.equals(1, #out)
+    assert.equals(file, out[1].file)
+    assert.same({ line = 2, col = 4 }, out[1].range.start)
+    assert.same({ line = 2, col = 5 }, out[1].range["end"])
+  end)
+
+  it("flattens a Location list", function()
+    local out = host._locations_from({
+      { result = { { uri = uri, range = range(0, 1) }, { uri = uri, range = range(3, 7) } }, encoding = "utf-8" },
+    }, line_at)
+    assert.equals(2, #out)
+    assert.equals(0, out[1].range.start.col)
+    assert.equals(2, out[2].range.start.col)
+  end)
+
+  it("flattens LocationLinks by target selection range", function()
+    local out = host._locations_from({
+      {
+        result = { { targetUri = uri, targetRange = range(0, 7), targetSelectionRange = range(3, 7) } },
+        encoding = "utf-8",
+      },
+    }, line_at)
+    assert.equals(1, #out)
+    assert.same({ line = 2, col = 2 }, out[1].range.start)
+  end)
+
+  it("de-duplicates the same place reported by two clients in different encodings", function()
+    local out = host._locations_from({
+      { result = { { uri = uri, range = range(3, 7) } }, encoding = "utf-8" },
+      { result = { { uri = uri, range = range(2, 3) } }, encoding = "utf-32" },
+    }, line_at)
+    assert.equals(1, #out)
+    assert.same({ line = 2, col = 2 }, out[1].range.start)
+  end)
+
+  it("loads no buffer for a utf-16 client", function()
+    local untouched = vim.fn.tempname() .. ".txt"
+    vim.fn.writefile({ "aé𝄞b" }, untouched)
+    local out = host._locations_from({
+      { result = { { uri = vim.uri_from_fname(untouched), range = range(0, 1) } }, encoding = "utf-16" },
+    })
+    assert.equals(untouched, out[1].file)
+    assert.equals(0, vim.fn.bufexists(untouched))
+  end)
 end)

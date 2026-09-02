@@ -20,6 +20,22 @@ describe("engine", function()
     engine.stop(client)
   end)
 
+  it("fails a pending trace when the engine dies", function()
+    local engine = require("whence.engine")
+    local client = assert(engine.start({ cmd = { vim.g.whence_bin, "replay", "--serve", fx }, root = fx }))
+
+    local err, done = nil, false
+    engine.trace(client, { file = fx .. "/a.erl", line = 6, col = 4 }, function(e)
+      err, done = e, true
+    end)
+    client.terminate()
+
+    assert.is_true(vim.wait(2000, function()
+      return done
+    end))
+    assert.equals("engine exited", err.message)
+  end)
+
   it("reports a missing binary instead of throwing", function()
     local engine = require("whence.engine")
     local client, err = engine.start({ cmd = { "/nonexistent/whence" }, root = fx })
