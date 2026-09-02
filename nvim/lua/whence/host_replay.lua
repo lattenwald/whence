@@ -5,7 +5,9 @@ local CODES = vim.lsp.protocol.ErrorCodes
 
 local function absolutise(dir, locations)
   for _, loc in ipairs(locations) do
-    if not vim.startswith(loc.file, "/") then
+    if vim.startswith(loc.file, "$HOME/") then
+      loc.file = vim.env.HOME .. loc.file:sub(#"$HOME" + 1)
+    elseif not vim.startswith(loc.file, "/") then
       loc.file = dir .. "/" .. loc.file
     end
   end

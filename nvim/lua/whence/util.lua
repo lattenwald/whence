@@ -10,6 +10,18 @@ function M.rel(file, root)
   return file
 end
 
+function M.portable(file, root)
+  local rel = M.rel(file, root)
+  if rel ~= file then
+    return rel
+  end
+  local home = M.rel(file, vim.env.HOME)
+  if home ~= file then
+    return "$HOME/" .. home
+  end
+  return file
+end
+
 -- Same scheme as engine/src/host_replay.rs; the fixtures are shared.
 function M.fixture_key(root, method, params)
   local k = ("%s:%d:%d"):format(M.rel(params.file, root), params.line, params.col)

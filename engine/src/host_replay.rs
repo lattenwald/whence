@@ -36,7 +36,9 @@ impl ReplayHost {
             .chain(recorded.references.values_mut())
         {
             for l in locs {
-                if l.file.is_relative() {
+                if let Ok(rest) = l.file.strip_prefix("$HOME") {
+                    l.file = std::env::home_dir().unwrap_or_default().join(rest);
+                } else if l.file.is_relative() {
                     l.file = dir.join(&l.file);
                 }
             }
@@ -160,6 +162,24 @@ mod tests {
         let locs = h.references(&p, Pos { line: 0, col: 2 }, false).unwrap();
         assert_eq!(locs[0].file, PathBuf::from("/outside/b.erl"));
         assert!(h.references(&p, Pos { line: 0, col: 2 }, true).is_err());
+    }
+
+    #[test]
+    fn home_placeholder_expands_to_this_machine() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::write(
+            d.path().join("host.json"),
+            r#"{"definition":{"a.erl:0:0":[{"file":"$HOME/lib/os.erl","range":{"start":{"line":0,"col":0},"end":{"line":0,"col":1}}}]},"references":{}}"#,
+        )
+        .unwrap();
+        let mut h = ReplayHost::load(d.path()).unwrap();
+        let locs = h
+            .definition(&d.path().join("a.erl"), Pos { line: 0, col: 0 })
+            .unwrap();
+        assert_eq!(
+            locs[0].file,
+            std::env::home_dir().unwrap().join("lib/os.erl")
+        );
     }
 
     #[test]

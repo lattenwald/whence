@@ -27,7 +27,7 @@
             "line": 56
           }
         },
-        "file": "/home/aleksandr-kiusev/.local/share/mise/installs/erlang/26.2.5.20/lib/kernel-9.2.4.11/src/os.erl"
+        "file": "$HOME/.local/share/mise/installs/erlang/26.2.5.20/lib/kernel-9.2.4.11/src/os.erl"
       }
     ],
     "b.erl:3:8": [

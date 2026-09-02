@@ -67,8 +67,8 @@ describe("record", function()
     local host = read_json(out .. "/host.json")
     assert.is_truthy(host.definition["c.erl:6:8"])
     local os_erl = host.definition["c.erl:4:13"][1].file
-    assert.is_falsy(vim.startswith(os_erl, pc))
-    assert.equals(0, vim.fn.filereadable(out .. os_erl))
+    assert.is_truthy(vim.startswith(os_erl, "$HOME/"))
+    assert.equals(0, vim.fn.filereadable(out .. "/" .. os_erl))
 
     local res = vim.system({ vim.g.whence_bin, "replay", out, "c.erl:7:10" }):wait()
     assert.equals(0, res.code)

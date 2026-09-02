@@ -14,7 +14,7 @@ local active = nil
 local function relativised(rec, locations)
   local out = vim.deepcopy(locations)
   for _, loc in ipairs(out) do
-    loc.file = util.rel(loc.file, rec.root)
+    loc.file = util.portable(loc.file, rec.root)
   end
   return out
 end

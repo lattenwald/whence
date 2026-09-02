@@ -278,6 +278,8 @@ used by the Neovim plugin tests). See
   `includeDeclaration` flag as a `|decl` / `|nodecl` suffix.
 - `Location.file` may be relative (resolved against the fixture directory) or
   absolute (used as-is, which is how a fixture expresses an `external` stop).
+  A leading `$HOME/` is expanded to the home directory on load; the recorder
+  writes it for files under the home directory but outside the root.
 - `host/text` is not recorded: the replay host reads the fixture's files from
   disk, so the sources in the directory *are* the buffer contents.
 - An unrecorded request is an error, which fails the test rather than
