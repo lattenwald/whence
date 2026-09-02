@@ -78,7 +78,12 @@ function M.trace_at(file, line, col)
       notify(err.message or vim.inspect(err))
       return
     end
-    require("whence.panel").show(tree, { source_win = source_win, root = root, limits = config.limits })
+    require("whence.panel").show(tree, {
+      source_win = source_win,
+      root = root,
+      limits = config.limits,
+      width = (config.panel or {}).width,
+    })
   end)
 end
 
