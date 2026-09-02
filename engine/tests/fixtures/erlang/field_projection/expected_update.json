@@ -1,0 +1,74 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "801b5ed237e3c716",
+                "kind": "stop",
+                "label": "2",
+                "loc": {
+                  "col": 17,
+                  "file": "p.erl",
+                  "line": 15
+                },
+                "snippet": "R2 = R#r{a = 2},",
+                "stop": {
+                  "detail": "integer",
+                  "reason": "literal"
+                },
+                "truncated": 0,
+                "via": "field_set"
+              }
+            ],
+            "id": "5445841a5894a832",
+            "kind": "binding",
+            "label": "R2",
+            "loc": {
+              "col": 4,
+              "file": "p.erl",
+              "line": 15
+            },
+            "snippet": "R2 = R#r{a = 2},",
+            "stop": null,
+            "truncated": 0,
+            "via": "field"
+          }
+        ],
+        "id": "0d27793351f95a56",
+        "kind": "field",
+        "label": "a of R2",
+        "loc": {
+          "col": 8,
+          "file": "p.erl",
+          "line": 17
+        },
+        "snippet": "B = R2#r.a,",
+        "stop": null,
+        "truncated": 0,
+        "via": "field"
+      }
+    ],
+    "id": "63095728fa933c83",
+    "kind": "binding",
+    "label": "B",
+    "loc": {
+      "col": 4,
+      "file": "p.erl",
+      "line": 17
+    },
+    "snippet": "B = R2#r.a,",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 3,
+    "ms": 0,
+    "nodes": 4,
+    "truncated": 0
+  }
+}

@@ -1,0 +1,186 @@
+{
+  "definition": {
+    "p.erl:7:18": [
+      {
+        "file": "p.erl",
+        "range": {
+          "start": {
+            "col": 18,
+            "line": 7
+          },
+          "end": {
+            "col": 19,
+            "line": 7
+          }
+        }
+      }
+    ],
+    "p.erl:7:22": [
+      {
+        "file": "p.erl",
+        "range": {
+          "start": {
+            "col": 12,
+            "line": 7
+          },
+          "end": {
+            "col": 13,
+            "line": 7
+          }
+        }
+      }
+    ],
+    "p.erl:16:8": [
+      {
+        "file": "p.erl",
+        "range": {
+          "start": {
+            "col": 4,
+            "line": 14
+          },
+          "end": {
+            "col": 5,
+            "line": 14
+          }
+        }
+      }
+    ],
+    "p.erl:11:11": [
+      {
+        "file": "p.erl",
+        "range": {
+          "start": {
+            "col": 5,
+            "line": 10
+          },
+          "end": {
+            "col": 6,
+            "line": 10
+          }
+        }
+      }
+    ],
+    "p.erl:14:8": [
+      {
+        "file": "p.erl",
+        "range": {
+          "start": {
+            "col": 0,
+            "line": 10
+          },
+          "end": {
+            "col": 4,
+            "line": 10
+          }
+        }
+      }
+    ],
+    "p.erl:16:4": [
+      {
+        "file": "p.erl",
+        "range": {
+          "start": {
+            "col": 4,
+            "line": 16
+          },
+          "end": {
+            "col": 5,
+            "line": 16
+          }
+        }
+      }
+    ],
+    "p.erl:17:4": [
+      {
+        "range": {
+          "start": {
+            "line": 17,
+            "col": 4
+          },
+          "end": {
+            "line": 17,
+            "col": 5
+          }
+        },
+        "file": "p.erl"
+      }
+    ],
+    "p.erl:17:8": [
+      {
+        "range": {
+          "start": {
+            "line": 15,
+            "col": 4
+          },
+          "end": {
+            "line": 15,
+            "col": 6
+          }
+        },
+        "file": "p.erl"
+      }
+    ],
+    "p.erl:11:18": [
+      {
+        "file": "p.erl",
+        "range": {
+          "start": {
+            "col": 5,
+            "line": 10
+          },
+          "end": {
+            "col": 6,
+            "line": 10
+          }
+        }
+      }
+    ],
+    "p.erl:18:8": [
+      {
+        "file": "p.erl",
+        "range": {
+          "start": {
+            "col": 4,
+            "line": 15
+          },
+          "end": {
+            "col": 6,
+            "line": 15
+          }
+        }
+      }
+    ],
+    "p.erl:18:4": [
+      {
+        "file": "p.erl",
+        "range": {
+          "start": {
+            "col": 4,
+            "line": 18
+          },
+          "end": {
+            "col": 5,
+            "line": 18
+          }
+        }
+      }
+    ],
+    "p.erl:15:9": [
+      {
+        "file": "p.erl",
+        "range": {
+          "start": {
+            "col": 4,
+            "line": 14
+          },
+          "end": {
+            "col": 5,
+            "line": 14
+          }
+        }
+      }
+    ]
+  },
+  "references": {},
+  "documentHighlight": {}
+}

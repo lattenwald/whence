@@ -341,18 +341,93 @@ fn field_set_is_followed_to_the_construction() {
         pos: (8, 4),
         ..Default::default()
     });
-    let set = &v["root"]["children"][0];
-    assert_eq!(set["kind"], "field");
-    assert_eq!(set["via"], "field_set");
-    // No construction of Req0 is visible, so the container itself is traced.
-    let of = &set["children"][0];
+    let of = &v["root"]["children"][0];
     assert_eq!(of["kind"], "field");
-    assert_eq!(of["via"], "field");
-    assert_eq!(of["label"], "peer of Req0");
-    let container = &of["children"][0];
+    assert_eq!(of["label"], "peer of R");
+    let r = &of["children"][0];
+    assert_eq!(
+        (&r["kind"], &r["via"]),
+        (&"binding".into(), &"field".into())
+    );
+    let set = &r["children"][0];
+    assert_eq!(set["via"], "field_set");
+    assert_eq!(set["label"], "peer of Req0");
+    let container = &set["children"][0];
     assert_eq!(container["kind"], "param");
     assert_eq!(container["via"], "field");
     assert_eq!(container["children"][0]["stop"]["reason"], "entry_point");
+}
+
+#[test]
+fn a_shadowing_container_is_not_matched_by_name() {
+    let v = check(Case {
+        dir: "field_projection",
+        file: "p.erl",
+        pos: (7, 18),
+        expected: "expected_shadow.json",
+        ..Default::default()
+    });
+    // The fun's own R, not the outer `R = #r{a = X}` two lines up.
+    let stop = &v["root"]["children"][0]["children"][0];
+    assert_eq!(stop["stop"]["reason"], "unresolved");
+    assert_eq!(stop["stop"]["detail"], "bound inside anonymous_fun");
+    assert!(!serde_json::to_string(&v).unwrap().contains("\"X\""));
+}
+
+#[test]
+fn a_field_is_taken_from_a_callee_construction() {
+    let v = check(Case {
+        dir: "field_projection",
+        file: "p.erl",
+        pos: (16, 4),
+        expected: "expected_call.json",
+        ..Default::default()
+    });
+    let r = &v["root"]["children"][0]["children"][0];
+    assert_eq!(r["label"], "R");
+    let call = &r["children"][0];
+    assert_eq!(
+        (&call["kind"], &call["label"]),
+        (&"call_result".into(), &"make".into())
+    );
+    let set = &call["children"][0];
+    assert_eq!(
+        (&set["via"], &set["label"]),
+        (&"field_set".into(), &"V".into())
+    );
+    assert_eq!(set["children"][0]["label"], "1");
+}
+
+#[test]
+fn an_update_that_sets_the_field_is_its_source() {
+    let v = check(Case {
+        dir: "field_projection",
+        file: "p.erl",
+        pos: (17, 4),
+        expected: "expected_update.json",
+        ..Default::default()
+    });
+    let set = &v["root"]["children"][0]["children"][0]["children"][0];
+    assert_eq!(
+        (&set["via"], &set["label"]),
+        (&"field_set".into(), &"2".into())
+    );
+}
+
+#[test]
+fn an_update_without_the_field_passes_to_its_base() {
+    let v = check(Case {
+        dir: "field_projection",
+        file: "p.erl",
+        pos: (18, 4),
+        expected: "expected_base.json",
+        ..Default::default()
+    });
+    let r2 = &v["root"]["children"][0]["children"][0];
+    assert_eq!(r2["label"], "R2");
+    let r = &r2["children"][0];
+    assert_eq!((&r["label"], &r["via"]), (&"R".into(), &"field".into()));
+    assert_eq!(r["children"][0]["label"], "make");
 }
 
 #[test]
@@ -363,14 +438,12 @@ fn every_construction_of_the_container_is_a_sibling() {
         pos: (11, 4),
         ..Default::default()
     });
-    let set = &v["root"]["children"][0];
-    assert_eq!(set["kind"], "field");
-    assert_eq!(set["via"], "field_set");
-    // Both case branches construct R; neither one is the answer on its own.
-    let kids = set["children"].as_array().unwrap();
-    assert_eq!(kids.len(), 2);
-    assert_eq!(kids[0]["label"], "one");
-    assert_eq!(kids[1]["label"], "two");
+    let of = &v["root"]["children"][0];
+    assert_eq!(of["kind"], "field");
+    // Both case branches bind R: the server reports two definitions.
+    let stop = &of["children"][0];
+    assert_eq!(stop["stop"]["reason"], "unresolved");
+    assert_eq!(stop["stop"]["detail"], "2 definitions");
 }
 
 #[test]

@@ -11,88 +11,88 @@
                     "children": [
                       {
                         "children": [],
-                        "id": "4e2f3bf2c6a6e762",
+                        "id": "c3fdb3034cd3e127",
                         "kind": "stop",
-                        "label": "Req0",
+                        "label": "1",
                         "loc": {
-                          "col": 7,
-                          "file": "g.erl",
-                          "line": 5
+                          "col": 13,
+                          "file": "p.erl",
+                          "line": 14
                         },
-                        "snippet": "handle(Req0) ->",
+                        "snippet": "R = make(1),",
                         "stop": {
-                          "detail": "no call sites of handle/1",
-                          "reason": "entry_point"
+                          "detail": "integer",
+                          "reason": "literal"
                         },
                         "truncated": 0,
                         "via": null
                       }
                     ],
-                    "id": "f04a59a70ed7df68",
+                    "id": "61631de901b2a7c7",
                     "kind": "param",
-                    "label": "Req0",
+                    "label": "V",
                     "loc": {
-                      "col": 7,
-                      "file": "g.erl",
-                      "line": 5
+                      "col": 5,
+                      "file": "p.erl",
+                      "line": 10
                     },
-                    "snippet": "handle(Req0) ->",
+                    "snippet": "make(V) ->",
                     "stop": null,
                     "truncated": 0,
-                    "via": "field"
+                    "via": "field_set"
                   }
                 ],
-                "id": "b09a2d33360ceec5",
-                "kind": "field",
-                "label": "peer of Req0",
+                "id": "ec89372fc9f95524",
+                "kind": "call_result",
+                "label": "make",
                 "loc": {
-                  "col": 20,
-                  "file": "g.erl",
-                  "line": 6
+                  "col": 8,
+                  "file": "p.erl",
+                  "line": 14
                 },
-                "snippet": "R = #req{peer = Req0#req.peer},",
+                "snippet": "R = make(1),",
                 "stop": null,
                 "truncated": 0,
-                "via": "field_set"
+                "via": "return"
               }
             ],
-            "id": "cd61ad30ef97656e",
+            "id": "3e9221907566cdd8",
             "kind": "binding",
             "label": "R",
             "loc": {
               "col": 4,
-              "file": "g.erl",
-              "line": 6
+              "file": "p.erl",
+              "line": 14
             },
-            "snippet": "R = #req{peer = Req0#req.peer},",
+            "snippet": "R = make(1),",
             "stop": null,
             "truncated": 0,
             "via": "field"
           }
         ],
-        "id": "aeacf5b822d5f116",
+        "id": "6bc7e0579da54e88",
         "kind": "field",
-        "label": "peer of R",
+        "label": "a of R",
         "loc": {
           "col": 8,
-          "file": "g.erl",
-          "line": 7
+          "file": "p.erl",
+          "line": 16
         },
-        "snippet": "P = R#req.peer,",
+        "snippet": "A = R#r.a,",
         "stop": null,
         "truncated": 0,
         "via": "field"
       }
     ],
-    "id": "d02c6f3c501cf4af",
+    "id": "cf5bbb15b6b1365b",
     "kind": "binding",
-    "label": "P",
+    "label": "A",
     "loc": {
       "col": 4,
-      "file": "g.erl",
-      "line": 7
+      "file": "p.erl",
+      "line": 16
     },
-    "snippet": "P = R#req.peer,",
+    "snippet": "A = R#r.a,",
     "stop": null,
     "truncated": 0,
     "via": "match"

@@ -28,6 +28,8 @@
 [(tuple) (list) (record_expr) (record_update_expr) (map_expr) (map_expr_update)] @construct
 (record_field name: (_) @construct.field.name expr: (field_expr (_) @construct.field.value))
 (map_field key: (_) @construct.field.name value: (_) @construct.field.value)
+(record_update_expr expr: (_) @construct.base)
+(map_expr_update expr: (_) @construct.base)
 (record_field_expr expr: (_) @field.container field: (record_field_name (_) @field.name)) @field
 ;; `[H | T]`: the pipe tail is not a positional element
 (list (pipe)) @construct.cons

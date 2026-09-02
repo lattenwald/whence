@@ -29,6 +29,7 @@ pub struct Ctx<'a> {
     defs: HashMap<(PathBuf, Pos), Vec<Location>>,
     refs: HashMap<(PathBuf, Pos, bool), Vec<Location>>,
     pub frames: Vec<Frame>,
+    pub proj: Vec<String>,
     /// Path keys of the nodes being expanded, root first; ids derive from the top.
     pub path: Vec<u64>,
     /// The expressions on the *current* expansion path, not everything seen (spec §5.4).
@@ -55,6 +56,7 @@ impl<'a> Ctx<'a> {
             defs: HashMap::new(),
             refs: HashMap::new(),
             frames: Vec::new(),
+            proj: Vec::new(),
             path: Vec::new(),
             visited: HashSet::new(),
             limits,
@@ -116,6 +118,7 @@ impl<'a> Ctx<'a> {
                 span.start.hash(&mut h);
             }
         }
+        self.proj.hash(&mut h);
         h.finish()
     }
 

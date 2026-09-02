@@ -1,0 +1,10 @@
+{
+  "file": "p.erl",
+  "root": ".",
+  "col": 4,
+  "recorded_at": "2026-09-02T14:21:50Z",
+  "line": 16,
+  "engine_version": "0.1.0",
+  "conflicts": [],
+  "recorded_with": "elp (Erlang Language Platform), Neovim 0.12.5, headless :WhenceRecord-equivalent; host.json merges four cursor positions (8:19, 17:5, 18:5, 19:5 1-based)"
+}

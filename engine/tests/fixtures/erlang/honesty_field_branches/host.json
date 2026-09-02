@@ -1,9 +1,1 @@
-{
-  "definition": {
-    "f.erl:11:4": [
-      { "file": "f.erl", "range": { "start": { "line": 10, "col": 4 }, "end": { "line": 10, "col": 5 } } }
-    ]
-  },
-  "references": {},
-  "documentHighlight": {}
-}
+{"references":{},"definition":{"f.erl:11:4":[{"range":{"end":{"col":5,"line":10},"start":{"col":4,"line":10}},"file":"f.erl"}],"f.erl:10:8":[{"range":{"end":{"col":14,"line":7},"start":{"col":13,"line":7}},"file":"f.erl"},{"range":{"end":{"col":14,"line":8},"start":{"col":13,"line":8}},"file":"f.erl"}]},"documentHighlight":{}}

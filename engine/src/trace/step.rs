@@ -462,7 +462,19 @@ fn value(
     site: &Site,
     depth: u32,
 ) -> Result<Node, TraceError> {
+    if let Some(field) = ctx.proj.last().cloned()
+        && doc.has_cap(n, vocab::CONSTRUCT)
+    {
+        return project(ctx, doc, file, n, site, &field, depth);
+    }
     if doc.is_literal(n) {
+        if let Some(field) = ctx.proj.last() {
+            return Ok(unresolved(
+                ctx,
+                site,
+                format!("no field {field} in a literal"),
+            ));
+        }
         return Ok(stop(ctx, site, StopReason::Literal, n.0.kind()));
     }
     if doc.is_opaque(n) {
@@ -472,32 +484,15 @@ fn value(
         return branch(ctx, doc, file, n, site, depth);
     }
     if let Some((container, field)) = doc.field_access(n) {
-        let mut sources: Vec<Span> = field_sources(doc, n, container, &field)
-            .iter()
-            .map(|s| Span::of(*s))
-            .collect();
-        if !sources.is_empty() {
-            // Every construction that reaches this use, never the last one alone (§5.5).
-            let dropped = fanout(ctx, &mut sources);
-            let mut children = Vec::new();
-            for s in sources {
-                children.push(expand(ctx, &Expr::Value(file.to_path_buf(), s), depth + 1)?);
-            }
-            return Ok(make(
-                ctx,
-                NodeKind::Field,
-                site,
-                Via::FieldSet,
-                children,
-                dropped,
-            ));
-        }
         let container_expr = if doc.has_cap(container, vocab::IDENT) {
             Expr::Ident(file.to_path_buf(), doc.pos_of(container))
         } else {
             Expr::Value(file.to_path_buf(), Span::of(container))
         };
-        let mut child = expand(ctx, &container_expr, depth + 1)?;
+        ctx.proj.push(field.clone());
+        let child = expand(ctx, &container_expr, depth + 1);
+        ctx.proj.pop();
+        let mut child = child?;
         child.via = Some(Via::Field);
         let site = site.relabel(format!("{field} of {}", doc.text_of(container)));
         return Ok(make(
@@ -665,28 +660,41 @@ fn call_result(
     ))
 }
 
-fn field_sources<'d>(doc: &'d Doc<'_>, n: N<'d>, container: N<'d>, field: &str) -> Vec<N<'d>> {
-    let Some(func) = doc.enclosing_function(n) else {
-        return Vec::new();
-    };
-    let want = doc.text_of(container);
-    let mut out = Vec::new();
-    let (s, e) = (func.node.0.start_byte(), func.node.0.end_byte());
-    for b in doc.caps_within(vocab::BINDING, s, e) {
-        if b.0.start_byte() >= n.0.start_byte() {
-            continue;
-        }
-        let Some((pattern, value)) = doc.binding_parts(b) else {
-            continue;
-        };
-        if doc.text_of(pattern) != want || !doc.has_cap(value, vocab::CONSTRUCT) {
-            continue;
-        }
-        if let Some(set) = doc.construct_field(value, field) {
-            out.push(set);
-        }
+fn project(
+    ctx: &mut Ctx,
+    doc: &Doc,
+    file: &Path,
+    n: N,
+    site: &Site,
+    field: &str,
+    depth: u32,
+) -> Result<Node, TraceError> {
+    if let Some(value) = doc.construct_field(n, field) {
+        let pending = ctx.proj.pop();
+        let child = expand(
+            ctx,
+            &Expr::Value(file.to_path_buf(), Span::of(value)),
+            depth + 1,
+        );
+        ctx.proj.extend(pending);
+        let mut child = child?;
+        child.via = Some(Via::FieldSet);
+        return Ok(child);
     }
-    out
+    if let Some(base) = doc.construct_base(n) {
+        let mut child = expand(
+            ctx,
+            &Expr::Value(file.to_path_buf(), Span::of(base)),
+            depth + 1,
+        )?;
+        child.via = Some(Via::Field);
+        return Ok(child);
+    }
+    Ok(unresolved(
+        ctx,
+        site,
+        format!("no field {field} in this {}", n.0.kind()),
+    ))
 }
 
 fn branch(

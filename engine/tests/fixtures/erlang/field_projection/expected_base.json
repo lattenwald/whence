@@ -1,0 +1,122 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "children": [],
+                            "id": "b99f09ce3fc51dd0",
+                            "kind": "stop",
+                            "label": "1",
+                            "loc": {
+                              "col": 13,
+                              "file": "p.erl",
+                              "line": 14
+                            },
+                            "snippet": "R = make(1),",
+                            "stop": {
+                              "detail": "integer",
+                              "reason": "literal"
+                            },
+                            "truncated": 0,
+                            "via": null
+                          }
+                        ],
+                        "id": "9731250b5bc5f080",
+                        "kind": "param",
+                        "label": "V",
+                        "loc": {
+                          "col": 5,
+                          "file": "p.erl",
+                          "line": 10
+                        },
+                        "snippet": "make(V) ->",
+                        "stop": null,
+                        "truncated": 0,
+                        "via": "field_set"
+                      }
+                    ],
+                    "id": "46da7eb0db12053d",
+                    "kind": "call_result",
+                    "label": "make",
+                    "loc": {
+                      "col": 8,
+                      "file": "p.erl",
+                      "line": 14
+                    },
+                    "snippet": "R = make(1),",
+                    "stop": null,
+                    "truncated": 0,
+                    "via": "return"
+                  }
+                ],
+                "id": "0b51ed67b380c666",
+                "kind": "binding",
+                "label": "R",
+                "loc": {
+                  "col": 4,
+                  "file": "p.erl",
+                  "line": 14
+                },
+                "snippet": "R = make(1),",
+                "stop": null,
+                "truncated": 0,
+                "via": "field"
+              }
+            ],
+            "id": "ace69099873a29c9",
+            "kind": "binding",
+            "label": "R2",
+            "loc": {
+              "col": 4,
+              "file": "p.erl",
+              "line": 15
+            },
+            "snippet": "R2 = R#r{a = 2},",
+            "stop": null,
+            "truncated": 0,
+            "via": "field"
+          }
+        ],
+        "id": "dbd9bcd7c613527c",
+        "kind": "field",
+        "label": "b of R2",
+        "loc": {
+          "col": 8,
+          "file": "p.erl",
+          "line": 18
+        },
+        "snippet": "C = R2#r.b,",
+        "stop": null,
+        "truncated": 0,
+        "via": "field"
+      }
+    ],
+    "id": "5496d6be04404f7b",
+    "kind": "binding",
+    "label": "C",
+    "loc": {
+      "col": 4,
+      "file": "p.erl",
+      "line": 18
+    },
+    "snippet": "C = R2#r.b,",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 6,
+    "ms": 0,
+    "nodes": 7,
+    "truncated": 0
+  }
+}

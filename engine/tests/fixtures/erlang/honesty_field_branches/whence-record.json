@@ -1,0 +1,10 @@
+{
+  "file": "f.erl",
+  "conflicts": [],
+  "line": 11,
+  "recorded_at": "2026-09-02T14:20:12Z",
+  "col": 4,
+  "engine_version": "0.1.0",
+  "root": ".",
+  "recorded_with": "elp (Erlang Language Platform), Neovim 0.12.5, headless :WhenceRecord-equivalent"
+}

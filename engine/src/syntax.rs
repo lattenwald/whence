@@ -495,6 +495,12 @@ impl<'l> Doc<'l> {
         Some((container, self.text_of(name).to_string()))
     }
 
+    pub fn construct_base<'a>(&'a self, construct: N<'a>) -> Option<N<'a>> {
+        self.caps_child_of(vocab::CONSTRUCT_BASE, construct)
+            .first()
+            .copied()
+    }
+
     pub fn construct_field(&self, construct: N, field: &str) -> Option<N<'_>> {
         let (s, e) = (construct.0.start_byte(), construct.0.end_byte());
         for name in self.caps_within(vocab::CONSTRUCT_FIELD_NAME, s, e) {

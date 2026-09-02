@@ -39,6 +39,8 @@ pub const CONSTRUCT_FIELD_NAME: &str = "construct.field.name";
 pub const CONSTRUCT_FIELD_VALUE: &str = "construct.field.value";
 /// On a construct whose elements are not positionally addressable (a cons/spread tail).
 pub const CONSTRUCT_CONS: &str = "construct.cons";
+/// The value an update construct starts from: fields it does not set come from here.
+pub const CONSTRUCT_BASE: &str = "construct.base";
 
 pub const IDENT: &str = "ident";
 

@@ -5,46 +5,46 @@
         "children": [
           {
             "children": [],
-            "id": "718889745a6975d1",
+            "id": "8adfd70d3ae744f5",
             "kind": "stop",
             "label": "R",
             "loc": {
-              "col": 8,
-              "file": "f.erl",
-              "line": 10
+              "col": 12,
+              "file": "p.erl",
+              "line": 7
             },
-            "snippet": "V = R#r.a,",
+            "snippet": "F = fun(R) -> A = R#r.a, A end,",
             "stop": {
-              "detail": "2 definitions",
+              "detail": "bound inside anonymous_fun",
               "reason": "unresolved"
             },
             "truncated": 0,
             "via": "field"
           }
         ],
-        "id": "e98de621f4ed27a8",
+        "id": "9db6636918a782bc",
         "kind": "field",
         "label": "a of R",
         "loc": {
-          "col": 8,
-          "file": "f.erl",
-          "line": 10
+          "col": 22,
+          "file": "p.erl",
+          "line": 7
         },
-        "snippet": "V = R#r.a,",
+        "snippet": "F = fun(R) -> A = R#r.a, A end,",
         "stop": null,
         "truncated": 0,
         "via": "field"
       }
     ],
-    "id": "6da8f69ec8030626",
+    "id": "98633ddde4c20ba5",
     "kind": "binding",
-    "label": "V",
+    "label": "A",
     "loc": {
-      "col": 4,
-      "file": "f.erl",
-      "line": 10
+      "col": 18,
+      "file": "p.erl",
+      "line": 7
     },
-    "snippet": "V = R#r.a,",
+    "snippet": "F = fun(R) -> A = R#r.a, A end,",
     "stop": null,
     "truncated": 0,
     "via": "match"
