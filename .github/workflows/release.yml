@@ -48,6 +48,9 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cross
+      # rust-toolchain.toml overrides the action's toolchain, dropping its `targets`.
+      - run: rustup target add ${{ matrix.target }}
+        if: matrix.tool == 'cargo'
       - run: ${{ matrix.tool }} build --release --target ${{ matrix.target }}
       - name: Package
         shell: bash
