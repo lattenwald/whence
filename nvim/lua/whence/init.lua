@@ -1,9 +1,8 @@
 local M = {}
 
 local engine = require("whence.engine")
+local host = require("whence.host")
 local util = require("whence.util")
-
-local ROOT_MARKERS = { "rebar.config", "Cargo.toml", "go.mod", ".git" }
 
 local config = { bin = nil, limits = {}, panel = { width = 60 } }
 local clients = {}
@@ -31,7 +30,11 @@ local function root_of(file)
   if config.root then
     return config.root
   end
-  return vim.fs.root(file or 0, ROOT_MARKERS) or vim.fn.getcwd()
+  local client = vim.lsp.get_clients({ bufnr = host.bufnr_for(file) })[1]
+  if client and client.root_dir then
+    return client.root_dir
+  end
+  return vim.fs.root(file, { ".git" }) or vim.fn.getcwd()
 end
 
 local function client_for(root)
@@ -75,6 +78,7 @@ end
 
 function M.trace_at(file, line, col, on_done)
   on_done = on_done or function() end
+  host.reset()
   local root = root_of(file)
   local client = client_for(root)
   if not client then
@@ -82,8 +86,6 @@ function M.trace_at(file, line, col, on_done)
     return
   end
   local source_win = vim.api.nvim_get_current_win()
-  local host = require("whence.host")
-  host.reset()
   engine.trace(client, { file = file, line = line, col = col, limits = config.limits }, function(err, tree)
     host.reset()
     if err then
