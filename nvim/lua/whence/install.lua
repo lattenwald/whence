@@ -41,14 +41,13 @@ local function run(cmd)
   return res.stdout
 end
 
-local function sha256(path)
-  for _, cmd in ipairs({ { "sha256sum", path }, { "shasum", "-a", "256", path } }) do
-    if vim.fn.executable(cmd[1]) == 1 then
-      local out, err = run(cmd)
-      return out and out:match("^(%x+)"), err
-    end
+-- In process because Windows ships no sha256sum and macOS spells it shasum.
+function M.sha256_file(path)
+  local ok, blob = pcall(vim.fn.readfile, path, "B")
+  if not ok then
+    return nil, "reading " .. path .. ": " .. tostring(blob)
   end
-  return nil, "neither sha256sum nor shasum is on PATH"
+  return vim.fn.sha256(blob)
 end
 
 local function download(url, path)
@@ -81,7 +80,7 @@ function M.install(cb)
   if not want then
     return cb(urls.archive .. " is not listed in SHA256SUMS")
   end
-  local got, sherr = sha256(archive)
+  local got, sherr = M.sha256_file(archive)
   if not got then
     return cb(sherr)
   end
@@ -98,7 +97,10 @@ function M.install(cb)
     return cb(urls.archive .. " did not contain " .. vim.fs.basename(exe))
   end
   if not target:find("windows") then
-    run({ "chmod", "+x", exe })
+    local _, cerr = run({ "chmod", "+x", exe })
+    if cerr then
+      return cb(cerr)
+    end
   end
   cb(nil, exe)
 end

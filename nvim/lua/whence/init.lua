@@ -88,13 +88,14 @@ function M.trace_at(file, line, col, on_done)
       on_done(err)
       return
     end
+    -- Before the render, so a panel error cannot strand a recorder that wraps the host.
+    on_done(nil)
     require("whence.panel").show(tree, {
       source_win = source_win,
       root = root,
       limits = config.limits,
       width = (config.panel or {}).width,
     })
-    on_done(nil)
   end)
 end
 

@@ -37,6 +37,24 @@ describe("install", function()
     assert.is_nil(sums["# a comment"])
   end)
 
+  it("hashes a file's bytes", function()
+    local path = vim.fn.tempname()
+    vim.fn.writefile({ "abc" }, path)
+    assert.equals("edeaaff3f1774ad2888673770c6d64097e391bc362d7d6fb34982ddf0efd18cb", install.sha256_file(path))
+  end)
+
+  it("hashes a binary exactly like sha256sum", function()
+    assert.equals(1, vim.fn.executable("sha256sum"))
+    local out = vim.system({ "sha256sum", vim.g.whence_bin }):wait().stdout
+    assert.equals(out:match("^(%x+)"), install.sha256_file(vim.g.whence_bin))
+  end)
+
+  it("reports a missing file instead of throwing", function()
+    local sha, err = install.sha256_file("/nonexistent/whence.tar.gz")
+    assert.is_nil(sha)
+    assert.is_truthy(err:find("/nonexistent/whence.tar.gz"))
+  end)
+
   it("ships a version matching the engine crate", function()
     local crate = table.concat(vim.fn.readfile(vim.fn.getcwd() .. "/engine/Cargo.toml"), "\n")
     assert.equals(crate:match('\nversion%s*=%s*"([^"]+)"'), require("whence.version"))
