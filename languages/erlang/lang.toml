@@ -1,6 +1,7 @@
 name = "erlang"
 extensions = ["erl", "hrl"]
 
+# TODO(M2): the engine reads none of these yet; see Quirks in engine/src/lang/mod.rs.
 [quirks]
 multi_assign = false
 single_assignment = true

@@ -8,6 +8,8 @@ use anyhow::{Context, anyhow};
 use serde::Deserialize;
 use std::path::Path;
 
+// TODO(M2): parsed but never read. Decide per key whether it becomes a capture
+// (as `returns` did) or stays a flag, and delete what M2 does not use.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct Quirks {
