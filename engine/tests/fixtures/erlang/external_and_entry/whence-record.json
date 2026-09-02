@@ -1,0 +1,10 @@
+{
+  "root": "/tmp/claude-1000/-home-aleksandr-kiusev-projects-whence/f464f495-6376-43cf-b920-6e630c9cc11f/scratchpad/rerec/external_and_entry/src",
+  "engine_version": "0.1.0",
+  "line": 4,
+  "col": 18,
+  "file": "e.erl",
+  "conflicts": [],
+  "recorded_at": "2026-09-02T17:32:14Z",
+  "recorded_with": "elp (Erlang Language Platform), Neovim 0.12.5, headless :WhenceRecord-equivalent; host.json merges cursor positions 5:19,6:5 (1-based)"
+}

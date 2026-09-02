@@ -1,0 +1,10 @@
+{
+  "recorded_at": "2026-09-02T17:31:12Z",
+  "root": "/tmp/claude-1000/-home-aleksandr-kiusev-projects-whence/f464f495-6376-43cf-b920-6e630c9cc11f/scratchpad/rerec/honesty_case_rhs/src",
+  "conflicts": [],
+  "engine_version": "0.1.0",
+  "file": "z.erl",
+  "line": 8,
+  "col": 4,
+  "recorded_with": "elp (Erlang Language Platform), Neovim 0.12.5, headless :WhenceRecord-equivalent"
+}

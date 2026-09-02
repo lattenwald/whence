@@ -84,6 +84,14 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    /// `None` when no grammar covers `file`; `doc` fails instead, for the cursor's own file.
+    pub fn doc_if_known(&mut self, file: &Path) -> Result<Option<Rc<Doc<'a>>>, TraceError> {
+        match self.doc(file) {
+            Err(TraceError::NoLanguage(_)) => Ok(None),
+            r => r.map(Some),
+        }
+    }
+
     pub fn doc(&mut self, file: &Path) -> Result<Rc<Doc<'a>>, TraceError> {
         if let Some(d) = self.docs.get(file) {
             return Ok(d.clone());

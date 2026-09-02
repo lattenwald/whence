@@ -1,16 +1,64 @@
 {
   "definition": {
-    "n.erl:5:4": [
-      { "file": "n.erl", "range": { "start": { "line": 4, "col": 4 }, "end": { "line": 4, "col": 5 } } }
+    "n.erl:7:22": [
+      {
+        "range": {
+          "start": {
+            "col": 5,
+            "line": 7
+          },
+          "end": {
+            "col": 6,
+            "line": 7
+          }
+        },
+        "file": "n.erl"
+      }
     ],
     "n.erl:4:8": [
-      { "file": "n.erl", "range": { "start": { "line": 7, "col": 0 }, "end": { "line": 7, "col": 4 } } }
-    ],
-    "n.erl:7:22": [
-      { "file": "n.erl", "range": { "start": { "line": 7, "col": 5 }, "end": { "line": 7, "col": 6 } } }
+      {
+        "range": {
+          "start": {
+            "col": 0,
+            "line": 7
+          },
+          "end": {
+            "col": 4,
+            "line": 7
+          }
+        },
+        "file": "n.erl"
+      }
     ],
     "n.erl:8:11": [
-      { "file": "n.erl", "range": { "start": { "line": 8, "col": 5 }, "end": { "line": 8, "col": 6 } } }
+      {
+        "range": {
+          "start": {
+            "col": 5,
+            "line": 8
+          },
+          "end": {
+            "col": 6,
+            "line": 8
+          }
+        },
+        "file": "n.erl"
+      }
+    ],
+    "n.erl:5:4": [
+      {
+        "range": {
+          "start": {
+            "col": 4,
+            "line": 4
+          },
+          "end": {
+            "col": 5,
+            "line": 4
+          }
+        },
+        "file": "n.erl"
+      }
     ]
   },
   "references": {},

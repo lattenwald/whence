@@ -51,7 +51,7 @@ path. `capabilities` is optional and each flag defaults to false;
 `capabilities.documentHighlight` declares whether the host can answer
 `host/documentHighlight`, and when false the engine never sends it. The M1
 engine has no rebinding pass and never sends it either way; the Neovim host
-declares `false` until M2.
+declares `true` because it can answer.
 
 ### `whence/trace`
 
@@ -132,6 +132,9 @@ Highlight = { "range": { "start": {"line","col"}, "end": {"line","col"} },
 - `host/documentHighlight` is optional and is only sent when
   `initialize` declared the capability. It is unused by Erlang (single
   assignment) and exists for mutation tracking in M2.
+- A language-server request for a file with no server attached is answered
+  with a JSON-RPC error, not an empty list: an empty list means the server
+  answered and found nothing. The engine fails the trace with `E_HOST`.
 
 ## Tree
 

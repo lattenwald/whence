@@ -122,8 +122,12 @@ function M.finish()
   return ("whence replay %s %s:%d:%d"):format(rec.dir, rec.target.file, rec.target.line + 1, rec.target.col + 1)
 end
 
-function M.run(dir, root)
-  M.begin(dir, root, util.cursor_target())
+function M.run(dir)
+  local target = util.cursor_target()
+  if not target then
+    error("whence: buffer has no file")
+  end
+  M.begin(dir, require("whence").root(target.file), target)
   local finished = false
   local function done()
     if finished then

@@ -38,5 +38,5 @@
 
 ;; @opaque: the engine never looks inside these
 [(receive_expr) (anonymous_fun) (macro_call_expr) (list_comprehension)
- (binary_comprehension) (map_comprehension) (catch_clause) (try_after)
+ (binary_comprehension) (map_comprehension) (try_after)
  (catch_expr) (maybe_expr)] @opaque

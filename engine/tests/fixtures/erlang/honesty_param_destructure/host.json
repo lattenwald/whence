@@ -1,12 +1,36 @@
 {
   "definition": {
     "p.erl:5:29": [
-      { "file": "p.erl", "range": { "start": { "line": 5, "col": 22 }, "end": { "line": 5, "col": 23 } } }
+      {
+        "range": {
+          "start": {
+            "col": 22,
+            "line": 5
+          },
+          "end": {
+            "col": 23,
+            "line": 5
+          }
+        },
+        "file": "p.erl"
+      }
     ]
   },
   "references": {
     "p.erl:5:0|nodecl": [
-      { "file": "p.erl", "range": { "start": { "line": 7, "col": 8 }, "end": { "line": 7, "col": 17 } } }
+      {
+        "range": {
+          "start": {
+            "col": 8,
+            "line": 7
+          },
+          "end": {
+            "col": 17,
+            "line": 7
+          }
+        },
+        "file": "p.erl"
+      }
     ]
   },
   "documentHighlight": {}

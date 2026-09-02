@@ -6,12 +6,19 @@ use whence::{
     syntax::{Doc, Role},
 };
 
-fn doc() -> (Doc<'static>, &'static str) {
+fn parse(text: &str) -> Doc<'static> {
     static REG: OnceLock<Registry> = OnceLock::new();
     let reg = REG.get_or_init(|| Registry::embedded().unwrap());
+    Doc::parse(
+        reg.by_name("erlang").unwrap(),
+        "/s.erl".into(),
+        text.to_string(),
+    )
+}
+
+fn doc() -> (Doc<'static>, &'static str) {
     let text = include_str!("fixtures/erlang/queries/sample.erl");
-    let lang = reg.by_name("erlang").unwrap();
-    (Doc::parse(lang, "/s.erl".into(), text.to_string()), text)
+    (parse(text), text)
 }
 
 /// Position of the `nth` (0-based) occurrence of `needle`, offset by `skip` bytes into it.
@@ -242,4 +249,31 @@ fn empty_construct_is_literal() {
         panic!()
     };
     assert!(d.is_literal(value));
+}
+
+#[test]
+fn a_comment_inside_an_argument_list_is_not_an_argument() {
+    let text = "f(X, Y, Z) -> Z.\ng() -> f(1, %% note\n 2, 3).\nh(A, %% c\n B) -> B.\n";
+    let d = parse(text);
+    let call = d.call_with_callee_at(at(text, "f(1", 0)).unwrap();
+    let args: Vec<&str> = call.args.iter().map(|a| d.text_of(*a)).collect();
+    assert_eq!(args, ["1", "2", "3"]);
+
+    let b = d.ident_at(at(text, "B) ->", 0)).unwrap();
+    let Role::Param { func, index } = d.role_of(b) else {
+        panic!()
+    };
+    assert_eq!((func.params.len(), index), (2, 1));
+}
+
+#[test]
+fn every_catch_clause_tail_is_a_return() {
+    let text = "g() -> X = try f() catch _:_ -> default; error:_ -> other end, X.\nf() -> 1.\n";
+    let d = parse(text);
+    let x = d.ident_at(at(text, "X = ", 0)).unwrap();
+    let Role::BoundBy { value, .. } = d.role_of(x) else {
+        panic!()
+    };
+    let tails: Vec<&str> = d.tails_of(value).iter().map(|n| d.text_of(*n)).collect();
+    assert_eq!(tails, ["f()", "default", "other"]);
 }

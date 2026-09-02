@@ -15,7 +15,7 @@ end, { desc = "Trace the provenance of the identifier under the cursor" })
 
 vim.api.nvim_create_user_command("WhenceRecord", function(cmd)
   local dir = vim.fn.fnamemodify(vim.fn.expand(cmd.args), ":p"):gsub("/$", "")
-  require("whence.record").run(dir, require("whence").root())
+  require("whence.record").run(dir)
 end, { nargs = 1, complete = "dir", desc = "Record a replay fixture for the identifier under the cursor" })
 
 vim.api.nvim_create_user_command("WhenceInstall", function()

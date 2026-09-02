@@ -183,7 +183,7 @@ fn external_call() {
     });
     let stop = &v["root"]["children"][0]["stop"];
     assert_eq!(stop["reason"], "external");
-    assert_eq!(stop["detail"], "cowboy_req:body");
+    assert_eq!(stop["detail"], "os:getenv");
 }
 
 #[test]
@@ -191,7 +191,7 @@ fn entry_point_param() {
     let v = check(Case {
         dir: "external_and_entry",
         file: "e.erl",
-        pos: (4, 24),
+        pos: (4, 18),
         limits: Limits::default(),
         expected: "expected_entry.json",
     });
@@ -649,4 +649,18 @@ fn live_callers_recorded_from_elp() {
     assert_eq!(v["root"]["children"].as_array().unwrap().len(), 3);
     let s = serde_json::to_string(&v).unwrap();
     assert!(s.contains("no call sites of handle/2"));
+}
+
+#[test]
+fn a_call_through_a_variable_is_not_entered() {
+    let v = check(Case {
+        dir: "dynamic_call",
+        file: "d.erl",
+        pos: (4, 4),
+        ..Default::default()
+    });
+    let stop = &v["root"]["children"][0];
+    assert_eq!(stop["stop"]["reason"], "unresolved");
+    assert_eq!(stop["stop"]["detail"], "definition of Cb is not a function");
+    assert!(!serde_json::to_string(&v).unwrap().contains("recursive"));
 }

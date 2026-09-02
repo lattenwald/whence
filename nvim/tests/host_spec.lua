@@ -19,12 +19,12 @@ describe("host", function()
     vim.api.nvim_buf_delete(b, { force = true })
   end)
 
-  it("answers an empty list when no LSP client is attached", function()
+  it("fails the request when no LSP client is attached", function()
     local scratch = vim.fn.tempname() .. ".txt"
     vim.fn.writefile({ "nothing here" }, scratch)
     local result, err = host.handle("host/definition", { file = scratch, line = 0, col = 0 })
-    assert.is_nil(err)
-    assert.same({}, result)
+    assert.is_nil(result)
+    assert.equals("no language server attached to " .. scratch, err.message)
   end)
 
   it("waits for a client once per buffer until reset", function()

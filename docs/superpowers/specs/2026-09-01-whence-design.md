@@ -167,7 +167,7 @@ call-result descent from expanding into every caller of every callee.
   different path is allowed (diamonds are common: multi-clause callees, case
   branches sharing a subject).
 - A call whose callee and argument expressions are already on the frame stack is
-  not entered again → `stop: unresolved: recursion`. Descending into the same
+  not entered again → `stop: unresolved: recursive call to <name>/<arity>`. Descending into the same
   callee with *different* argument expressions is a genuine deeper call and
   proceeds, bounded by `depth`.
 - Node ids and the frame hash are built from root-relative paths, so the same
@@ -278,7 +278,8 @@ logic. Detailed UX deferred to M3.
   file:line:col [--json] [--fanout N] [--depth N]` runs the same from a
   terminal for debugging (`line:col` are 1-based there, unlike the protocol).
 - Fixtures are seeded from real sessions with `:WhenceRecord`, so goldens
-  reflect actual `erlang_ls` / `rust-analyzer` / `gopls` behavior.
+  reflect actual language-server behavior (`elp` for the Erlang fixtures;
+  `rust-analyzer` / `gopls` later).
 - **Protocol tests**: framing, error paths, host returning empty/error.
 - **Neovim plugin**: plenary smoke tests using the replay engine
   (`whence replay --serve <dir>`), checking panel content and jump targets.
@@ -326,7 +327,7 @@ Work is tracked with the `tk` CLI in `.tickets/` (committed with the repo).
 - **LSP quality is the ceiling.** Missing references or definitions from a
   server become `unresolved` stops. Mitigation: the honesty rule and the
   replay fixtures make gaps visible; an index-based Erlang resolver could be
-  slotted in behind the same three host requests if `erlang_ls` disappoints.
+  slotted in behind the same three host requests if the server disappoints.
 - **Vocabulary churn.** Rust and Go will stress captures designed against
   Erlang. Expected; M2 budgets for it.
 - **Multi-clause and pattern-heavy Erlang** produces wide return fan-out.

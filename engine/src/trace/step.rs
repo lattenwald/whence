@@ -141,6 +141,10 @@ fn unresolved(ctx: &Ctx, site: &Site, detail: impl Into<String>) -> Node {
     stop(ctx, site, StopReason::Unresolved, detail)
 }
 
+fn no_language(ctx: &Ctx, file: &Path) -> String {
+    format!("no language for {}", ctx.rel(file).display())
+}
+
 pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
     let file = e.file().to_path_buf();
     let doc = ctx.doc(&file)?;
@@ -242,8 +246,9 @@ fn definition(
     if !ctx.in_root(def_file) {
         return Ok(stop(ctx, site, StopReason::External, site.label.clone()));
     }
-
-    let doc = ctx.doc(def_file)?;
+    let Some(doc) = ctx.doc_if_known(def_file)? else {
+        return Ok(unresolved(ctx, site, no_language(ctx, def_file)));
+    };
     let Some(ident) = doc.ident_at(def_pos) else {
         return Ok(unresolved(ctx, site, "definition is not an identifier"));
     };
@@ -372,12 +377,16 @@ fn param(
     let mut strays: Vec<(PathBuf, Pos, String)> = Vec::new();
     let mut refs_seen = 0u32;
     for r in refs {
-        if !ctx.in_root(&r.file) || ctx.reg.for_file(&r.file).is_none() {
+        let rdoc = if ctx.in_root(&r.file) {
+            ctx.doc_if_known(&r.file)?
+        } else {
+            None
+        };
+        let Some(rdoc) = rdoc else {
             refs_seen += 1;
             continue;
-        }
-        let rdoc = ctx.doc(&r.file)?;
-        if rdoc.covers(vocab::FUNCTION_NAME, r.range.start) {
+        };
+        if rdoc.declares_function(r.range.start).is_some() {
             continue;
         }
         refs_seen += 1;
@@ -614,8 +623,10 @@ fn call_result(
     // Distinct callees, not clauses: several definitions of one function collapse here.
     let mut targets: Vec<FuncId> = Vec::new();
     for d in &defs {
-        let doc = ctx.doc(&d.file)?;
-        let Some(decl) = doc.function_at(d.range.start) else {
+        let Some(doc) = ctx.doc_if_known(&d.file)? else {
+            return Ok(unresolved(ctx, site, no_language(ctx, &d.file)));
+        };
+        let Some(decl) = doc.declares_function(d.range.start) else {
             return Ok(unresolved(
                 ctx,
                 site,

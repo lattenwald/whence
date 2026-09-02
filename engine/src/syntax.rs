@@ -227,10 +227,13 @@ impl<'l> Doc<'l> {
             .collect()
     }
 
-    pub fn function_at(&self, p: Pos) -> Option<FnDecl<'_>> {
+    pub fn declares_function(&self, p: Pos) -> Option<FnDecl<'_>> {
         let off = self.byte_offset(p)?;
-        let at = self.tree.root_node().descendant_for_byte_range(off, off)?;
-        self.enclosing_function(N(at))
+        let name = self
+            .caps_containing(vocab::FUNCTION_NAME, off)
+            .first()
+            .copied()?;
+        self.enclosing_function(self.node(name.span)?)
     }
 
     pub fn binding_parts<'a>(&'a self, binding: N<'a>) -> Option<(N<'a>, N<'a>)> {
@@ -586,7 +589,10 @@ impl<'l> Doc<'l> {
 
 fn named_children<'t>(n: N<'t>) -> Vec<N<'t>> {
     let mut cursor = n.0.walk();
-    n.0.named_children(&mut cursor).map(N).collect()
+    n.0.named_children(&mut cursor)
+        .filter(|c| !c.is_extra()) // comments are named nodes in tree-sitter
+        .map(N)
+        .collect()
 }
 
 fn contains(outer: tree_sitter::Node, inner: tree_sitter::Node) -> bool {
@@ -597,5 +603,6 @@ fn index_of_child_containing(parent: tree_sitter::Node, inner: tree_sitter::Node
     let mut cursor = parent.walk();
     parent
         .named_children(&mut cursor)
+        .filter(|c| !c.is_extra())
         .position(|c| contains(c, inner))
 }

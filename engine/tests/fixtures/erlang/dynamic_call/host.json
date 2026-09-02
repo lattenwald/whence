@@ -1,0 +1,36 @@
+{
+  "definition": {
+    "d.erl:4:4": [
+      {
+        "range": {
+          "end": {
+            "line": 4,
+            "col": 5
+          },
+          "start": {
+            "line": 4,
+            "col": 4
+          }
+        },
+        "file": "d.erl"
+      }
+    ],
+    "d.erl:4:8": [
+      {
+        "range": {
+          "end": {
+            "line": 3,
+            "col": 11
+          },
+          "start": {
+            "line": 3,
+            "col": 9
+          }
+        },
+        "file": "d.erl"
+      }
+    ]
+  },
+  "references": {},
+  "documentHighlight": {}
+}

@@ -138,7 +138,7 @@ local function request(lsp_method, params, extra)
   local bufnr = M.bufnr_for(params.file)
   local uri = vim.uri_from_bufnr(bufnr)
   if #vim.lsp.get_clients({ bufnr = bufnr, method = lsp_method }) == 0 then
-    return nil, uri
+    error("no language server attached to " .. params.file, 0)
   end
 
   local text = line_of(bufnr, params.line)

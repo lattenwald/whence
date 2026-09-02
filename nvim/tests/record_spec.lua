@@ -53,7 +53,7 @@ describe("record", function()
 
     local panel = require("whence.panel")
     panel.last = nil
-    require("whence.record").run(out, pc)
+    require("whence.record").run(out)
     vim.wait(10000, function()
       return panel.last ~= nil
     end)
@@ -66,8 +66,9 @@ describe("record", function()
 
     local host = read_json(out .. "/host.json")
     assert.is_truthy(host.definition["c.erl:6:8"])
-    assert.equals("/usr/lib/erlang/lib/kernel/src/os.erl", host.definition["c.erl:4:13"][1].file)
-    assert.equals(0, vim.fn.filereadable(out .. "/usr/lib/erlang/lib/kernel/src/os.erl"))
+    local os_erl = host.definition["c.erl:4:13"][1].file
+    assert.is_falsy(vim.startswith(os_erl, pc))
+    assert.equals(0, vim.fn.filereadable(out .. os_erl))
 
     local res = vim.system({ vim.g.whence_bin, "replay", out, "c.erl:7:10" }):wait()
     assert.equals(0, res.code)

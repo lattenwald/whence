@@ -1,19 +1,79 @@
 {
   "definition": {
-    "d.erl:5:4": [
-      { "file": "d.erl", "range": { "start": { "line": 4, "col": 4 }, "end": { "line": 4, "col": 5 } } }
-    ],
     "d.erl:4:8": [
-      { "file": "d.erl", "range": { "start": { "line": 11, "col": 0 }, "end": { "line": 11, "col": 4 } } }
+      {
+        "file": "d.erl",
+        "range": {
+          "start": {
+            "col": 0,
+            "line": 11
+          },
+          "end": {
+            "col": 4,
+            "line": 11
+          }
+        }
+      }
     ],
-    "d.erl:9:4": [
-      { "file": "d.erl", "range": { "start": { "line": 8, "col": 4 }, "end": { "line": 8, "col": 5 } } }
+    "d.erl:5:4": [
+      {
+        "file": "d.erl",
+        "range": {
+          "start": {
+            "col": 4,
+            "line": 4
+          },
+          "end": {
+            "col": 5,
+            "line": 4
+          }
+        }
+      }
     ],
     "d.erl:8:8": [
-      { "file": "d.erl", "range": { "start": { "line": 14, "col": 0 }, "end": { "line": 14, "col": 2 } } }
+      {
+        "range": {
+          "end": {
+            "line": 14,
+            "col": 2
+          },
+          "start": {
+            "line": 14,
+            "col": 0
+          }
+        },
+        "file": "d.erl"
+      }
     ],
     "d.erl:14:9": [
-      { "file": "d.erl", "range": { "start": { "line": 14, "col": 3 }, "end": { "line": 14, "col": 4 } } }
+      {
+        "range": {
+          "end": {
+            "line": 14,
+            "col": 4
+          },
+          "start": {
+            "line": 14,
+            "col": 3
+          }
+        },
+        "file": "d.erl"
+      }
+    ],
+    "d.erl:9:4": [
+      {
+        "range": {
+          "end": {
+            "line": 8,
+            "col": 5
+          },
+          "start": {
+            "line": 8,
+            "col": 4
+          }
+        },
+        "file": "d.erl"
+      }
     ]
   },
   "references": {},

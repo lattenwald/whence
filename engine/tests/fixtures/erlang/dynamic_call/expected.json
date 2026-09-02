@@ -3,32 +3,32 @@
     "children": [
       {
         "children": [],
-        "id": "4d8ccf4ea06d7c7d",
+        "id": "1c3e96b5af0698f8",
         "kind": "stop",
-        "label": "os:getenv(Req)",
+        "label": "Cb(X)",
         "loc": {
           "col": 8,
-          "file": "e.erl",
+          "file": "d.erl",
           "line": 4
         },
-        "snippet": "B = os:getenv(Req),",
+        "snippet": "R = Cb(X),",
         "stop": {
-          "detail": "os:getenv",
-          "reason": "external"
+          "detail": "definition of Cb is not a function",
+          "reason": "unresolved"
         },
         "truncated": 0,
         "via": null
       }
     ],
-    "id": "e95c2d378a041be2",
+    "id": "f2e150031badc40d",
     "kind": "binding",
-    "label": "B",
+    "label": "R",
     "loc": {
       "col": 4,
-      "file": "e.erl",
+      "file": "d.erl",
       "line": 4
     },
-    "snippet": "B = os:getenv(Req),",
+    "snippet": "R = Cb(X),",
     "stop": null,
     "truncated": 0,
     "via": "match"
