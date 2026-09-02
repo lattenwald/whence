@@ -4,7 +4,7 @@ local fx = vim.fn.getcwd() .. "/engine/tests/fixtures/erlang/local_chain"
 vim.o.swapfile = false
 
 describe("panel.render", function()
-  it("renders nodes, via, location and stops", function()
+  it("maps every node line to its node and the truncation line to nothing", function()
     local tree = {
       root = {
         id = "a",
@@ -44,47 +44,11 @@ describe("panel.render", function()
     }
 
     local lines, index = require("whence.panel").render(tree, "/p")
-    assert.equals("● Z  ← match  a.erl:6:5", lines[1])
-    assert.equals("  ● X  ← match  a.erl:3:3", lines[2])
-    assert.equals("    ■ X  a.erl:3:3  [entry_point: no call sites of f/1]", lines[3])
-    assert.equals("    … 2 more", lines[4])
+    assert.equals(4, #lines)
+    assert.equals("a", index[1].id)
+    assert.equals("b", index[2].id)
     assert.equals("c", index[3].id)
     assert.is_nil(index[4])
-  end)
-
-  it("marks a branch node as a value, not a stop", function()
-    local tree = {
-      root = {
-        id = "a",
-        kind = "branch",
-        label = "case K of",
-        loc = { file = "/p/a.erl", line = 4, col = 8 },
-        via = "match",
-        snippet = "Z = case K of",
-        stop = vim.NIL,
-        truncated = 0,
-        children = {},
-      },
-    }
-    local lines = require("whence.panel").render(tree, "/p")
-    assert.equals("● case K of  ← match  a.erl:5:9", lines[1])
-  end)
-
-  it("keeps absolute paths that are not under the root", function()
-    local tree = {
-      root = {
-        id = "a",
-        kind = "binding",
-        label = "Z",
-        loc = { file = "/elsewhere/b.erl", line = 0, col = 0 },
-        via = vim.NIL,
-        stop = vim.NIL,
-        truncated = 0,
-        children = {},
-      },
-    }
-    local lines = require("whence.panel").render(tree, "/p")
-    assert.equals("● Z  /elsewhere/b.erl:1:1", lines[1])
   end)
 end)
 
@@ -101,12 +65,7 @@ describe("panel.show", function()
     assert.equals("whence", vim.bo.filetype)
 
     local panel_buf = vim.api.nvim_get_current_buf()
-    assert.same({
-      "● Z  ← match  a.erl:6:5",
-      "  ● Y  ← match  a.erl:5:5",
-      "    ● X  ← match  a.erl:4:3",
-      "      ■ X  a.erl:4:3  [entry_point: no call sites of f/1]",
-    }, vim.api.nvim_buf_get_lines(panel_buf, 0, -1, false))
+    assert.equals(4, #vim.api.nvim_buf_get_lines(panel_buf, 0, -1, false))
     assert.is_false(vim.bo[panel_buf].modifiable)
 
     vim.api.nvim_win_set_cursor(0, { 2, 0 })

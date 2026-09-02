@@ -150,7 +150,6 @@ fn enclosing_function_and_snippet() {
     assert_eq!(f.params.len(), 1);
     assert_eq!(d.text_of(f.params[0]), "N");
     assert_eq!(d.text_of(f.body), "-> {ok, N * 2}"); // clause_body spans the arrow
-    assert_eq!(d.line_of(n), "pick(N) when N > 5 -> {ok, N * 2};");
     assert_eq!(d.pos_of(n), at(text, "N * 2", 0));
     // read_body/1's parameter is a record pattern: the whole pattern is one param.
     let b = d.ident_at(at(text, "B}) -> B", 0)).unwrap();

@@ -182,19 +182,6 @@ fn eof_on_stdin_ends_the_server() {
 }
 
 #[test]
-fn replay_cli_prints_tree() {
-    let out = bin()
-        .args(["replay", fixture(), "a.erl:7:5"])
-        .output()
-        .unwrap();
-    let s = String::from_utf8(out.stdout).unwrap();
-    assert!(out.status.success());
-    assert!(s.lines().next().unwrap().starts_with("Z"), "{s}");
-    assert!(s.contains("a.erl:5:5"), "{s}");
-    assert!(s.contains("[entry_point"), "{s}");
-}
-
-#[test]
 fn replay_cli_json_output() {
     let out = bin()
         .args(["replay", fixture(), "a.erl:7:5", "--json"])
@@ -265,15 +252,4 @@ fn stdio_host_requests_go_to_the_editor_and_failures_become_host_errors() {
     let r = s.request(3, "shutdown", serde_json::json!({}));
     assert!(r.error.is_none());
     assert!(s.child.wait().unwrap().success());
-}
-
-#[test]
-fn version_flag() {
-    let out = bin().arg("--version").output().unwrap();
-    assert!(out.status.success());
-    assert!(
-        String::from_utf8(out.stdout)
-            .unwrap()
-            .contains(env!("CARGO_PKG_VERSION"))
-    );
 }

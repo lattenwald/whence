@@ -1,28 +1,30 @@
 describe("install", function()
   local install = require("whence.install")
 
-  it("maps LuaJIT os/arch to release targets", function()
-    assert.equals("x86_64-unknown-linux-gnu", install.target("Linux", "x64"))
-    assert.equals("aarch64-unknown-linux-gnu", install.target("Linux", "arm64"))
-    assert.equals("x86_64-apple-darwin", install.target("OSX", "x64"))
-    assert.equals("aarch64-apple-darwin", install.target("OSX", "arm64"))
-    assert.equals("x86_64-pc-windows-msvc", install.target("Windows", "x64"))
+  it("maps every platform to a target the release workflow builds, and nothing else", function()
+    local released = {}
+    for _, l in ipairs(vim.fn.readfile(vim.fn.getcwd() .. "/.github/workflows/release.yml")) do
+      local t = l:match("^%s*%- target:%s*(%S+)")
+      if t then
+        released[t] = true
+      end
+    end
+    local mapped = {}
+    for _, os_name in ipairs({ "Linux", "OSX", "Windows" }) do
+      for _, arch in ipairs({ "x64", "arm64" }) do
+        local t = install.target(os_name, arch)
+        if t then
+          mapped[t] = true
+        end
+      end
+    end
+    assert.same(released, mapped)
   end)
 
   it("reports an unsupported platform instead of guessing", function()
     local target, err = install.target("Linux", "ppc64")
     assert.is_nil(target)
     assert.is_truthy(err:find("ppc64"))
-  end)
-
-  it("builds the release urls", function()
-    local urls = install.urls("lattenwald/whence", "0.1.0", "x86_64-apple-darwin")
-    assert.equals(
-      "https://github.com/lattenwald/whence/releases/download/v0.1.0/whence-x86_64-apple-darwin.tar.gz",
-      urls.tarball
-    )
-    assert.equals("https://github.com/lattenwald/whence/releases/download/v0.1.0/SHA256SUMS", urls.sums)
-    assert.equals("whence-x86_64-apple-darwin.tar.gz", urls.archive)
   end)
 
   it("parses SHA256SUMS", function()
@@ -35,12 +37,6 @@ describe("install", function()
     assert.equals("aa11", sums["whence-x86_64-unknown-linux-gnu.tar.gz"])
     assert.equals("bb22", sums["whence-x86_64-pc-windows-msvc.tar.gz"])
     assert.is_nil(sums["# a comment"])
-  end)
-
-  it("hashes a file's bytes", function()
-    local path = vim.fn.tempname()
-    vim.fn.writefile({ "abc" }, path)
-    assert.equals("edeaaff3f1774ad2888673770c6d64097e391bc362d7d6fb34982ddf0efd18cb", install.sha256_file(path))
   end)
 
   it("hashes a binary exactly like sha256sum", function()

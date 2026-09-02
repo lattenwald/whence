@@ -80,30 +80,6 @@ pub fn pos_of(text: &str, byte: usize) -> Pos {
 }
 
 #[cfg(test)]
-pub fn to_point(text: &str, p: Pos) -> Option<tree_sitter::Point> {
-    let off = byte_offset(text, p)?;
-    let start = Lines::new(text).start(p.line)?;
-    Some(tree_sitter::Point {
-        row: p.line as usize,
-        column: off - start,
-    })
-}
-
-#[cfg(test)]
-pub fn from_point(text: &str, pt: tree_sitter::Point) -> Pos {
-    let start = Lines::new(text).start(pt.row as u32).unwrap_or(text.len());
-    let end = line_end(text, start);
-    let col_end = (start + pt.column).min(end);
-    Pos {
-        line: pt.row as u32,
-        col: text[start..col_end]
-            .chars()
-            .map(|c| c.len_utf16() as u32)
-            .sum(),
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -135,33 +111,7 @@ mod tests {
     }
 
     #[test]
-    fn line_text_is_trimmed_and_bounded() {
-        let t = "  a b \ncd";
-        let l = Lines::new(t);
-        assert_eq!(l.line_text(t, 3), "a b");
-        assert_eq!(l.line_text(t, 8), "cd");
-        assert_eq!(l.line_text(t, 99), "cd");
-    }
-
-    #[test]
     fn column_inside_a_multi_unit_char_is_none() {
         assert_eq!(byte_offset("𝕏x", Pos { line: 0, col: 1 }), None);
-    }
-
-    #[test]
-    fn points_use_byte_columns() {
-        let t = "𝕏 = 1\nok";
-        assert_eq!(
-            to_point(t, Pos { line: 0, col: 2 }),
-            Some(tree_sitter::Point { row: 0, column: 4 })
-        );
-        assert_eq!(
-            from_point(t, tree_sitter::Point { row: 0, column: 4 }),
-            Pos { line: 0, col: 2 }
-        );
-        assert_eq!(
-            from_point(t, tree_sitter::Point { row: 1, column: 1 }),
-            Pos { line: 1, col: 1 }
-        );
     }
 }

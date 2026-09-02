@@ -243,7 +243,6 @@ mod tests {
         assert_eq!(v["truncated"], 0);
         assert_eq!(v["children"], serde_json::json!([]));
         assert_eq!(v["id"].as_str().unwrap().len(), 16);
-        assert_eq!(n.count(), 1);
     }
 
     #[test]

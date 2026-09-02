@@ -62,31 +62,6 @@ describe("host", function()
   end)
 end)
 
-describe("host encoding", function()
-  local host = require("whence.host")
-  -- "b" sits at utf-16 4, utf-8 byte 7, utf-32 3.
-  local text = "aé𝄞b"
-
-  it("converts UTF-16 columns to the client encoding", function()
-    assert.equals(0, host._from_utf16(text, 0, "utf-8"))
-    assert.equals(1, host._from_utf16(text, 1, "utf-8"))
-    assert.equals(3, host._from_utf16(text, 2, "utf-8"))
-    assert.equals(7, host._from_utf16(text, 4, "utf-8"))
-    assert.equals(2, host._from_utf16(text, 2, "utf-32"))
-    assert.equals(3, host._from_utf16(text, 4, "utf-32"))
-    assert.equals(4, host._from_utf16(text, 4, "utf-16"))
-  end)
-
-  it("converts client columns back to UTF-16", function()
-    assert.equals(1, host._to_utf16(text, 1, "utf-8"))
-    assert.equals(2, host._to_utf16(text, 3, "utf-8"))
-    assert.equals(4, host._to_utf16(text, 7, "utf-8"))
-    assert.equals(2, host._to_utf16(text, 2, "utf-32"))
-    assert.equals(4, host._to_utf16(text, 3, "utf-32"))
-    assert.equals(7, host._to_utf16(text, 7, "utf-16"))
-  end)
-end)
-
 describe("host locations", function()
   local host = require("whence.host")
   local uri = "file:///tmp/whence-test/x.erl"

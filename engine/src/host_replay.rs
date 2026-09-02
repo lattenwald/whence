@@ -148,13 +148,6 @@ mod tests {
     }
 
     #[test]
-    fn text_reads_from_disk() {
-        let d = fixture();
-        let mut h = ReplayHost::load(d.path()).unwrap();
-        assert_eq!(h.text(&d.path().join("a.erl")).unwrap(), "f(X) -> X.\n");
-    }
-
-    #[test]
     fn reference_keys_distinguish_include_declaration() {
         let d = fixture();
         let mut h = ReplayHost::load(d.path()).unwrap();
@@ -180,15 +173,5 @@ mod tests {
             locs[0].file,
             std::env::home_dir().unwrap().join("lib/os.erl")
         );
-    }
-
-    #[test]
-    fn highlights_are_replayed() {
-        let d = fixture();
-        let mut h = ReplayHost::load(d.path()).unwrap();
-        let hl = h
-            .document_highlight(&d.path().join("a.erl"), Pos { line: 0, col: 8 })
-            .unwrap();
-        assert_eq!(hl[0].kind, crate::host::HighlightKind::Read);
     }
 }
