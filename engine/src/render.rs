@@ -48,6 +48,7 @@ fn tag<T: Serialize>(v: &T) -> String {
 mod tests {
     use super::*;
     use crate::tree::{Loc, Node, NodeKind, Stats, StopReason, Via};
+    use std::path::Path;
 
     fn loc(line: u32, col: u32) -> Loc {
         Loc {
@@ -60,6 +61,7 @@ mod tests {
     #[test]
     fn renders_indented_lines_with_via_stop_and_truncation() {
         let child = Node::stop(
+            Path::new("a.erl"),
             loc(3, 2),
             "X",
             "f(X) ->",

@@ -21,6 +21,7 @@ pub enum Via {
     Arg,
     Return,
     FieldSet,
+    Field,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
@@ -94,18 +95,8 @@ impl Default for Limits {
 }
 
 impl Node {
-    pub fn stop(
-        loc: Loc,
-        label: &str,
-        snippet: &str,
-        reason: StopReason,
-        detail: impl Into<String>,
-    ) -> Node {
-        Node::stop_rel(&loc.file.clone(), loc, label, snippet, reason, detail)
-    }
-
     /// `id_path`: the root-relative path, so ids do not depend on the checkout location.
-    pub fn stop_rel(
+    pub fn stop(
         id_path: &Path,
         loc: Loc,
         label: &str,
@@ -150,6 +141,7 @@ mod tests {
     #[test]
     fn serializes_to_spec_shape() {
         let n = Node::stop(
+            Path::new("a.erl"),
             Loc {
                 file: "/root/a.erl".into(),
                 line: 1,
@@ -179,7 +171,7 @@ mod tests {
     #[test]
     fn stop_id_ignores_the_absolute_location() {
         let stop = |dir: &str| {
-            Node::stop_rel(
+            Node::stop(
                 Path::new("a.erl"),
                 Loc {
                     file: format!("{dir}/a.erl").into(),

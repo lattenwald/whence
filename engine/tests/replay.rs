@@ -321,12 +321,18 @@ fn field_set_is_followed_to_the_construction() {
         limits: Limits::default(),
         expected: "expected.json",
     });
-    let field = &v["root"]["children"][0];
-    assert_eq!(field["kind"], "field");
-    assert_eq!(field["via"], "field_set");
-    let stop = &field["children"][0]["stop"];
-    assert_eq!(stop["reason"], "unresolved");
-    assert_eq!(stop["detail"], "field peer of Req0");
+    let set = &v["root"]["children"][0];
+    assert_eq!(set["kind"], "field");
+    assert_eq!(set["via"], "field_set");
+    // No construction of Req0 is visible, so the container itself is traced.
+    let of = &set["children"][0];
+    assert_eq!(of["kind"], "field");
+    assert_eq!(of["via"], "field");
+    assert_eq!(of["label"], "peer of Req0");
+    let container = &of["children"][0];
+    assert_eq!(container["kind"], "param");
+    assert_eq!(container["via"], "field");
+    assert_eq!(container["children"][0]["stop"]["reason"], "entry_point");
 }
 
 #[test]

@@ -2,8 +2,13 @@
   "definition": {
     "g.erl:8:4": [
       { "file": "g.erl", "range": { "start": { "line": 7, "col": 4 }, "end": { "line": 7, "col": 5 } } }
+    ],
+    "g.erl:6:20": [
+      { "file": "g.erl", "range": { "start": { "line": 5, "col": 7 }, "end": { "line": 5, "col": 11 } } }
     ]
   },
-  "references": {},
+  "references": {
+    "g.erl:5:0|nodecl": []
+  },
   "documentHighlight": {}
 }

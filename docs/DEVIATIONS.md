@@ -55,6 +55,14 @@ Each entry: which task, what the plan said, what was done instead, why. Entries 
   again (`unresolved: recursive call to <name>/<arity>`), which is what actually terminates
   `loop(S) -> loop(S).` and accumulator recursion — the frame hash grows with every push, so
   the path cut alone never fired for them.
+- Review round 2 (ruling, spec §5.1 and the §5.2 field row updated in the same commit): a
+  field access whose container has no visible construction no longer stops. It emits a
+  `field` node labelled `f of C` `via: field` whose one child is the trace of the container
+  itself, also `via: field` (new `Via::Field`, serde `"field"`). In Erlang a record almost
+  always arrives as a parameter or a call result, so the old `stop: unresolved: field f of C`
+  ended nearly every real field trace at the first hop. The engine still never picks the
+  field out of whatever the container resolves to — the container's trace simply continues
+  and ends where it ends.
 - Not implemented, deliberately: the `documentHighlight` rebinding pass of §5.2. Erlang is single-assignment, so it would emit nothing; `Via::Rebind`/`Mutation` wait for M2.
 
 ## Task 10 — Neovim engine and host

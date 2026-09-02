@@ -106,7 +106,8 @@ Node = {
   "kind": "binding" | "param" | "call_result" | "field" | "stop",
   "label": string,       // identifier or short expression text
   "loc": { "file", "line", "col" },
-  "via": "match" | "rebind" | "mutation" | "arg" | "return" | "field_set" | null,
+  "via": "match" | "rebind" | "mutation" | "arg" | "return" | "field_set"
+       | "field" | null,
   "snippet": string,     // the source line, trimmed
   "stop": { "reason": "external" | "entry_point" | "literal" | "unresolved" | "limit",
             "detail": string } | null,
@@ -131,7 +132,7 @@ language's captures (§6) for structure and the host for resolution:
 | Function parameter, frame stack **non-empty** | The call-site argument bound in the top frame (one child, no host call). |
 | Function parameter, frame stack **empty** | `host/references` on the enclosing function → for each call site, the argument at the parameter's index → `param` node, `via: arg`. Zero call sites → `stop: entry_point`. Fan-out bound applies. |
 | Call `f(A, B)` | `host/definition` on the callee. Definition outside `root` → `stop: external` with `detail` = callee text. Inside root → for each return expression of the callee (tail expressions, `return` statements, every clause body), a `call_result` node `via: return`; tracing continues inside the callee with a pushed frame `{param_i → arg_i}`. Callee not found → `stop: unresolved`. |
-| Field access `R#r.f`, `s.f`, `s.F` | Nearest visible construction or update of the container on the current path (`R = #r{f = V}`, `s.f = V`, struct literal with field `f`) → `field` node `via: field_set`; not found → `stop: unresolved: field f of R`. |
+| Field access `R#r.f`, `s.f`, `s.F` | Nearest visible construction or update of the container on the current path (`R = #r{f = V}`, `s.f = V`, struct literal with field `f`) → `field` node `via: field_set`, child = that field's value. No construction in sight → `field` node labelled `f of C` `via: field`, whose one child is the trace of the container `C` itself (`via: field`), which ends wherever tracing `C` ends. The engine never picks the field out of what `C` resolves to; a construction the container's own trace reaches shows up as an ordinary node on that path. |
 | Literal / constructor with no variable parts | `stop: literal`. |
 | Anything else (receive, closure capture, macro expansion, dynamic call, `apply`, reflection, method on unresolved receiver) | `stop: unresolved`, `detail` names the construct. |
 

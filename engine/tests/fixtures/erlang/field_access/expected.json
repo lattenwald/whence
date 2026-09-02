@@ -4,22 +4,54 @@
       {
         "children": [
           {
-            "children": [],
-            "id": "34d2832ed76db9a0",
-            "kind": "stop",
-            "label": "Req0#req.peer",
+            "children": [
+              {
+                "children": [
+                  {
+                    "children": [],
+                    "id": "4d4162e41128dfe4",
+                    "kind": "stop",
+                    "label": "Req0",
+                    "loc": {
+                      "col": 7,
+                      "file": "g.erl",
+                      "line": 5
+                    },
+                    "snippet": "handle(Req0) ->",
+                    "stop": {
+                      "detail": "no call sites of handle/1",
+                      "reason": "entry_point"
+                    },
+                    "truncated": 0,
+                    "via": null
+                  }
+                ],
+                "id": "eb3499c27d1cb333",
+                "kind": "param",
+                "label": "Req0",
+                "loc": {
+                  "col": 7,
+                  "file": "g.erl",
+                  "line": 5
+                },
+                "snippet": "handle(Req0) ->",
+                "stop": null,
+                "truncated": 0,
+                "via": "field"
+              }
+            ],
+            "id": "1cc7cac65980478f",
+            "kind": "field",
+            "label": "peer of Req0",
             "loc": {
               "col": 20,
               "file": "g.erl",
               "line": 6
             },
             "snippet": "R = #req{peer = Req0#req.peer},",
-            "stop": {
-              "detail": "field peer of Req0",
-              "reason": "unresolved"
-            },
+            "stop": null,
             "truncated": 0,
-            "via": null
+            "via": "field"
           }
         ],
         "id": "173f9fd4f0a3bfad",
@@ -50,9 +82,9 @@
     "via": "match"
   },
   "stats": {
-    "host_requests": 2,
+    "host_requests": 4,
     "ms": 0,
-    "nodes": 3,
+    "nodes": 5,
     "truncated": 0
   }
 }

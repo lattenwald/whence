@@ -89,7 +89,7 @@ fn make(
 }
 
 fn stop(site: &Site, reason: StopReason, detail: impl Into<String>) -> Node {
-    Node::stop_rel(
+    Node::stop(
         &site.rel,
         site.loc.clone(),
         &site.label,
@@ -325,24 +325,39 @@ fn value(
         return Ok(unresolved(site, n.0.kind()));
     }
     if let Some((container, field)) = doc.field_access(n) {
-        return match field_source(doc, n, container, &field) {
-            Some(source) => {
-                let child = Expr::Value(file.to_path_buf(), Span::of(source));
-                let child = expand(ctx, &child, depth + 1)?;
-                Ok(make(
-                    ctx,
-                    NodeKind::Field,
-                    site,
-                    Via::FieldSet,
-                    vec![child],
-                    0,
-                ))
-            }
-            None => Ok(unresolved(
+        if let Some(source) = field_source(doc, n, container, &field) {
+            let child = Expr::Value(file.to_path_buf(), Span::of(source));
+            let child = expand(ctx, &child, depth + 1)?;
+            return Ok(make(
+                ctx,
+                NodeKind::Field,
                 site,
-                format!("field {field} of {}", doc.text_of(container)),
-            )),
+                Via::FieldSet,
+                vec![child],
+                0,
+            ));
+        }
+        let container_expr = if doc.has_cap(container, vocab::IDENT) {
+            Expr::Ident(file.to_path_buf(), doc.pos_of(container))
+        } else {
+            Expr::Value(file.to_path_buf(), Span::of(container))
         };
+        let mut child = expand(ctx, &container_expr, depth + 1)?;
+        child.via = Some(Via::Field);
+        let site = Site {
+            loc: site.loc.clone(),
+            rel: site.rel.clone(),
+            label: format!("{field} of {}", doc.text_of(container)),
+            snippet: site.snippet.clone(),
+        };
+        return Ok(make(
+            ctx,
+            NodeKind::Field,
+            &site,
+            Via::Field,
+            vec![child],
+            0,
+        ));
     }
     if let Some(call) = doc.call_at(n) {
         let callee = doc.callee_text(&call);
