@@ -1,6 +1,6 @@
 ---
 id: whe-ue14
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-09-02T07:00:23Z
