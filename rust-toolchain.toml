@@ -1,2 +1,4 @@
 [toolchain]
 channel = "1.98"
+# Overrides the CI action's toolchain selection, so the components are named here too.
+components = ["rustfmt", "clippy"]
