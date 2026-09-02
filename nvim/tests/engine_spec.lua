@@ -22,13 +22,22 @@ describe("engine", function()
 
   it("fails a pending trace when the engine dies", function()
     local engine = require("whence.engine")
-    local client = assert(engine.start({ cmd = { vim.g.whence_bin, "replay", "--serve", fx }, root = fx }))
+    -- vim.lsp.rpc hides the child's pid; the shell records it and execs in place.
+    local pidfile = vim.fn.tempname()
+    local client = assert(engine.start({
+      cmd = { "sh", "-c", 'echo $$ >"$1"; shift; exec "$@"', "whence", pidfile, vim.g.whence_bin, "replay", "--serve", fx },
+      root = fx,
+    }))
+    local pid = assert(tonumber(vim.trim(table.concat(vim.fn.readfile(pidfile), ""))))
 
+    -- Stopped, the engine cannot answer, so the trace is certainly pending at the kill.
+    assert.equals(0, vim.uv.kill(pid, "sigstop"))
     local err, done = nil, false
     engine.trace(client, { file = fx .. "/a.erl", line = 6, col = 4 }, function(e)
       err, done = e, true
     end)
-    client.terminate()
+    -- SIGKILL, not terminate()'s SIGTERM: a stopped process only sees SIGTERM on resume.
+    assert.equals(0, vim.uv.kill(pid, "sigkill"))
 
     assert.is_true(vim.wait(2000, function()
       return done
