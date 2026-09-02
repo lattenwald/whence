@@ -10,6 +10,7 @@ handle(Req0, Opts) ->
     Limit = maps:get(limit, Opts, 10),
     _F = fun(X) -> X end,
     _G = begin io:format("x"), 42 end,
+    _H = try io:format("y"), 43 catch _:_ -> 44 end,
     case pick(Limit) of
         {ok, V} -> {V, R};
         error -> {0, R}

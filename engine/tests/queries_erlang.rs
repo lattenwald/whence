@@ -60,6 +60,8 @@ fn tail_returns_and_branches() {
     assert!(has(&c, vocab::RETURN_VALUE, "{V, R}"));
     assert!(has(&c, vocab::RETURN_VALUE, "error"));
     assert!(has(&c, vocab::RETURN_VALUE, "42"));
+    assert!(has(&c, vocab::RETURN_VALUE, "43"));
+    assert!(!has(&c, vocab::RETURN_VALUE, "io:format(\"y\")"));
     assert!(has(&c, vocab::BRANCH_SUBJECT, "pick(Limit)"));
     assert!(has(&c, vocab::BRANCH_PATTERN, "{ok, V}"));
 }

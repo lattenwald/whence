@@ -17,6 +17,8 @@
 (clause_body (_) @return.value .)
 (block_expr (_) @return.value .)
 (paren_expr expr: (_) @return.value)
+(try_expr exprs: (_) @return.value . catch: (catch_clause))
+(try_expr exprs: (_) @return.value . after: (_))
 [(case_expr) (if_expr) (try_expr) (receive_expr) (block_expr) (paren_expr)] @return.container
 
 (case_expr expr: (_) @branch.subject)
