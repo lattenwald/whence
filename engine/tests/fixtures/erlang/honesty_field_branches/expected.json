@@ -4,9 +4,78 @@
       {
         "children": [
           {
-            "children": [],
-            "id": "718889745a6975d1",
-            "kind": "stop",
+            "children": [
+              {
+                "children": [
+                  {
+                    "children": [],
+                    "id": "f05231e79c057553",
+                    "kind": "stop",
+                    "label": "one",
+                    "loc": {
+                      "col": 24,
+                      "file": "f.erl",
+                      "line": 7
+                    },
+                    "snippet": "1 -> R = #r{a = one};",
+                    "stop": {
+                      "detail": "atom",
+                      "reason": "literal"
+                    },
+                    "truncated": 0,
+                    "via": "field_set"
+                  }
+                ],
+                "id": "629443725b2d0673",
+                "kind": "binding",
+                "label": "R",
+                "loc": {
+                  "col": 13,
+                  "file": "f.erl",
+                  "line": 7
+                },
+                "snippet": "1 -> R = #r{a = one};",
+                "stop": null,
+                "truncated": 0,
+                "via": "match"
+              },
+              {
+                "children": [
+                  {
+                    "children": [],
+                    "id": "d7cf7ae5b0df6b9d",
+                    "kind": "stop",
+                    "label": "two",
+                    "loc": {
+                      "col": 24,
+                      "file": "f.erl",
+                      "line": 8
+                    },
+                    "snippet": "_ -> R = #r{a = two}",
+                    "stop": {
+                      "detail": "atom",
+                      "reason": "literal"
+                    },
+                    "truncated": 0,
+                    "via": "field_set"
+                  }
+                ],
+                "id": "970892cae9b4dc70",
+                "kind": "binding",
+                "label": "R",
+                "loc": {
+                  "col": 13,
+                  "file": "f.erl",
+                  "line": 8
+                },
+                "snippet": "_ -> R = #r{a = two}",
+                "stop": null,
+                "truncated": 0,
+                "via": "match"
+              }
+            ],
+            "id": "a7dde73798df1808",
+            "kind": "branch",
             "label": "R",
             "loc": {
               "col": 8,
@@ -14,10 +83,7 @@
               "line": 10
             },
             "snippet": "V = R#r.a,",
-            "stop": {
-              "detail": "2 definitions",
-              "reason": "unresolved"
-            },
+            "stop": null,
             "truncated": 0,
             "via": "field"
           }
@@ -52,7 +118,7 @@
   "stats": {
     "host_requests": 3,
     "ms": 0,
-    "nodes": 3,
+    "nodes": 7,
     "truncated": 0
   }
 }

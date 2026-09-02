@@ -204,21 +204,50 @@ pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
 }
 
 fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, TraceError> {
-    let defs = distinct(&ctx.definition(file, site.pos())?);
-    let def = match defs.len() {
+    let mut defs: Vec<(PathBuf, Pos)> = distinct(&ctx.definition(file, site.pos())?)
+        .into_iter()
+        .map(|l| (l.file, l.range.start))
+        .collect();
+    match defs.len() {
         0 => return Ok(unresolved(ctx, site, "no definition from language server")),
-        1 => &defs[0],
-        n => return Ok(unresolved(ctx, site, format!("{n} definitions"))),
-    };
-    if !ctx.in_root(&def.file) {
+        1 => return definition(ctx, &defs[0].0, defs[0].1, site, depth),
+        _ => {}
+    }
+    sort_local(&mut defs, file, |p| (p.line, p.col));
+    let (dropped, collapsed) = candidates(ctx, site, &mut defs, "definitions");
+    let mut children = Vec::new();
+    for (f, p) in &defs {
+        let mut child = definition(ctx, f, *p, site, depth)?;
+        child.via = Some(Via::Match);
+        children.push(child);
+    }
+    children.extend(collapsed);
+    Ok(make(
+        ctx,
+        NodeKind::Branch,
+        site,
+        Via::Match,
+        children,
+        dropped,
+    ))
+}
+
+fn definition(
+    ctx: &mut Ctx,
+    def_file: &Path,
+    def_pos: Pos,
+    site: &Site,
+    depth: u32,
+) -> Result<Node, TraceError> {
+    if !ctx.in_root(def_file) {
         return Ok(stop(ctx, site, StopReason::External, site.label.clone()));
     }
 
-    let doc = ctx.doc(&def.file)?;
-    let Some(ident) = doc.ident_at(def.range.start) else {
+    let doc = ctx.doc(def_file)?;
+    let Some(ident) = doc.ident_at(def_pos) else {
         return Ok(unresolved(ctx, site, "definition is not an identifier"));
     };
-    let dsite = Site::new(ctx, &doc, &def.file, ident);
+    let dsite = Site::new(ctx, &doc, def_file, ident);
 
     match doc.role_of(ident) {
         Role::BoundBy { pattern, value }
@@ -227,7 +256,7 @@ fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, Tr
             subject: value,
         } => {
             let source = doc.destructure(pattern, ident, value).unwrap_or(value);
-            let child = Expr::Value(def.file.clone(), Span::of(source));
+            let child = Expr::Value(def_file.to_path_buf(), Span::of(source));
             let child = matched(expand(ctx, &child, depth + 1)?);
             Ok(make(
                 ctx,
@@ -239,7 +268,7 @@ fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, Tr
             ))
         }
         Role::Param { func, index } => {
-            param(ctx, &doc, &def.file, &func, index, ident, &dsite, depth)
+            param(ctx, &doc, def_file, &func, index, ident, &dsite, depth)
         }
         Role::Opaque(n) => Ok(unresolved(
             ctx,
@@ -374,7 +403,7 @@ fn param(
                 (a.0 != file, &a.0, a.1.line, a.1.col).cmp(&(b.0 != file, &b.0, b.1.line, b.1.col))
             });
             strays.dedup_by(|a, b| a.0 == b.0 && a.1 == b.1);
-            let dropped = fanout(ctx, &mut strays);
+            let (dropped, collapsed) = candidates(ctx, site, &mut strays, "references");
             let mut kids = Vec::new();
             for (f, p, detail) in strays {
                 kids.push(stray_stop(ctx, &f, p, &func.name, detail)?);
@@ -384,7 +413,11 @@ fn param(
                 func.name
             );
             let mut n = unresolved(ctx, site, detail);
-            n.children = kids;
+            n.children = if collapsed.is_some() {
+                Vec::new()
+            } else {
+                kids
+            };
             n.truncated = dropped;
             n
         };
@@ -393,12 +426,13 @@ fn param(
 
     sort_local(&mut sites, file, |s| s.start);
     sites.dedup();
-    let dropped = fanout(ctx, &mut sites);
+    let (dropped, collapsed) = candidates(ctx, site, &mut sites, "call sites");
     let mut children = Vec::new();
     for a in sites {
         let s = narrow(doc, func.params.get(index).copied(), ident, file, &a);
         children.push(expand(ctx, &Expr::Value(a.0, s), depth + 1)?);
     }
+    children.extend(collapsed);
     Ok(make(
         ctx,
         NodeKind::Param,
@@ -443,15 +477,29 @@ fn sort_local<T, K: Ord>(items: &mut [(PathBuf, T)], file: &Path, key: impl Fn(&
     items.sort_by(|a, b| (a.0 != file, &a.0, key(&a.1)).cmp(&(b.0 != file, &b.0, key(&b.1))));
 }
 
-fn fanout<T>(ctx: &mut Ctx, items: &mut Vec<T>) -> u32 {
+/// Every fork of the tree passes here, so `split` is honoured everywhere.
+fn candidates<T>(
+    ctx: &mut Ctx,
+    site: &Site,
+    items: &mut Vec<T>,
+    what: &str,
+) -> (u32, Option<Node>) {
+    if !ctx.limits.split && items.len() > 1 {
+        let n = items.len() as u32;
+        items.clear();
+        ctx.truncated += n;
+        ctx.node_count += 1;
+        let stop = unresolved(ctx, site, format!("{n} candidates: {what}"));
+        return (n, Some(stop));
+    }
     let keep = ctx.limits.fanout as usize;
     if items.len() <= keep {
-        return 0;
+        return (0, None);
     }
     let dropped = (items.len() - keep) as u32;
     items.truncate(keep);
     ctx.truncated += dropped;
-    dropped
+    (dropped, None)
 }
 
 fn value(
@@ -622,7 +670,15 @@ fn call_result(
         ));
     }
 
-    let dropped = fanout(ctx, &mut plan);
+    let mut all: Vec<Option<(usize, Span)>> = plan.into_iter().map(Some).collect();
+    all.extend(recursive.iter().map(|_| None));
+    let (dropped, collapsed) = candidates(ctx, site, &mut all, "return expressions");
+    let plan: Vec<(usize, Span)> = all.iter().flatten().copied().collect();
+    let recursive: Vec<usize> = if all.is_empty() {
+        Vec::new()
+    } else {
+        recursive
+    };
     let mut children = Vec::new();
     for (i, s) in plan {
         let t = &targets[i];
@@ -648,6 +704,7 @@ fn call_result(
         ));
         ctx.node_count += 1;
     }
+    children.extend(collapsed);
 
     let site = site.relabel(callee.to_string());
     Ok(make(
@@ -711,13 +768,14 @@ fn branch(
     if tails.is_empty() {
         return Ok(unresolved(ctx, site, n.0.kind()));
     }
-    let dropped = fanout(ctx, &mut tails);
+    let (dropped, collapsed) = candidates(ctx, site, &mut tails, "branch tails");
     let mut children = Vec::new();
     for s in tails {
         let mut child = expand(ctx, &Expr::Value(file.to_path_buf(), s), depth + 1)?;
         child.via = Some(Via::Match);
         children.push(child);
     }
+    children.extend(collapsed);
     let site = site.relabel(first_line_of(doc, n));
     Ok(make(
         ctx,

@@ -441,9 +441,53 @@ fn every_construction_of_the_container_is_a_sibling() {
     let of = &v["root"]["children"][0];
     assert_eq!(of["kind"], "field");
     // Both case branches bind R: the server reports two definitions.
-    let stop = &of["children"][0];
-    assert_eq!(stop["stop"]["reason"], "unresolved");
-    assert_eq!(stop["stop"]["detail"], "2 definitions");
+    let r = &of["children"][0];
+    assert_eq!((&r["kind"], &r["label"]), (&"branch".into(), &"R".into()));
+    let kids = r["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 2);
+    for (k, want) in kids.iter().zip(["one", "two"]) {
+        assert_eq!(k["kind"], "binding");
+        assert_eq!(k["children"][0]["via"], "field_set");
+        assert_eq!(k["children"][0]["label"], want);
+    }
+}
+
+#[test]
+fn split_off_collapses_every_fork_to_one_stop() {
+    let no_split = Limits {
+        split: false,
+        ..Default::default()
+    };
+    let v = run(&Case {
+        dir: "honesty_field_branches",
+        file: "f.erl",
+        pos: (11, 4),
+        limits: no_split,
+        ..Default::default()
+    });
+    let r = &v["root"]["children"][0]["children"][0];
+    assert_eq!(r["kind"], "branch");
+    assert_eq!(r["truncated"], 2);
+    assert_eq!(r["children"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        r["children"][0]["stop"]["detail"],
+        "2 candidates: definitions"
+    );
+
+    let v = run(&Case {
+        dir: "diamond",
+        file: "n.erl",
+        pos: (5, 4),
+        limits: no_split,
+        ..Default::default()
+    });
+    let call = &v["root"]["children"][0];
+    assert_eq!(call["kind"], "call_result");
+    assert_eq!(
+        call["children"][0]["stop"]["detail"],
+        "2 candidates: return expressions"
+    );
+    assert_eq!(v["stats"]["truncated"], 2);
 }
 
 #[test]
@@ -470,7 +514,7 @@ fn references_that_are_not_call_sites_are_not_an_entry_point() {
 }
 
 #[test]
-fn several_definitions_are_unresolved() {
+fn several_definitions_are_all_shown() {
     let v = check(Case {
         dir: "honesty_multi_def",
         file: "m.erl",
@@ -478,8 +522,14 @@ fn several_definitions_are_unresolved() {
         ..Default::default()
     });
     let x = &v["root"]["children"][0];
-    assert_eq!(x["stop"]["reason"], "unresolved");
-    assert_eq!(x["stop"]["detail"], "2 definitions");
+    assert_eq!((&x["kind"], &x["label"]), (&"branch".into(), &"X".into()));
+    let kids = x["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 2);
+    let leaves: Vec<&str> = kids
+        .iter()
+        .map(|k| k["children"][0]["label"].as_str().unwrap())
+        .collect();
+    assert_eq!(leaves, ["one", "two"]);
 }
 
 #[test]

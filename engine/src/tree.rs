@@ -82,6 +82,8 @@ pub struct Limits {
     pub fanout: u32,
     pub nodes: u32,
     pub time_ms: u64,
+    /// `false`: wherever the tree would fork, stop with one `unresolved` naming the candidates.
+    pub split: bool,
 }
 
 impl Default for Limits {
@@ -91,6 +93,7 @@ impl Default for Limits {
             fanout: 8,
             nodes: 400,
             time_ms: 10_000,
+            split: true,
         }
     }
 }
@@ -179,7 +182,7 @@ mod tests {
     #[test]
     fn limits_default_and_partial_override() {
         let l: Limits = serde_json::from_str(r#"{"fanout":3}"#).unwrap();
-        assert_eq!((l.depth, l.fanout, l.nodes), (64, 3, 400));
+        assert_eq!((l.depth, l.fanout, l.nodes, l.split), (64, 3, 400, true));
     }
 
     #[test]

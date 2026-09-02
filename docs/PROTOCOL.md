@@ -58,12 +58,15 @@ declares `false` until M2.
 ```jsonc
 // params
 { "file": "/abs/project/src/a.erl", "line": 6, "col": 4,
-  "limits": { "depth": 64, "fanout": 8, "nodes": 400, "time_ms": 10000 } }
+  "limits": { "depth": 64, "fanout": 8, "nodes": 400, "time_ms": 10000, "split": true } }
 // result
 Tree   // see below
 ```
 
-`limits` is optional and each field defaults to the value shown. Traces are
+`limits` is optional and each field defaults to the value shown. `split: false`
+turns every fork of the tree (several definitions, call sites, callee returns
+or branch tails) into one `stop: unresolved: <N> candidates: <what>` child, so
+the result is a single path; the candidates are counted in `truncated`. Traces are
 **single-flight**: a request that reaches the engine while it is blocked
 waiting for a `host/*` reply is answered `busy` immediately; one that arrives
 after the trace's last host request simply waits in the queue and is served

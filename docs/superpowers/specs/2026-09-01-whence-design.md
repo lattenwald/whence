@@ -62,7 +62,7 @@ pass LSP results through untouched. Paths are absolute.
 ```
 initialize      { root: string, capabilities: { documentHighlight: bool } }
                 → { version: string, languages: [string] }
-whence/trace    { file, line, col, limits?: { depth?, fanout?, nodes?, time_ms? } }
+whence/trace    { file, line, col, limits?: { depth?, fanout?, nodes?, time_ms?, split? } }
                 → Tree | error
 shutdown        {} → {}
 exit            (notification) ends the loop; so does EOF on stdin
@@ -135,7 +135,7 @@ language's captures (§6) for structure and the host for resolution:
 
 | Expression | Children |
 |---|---|
-| Variable use | `host/definition` on the variable → its binding site. Definitions are de-duplicated by (file, range); more than one distinct definition → `stop: unresolved: <N> definitions`, since choosing one would be a guess (§5.5). *(M2 — not implemented in M1; the engine never sends `host/documentHighlight`:* if `documentHighlight` is available and returns `write` occurrences between the binding and the use, each write becomes a `binding` node with `via: rebind`/`mutation`, newest first, then the original binding.*)* |
+| Variable use | `host/definition` on the variable → its binding site. Definitions are de-duplicated by (file, range); more than one distinct definition (one per `case` branch, say) → a `branch` node at the use whose children are every definition's node, `via: match`, since choosing one would be a guess and listing all is not (§5.5). *(M2 — not implemented in M1; the engine never sends `host/documentHighlight`:* if `documentHighlight` is available and returns `write` occurrences between the binding and the use, each write becomes a `binding` node with `via: rebind`/`mutation`, newest first, then the original binding.*)* |
 | Binding site (pattern `X = E`, `let x = E`, `x := E`, `a, b = f()`) | The RHS `E`; if the pattern destructures, the RHS sub-expression matching the sub-pattern that binds our identifier, when the RHS is a matching constructor/tuple; otherwise the whole RHS with `via: match`. |
 | Any value that is a branching expression (`case`/`if`/`try`/`begin`/parens), most often a binding's RHS | A `branch` node `via: match`, labelled with the first line of the expression, whose children are that expression's tails (nested branches expanded in turn), each `via: match`. Fan-out bound applies. |
 | Function parameter, frame stack **non-empty** | The call-site argument bound in the top frame (one child, no host call), narrowed by the parameter's pattern the same way a binding site is when both sit in one file. |
@@ -155,9 +155,13 @@ call-result descent from expanding into every caller of every callee.
 
 ### 5.4 Bounds and termination
 
-- Defaults: `depth = 64`, `fanout = 8`, `nodes = 400`; overridable per
-  request. Hitting a bound emits `stop: limit` (never a silent cut); dropped
-  siblings are counted in the parent's `truncated`.
+- Defaults: `depth = 64`, `fanout = 8`, `nodes = 400`, `split = true`;
+  overridable per request. Hitting a bound emits `stop: limit` (never a silent
+  cut); dropped siblings are counted in the parent's `truncated`.
+- `split = false` keeps the tree a single path: wherever it would fork (several
+  definitions, call sites, return expressions, branch tails) the parent gets
+  one `stop: unresolved: <N> candidates: <what>` child instead, the candidates
+  counted in `truncated`. One switch, one code path, so no fork can escape it.
 - Cycle cut: an expression already on the current expansion path with the same
   frame stack → `stop: unresolved: recursion`. Revisiting an expression on a
   different path is allowed (diamonds are common: multi-clause callees, case

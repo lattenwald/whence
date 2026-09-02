@@ -2,9 +2,78 @@
   "root": {
     "children": [
       {
-        "children": [],
-        "id": "1658400efac305f2",
-        "kind": "stop",
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "b262c77be2023910",
+                "kind": "stop",
+                "label": "one",
+                "loc": {
+                  "col": 17,
+                  "file": "m.erl",
+                  "line": 5
+                },
+                "snippet": "1 -> X = one;",
+                "stop": {
+                  "detail": "atom",
+                  "reason": "literal"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "e6a89ead8f653bea",
+            "kind": "binding",
+            "label": "X",
+            "loc": {
+              "col": 13,
+              "file": "m.erl",
+              "line": 5
+            },
+            "snippet": "1 -> X = one;",
+            "stop": null,
+            "truncated": 0,
+            "via": "match"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "2bc28342dcfccc55",
+                "kind": "stop",
+                "label": "two",
+                "loc": {
+                  "col": 17,
+                  "file": "m.erl",
+                  "line": 6
+                },
+                "snippet": "_ -> X = two",
+                "stop": {
+                  "detail": "atom",
+                  "reason": "literal"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "53909335b30a025a",
+            "kind": "binding",
+            "label": "X",
+            "loc": {
+              "col": 13,
+              "file": "m.erl",
+              "line": 6
+            },
+            "snippet": "_ -> X = two",
+            "stop": null,
+            "truncated": 0,
+            "via": "match"
+          }
+        ],
+        "id": "1230e33fd71b8fda",
+        "kind": "branch",
         "label": "X",
         "loc": {
           "col": 8,
@@ -12,12 +81,9 @@
           "line": 8
         },
         "snippet": "Y = X,",
-        "stop": {
-          "detail": "2 definitions",
-          "reason": "unresolved"
-        },
+        "stop": null,
         "truncated": 0,
-        "via": null
+        "via": "match"
       }
     ],
     "id": "9eb963f89624b83b",
@@ -36,7 +102,7 @@
   "stats": {
     "host_requests": 3,
     "ms": 0,
-    "nodes": 2,
+    "nodes": 6,
     "truncated": 0
   }
 }
