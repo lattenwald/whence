@@ -15,7 +15,7 @@ test: ## Run engine tests
 	cargo test --workspace
 
 .PHONY: test-nvim
-test-nvim: ## Run Neovim plugin tests (plenary path: PLENARY_DIR=~/.local/share/nvim/lazy/plenary.nvim)
+test-nvim: ## Run Neovim plugin tests (override plenary path with PLENARY_DIR=...)
 	PLENARY_DIR=$(PLENARY_DIR) nvim --headless -u nvim/tests/minimal_init.lua -c "PlenaryBustedDirectory nvim/tests { minimal_init = 'nvim/tests/minimal_init.lua' }"
 
 .PHONY: nvim-link
