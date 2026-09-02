@@ -1,6 +1,6 @@
 ---
 id: whe-479q
-status: open
+status: closed
 deps: [whe-dd43]
 links: []
 created: 2026-09-02T07:00:24Z

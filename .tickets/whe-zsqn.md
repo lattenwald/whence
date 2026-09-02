@@ -1,6 +1,6 @@
 ---
 id: whe-zsqn
-status: in_progress
+status: closed
 deps: [whe-qmd5]
 links: []
 created: 2026-09-02T07:00:24Z
