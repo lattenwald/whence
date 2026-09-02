@@ -1,0 +1,20 @@
+{
+  "definition": {
+    "e.erl:5:4": [
+      { "file": "e.erl", "range": { "start": { "line": 4, "col": 4 }, "end": { "line": 4, "col": 5 } } }
+    ],
+    "e.erl:4:19": [
+      {
+        "file": "/opt/deps/cowboy/src/cowboy_req.erl",
+        "range": { "start": { "line": 305, "col": 0 }, "end": { "line": 305, "col": 4 } }
+      }
+    ],
+    "e.erl:4:24": [
+      { "file": "e.erl", "range": { "start": { "line": 3, "col": 7 }, "end": { "line": 3, "col": 10 } } }
+    ]
+  },
+  "references": {
+    "e.erl:3:0|nodecl": []
+  },
+  "documentHighlight": {}
+}

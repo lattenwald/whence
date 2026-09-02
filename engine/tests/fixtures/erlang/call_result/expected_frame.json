@@ -1,0 +1,74 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "9b6e35759d8285f3",
+                "kind": "stop",
+                "label": "7",
+                "loc": {
+                  "col": 11,
+                  "file": "d.erl",
+                  "line": 8
+                },
+                "snippet": "R = id(7),",
+                "stop": {
+                  "detail": "integer",
+                  "reason": "literal"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "a65d272711e33346",
+            "kind": "param",
+            "label": "N",
+            "loc": {
+              "col": 3,
+              "file": "d.erl",
+              "line": 14
+            },
+            "snippet": "id(N) -> N.",
+            "stop": null,
+            "truncated": 0,
+            "via": "arg"
+          }
+        ],
+        "id": "9fbd0e3b4acffaf1",
+        "kind": "call_result",
+        "label": "id",
+        "loc": {
+          "col": 8,
+          "file": "d.erl",
+          "line": 8
+        },
+        "snippet": "R = id(7),",
+        "stop": null,
+        "truncated": 0,
+        "via": "return"
+      }
+    ],
+    "id": "469eebfb978b739f",
+    "kind": "binding",
+    "label": "R",
+    "loc": {
+      "col": 4,
+      "file": "d.erl",
+      "line": 8
+    },
+    "snippet": "R = id(7),",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 4,
+    "ms": 0,
+    "nodes": 4,
+    "truncated": 0
+  }
+}

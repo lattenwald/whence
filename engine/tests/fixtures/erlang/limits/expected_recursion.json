@@ -1,0 +1,42 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [],
+        "id": "980ed592d7f0648a",
+        "kind": "stop",
+        "label": "S",
+        "loc": {
+          "col": 16,
+          "file": "l.erl",
+          "line": 5
+        },
+        "snippet": "loop(S) -> loop(S).",
+        "stop": {
+          "detail": "recursion",
+          "reason": "unresolved"
+        },
+        "truncated": 0,
+        "via": null
+      }
+    ],
+    "id": "1a2c9b772bfc8d17",
+    "kind": "param",
+    "label": "S",
+    "loc": {
+      "col": 5,
+      "file": "l.erl",
+      "line": 5
+    },
+    "snippet": "loop(S) -> loop(S).",
+    "stop": null,
+    "truncated": 0,
+    "via": "arg"
+  },
+  "stats": {
+    "host_requests": 3,
+    "ms": 0,
+    "nodes": 2,
+    "truncated": 0
+  }
+}

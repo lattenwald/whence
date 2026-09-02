@@ -1,0 +1,30 @@
+{
+  "definition": {
+    "l.erl:3:8": [
+      { "file": "l.erl", "range": { "start": { "line": 3, "col": 2 }, "end": { "line": 3, "col": 3 } } }
+    ],
+    "l.erl:5:16": [
+      { "file": "l.erl", "range": { "start": { "line": 5, "col": 5 }, "end": { "line": 5, "col": 6 } } }
+    ]
+  },
+  "references": {
+    "l.erl:3:0|nodecl": [
+      { "file": "m.erl", "range": { "start": { "line": 4, "col": 6 }, "end": { "line": 4, "col": 7 } } },
+      { "file": "m.erl", "range": { "start": { "line": 5, "col": 6 }, "end": { "line": 5, "col": 7 } } },
+      { "file": "m.erl", "range": { "start": { "line": 6, "col": 6 }, "end": { "line": 6, "col": 7 } } },
+      { "file": "m.erl", "range": { "start": { "line": 7, "col": 6 }, "end": { "line": 7, "col": 7 } } },
+      { "file": "m.erl", "range": { "start": { "line": 8, "col": 6 }, "end": { "line": 8, "col": 7 } } },
+      { "file": "m.erl", "range": { "start": { "line": 9, "col": 6 }, "end": { "line": 9, "col": 7 } } },
+      { "file": "m.erl", "range": { "start": { "line": 10, "col": 6 }, "end": { "line": 10, "col": 7 } } },
+      { "file": "m.erl", "range": { "start": { "line": 11, "col": 6 }, "end": { "line": 11, "col": 7 } } },
+      { "file": "m.erl", "range": { "start": { "line": 12, "col": 6 }, "end": { "line": 12, "col": 7 } } },
+      { "file": "m.erl", "range": { "start": { "line": 13, "col": 6 }, "end": { "line": 13, "col": 7 } } },
+      { "file": "m.erl", "range": { "start": { "line": 14, "col": 6 }, "end": { "line": 14, "col": 7 } } },
+      { "file": "m.erl", "range": { "start": { "line": 15, "col": 6 }, "end": { "line": 15, "col": 7 } } }
+    ],
+    "l.erl:5:0|nodecl": [
+      { "file": "l.erl", "range": { "start": { "line": 5, "col": 11 }, "end": { "line": 5, "col": 15 } } }
+    ]
+  },
+  "documentHighlight": {}
+}

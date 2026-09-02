@@ -5,4 +5,5 @@ pub mod lang;
 pub mod pos;
 pub mod protocol;
 pub mod syntax;
+pub mod trace;
 pub mod tree;

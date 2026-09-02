@@ -31,3 +31,16 @@ Each entry: which task, what the plan said, what was done instead, why. Entries 
 - Plan: the query test asserts `@call.callee == "maps:get"`. Done: asserts `"get"` plus `@call.args == "(limit, Opts, 10)"`.
 - Plan fixture had no anonymous fun. Done: added `_F = fun(X) -> X end,` so `@opaque` is exercised.
 - Review fix: vocabulary gained `@through` / `@through.inner` ("classify this node by its inner child"), captured on `remote(fun: call)`, so Task 7 can reach the `@call` inside a remote call without Erlang-specific code. `@return.value` is also captured for `begin … end` and parenthesised bodies. `try … catch` body tails (no `of`) are captured with field-anchored patterns (`exprs: (_) @return.value . catch: …` / `. after: …`); the `of` form captures nothing from the body, which is correct since the body is then a subject, not a tail. `catch_expr` and `maybe_expr` added to `@opaque`.
+
+## Task 8 — trace core
+
+- Plan: `Expr::Value(PathBuf, Pos)`. Done: `Expr::Value(PathBuf, Span)` where `Span` is `(start byte, end byte, kind id)` — a position does not name a node (`pick` and `pick(3)` start at the same place), and Task 7's `Doc` re-resolves nodes from exactly that triple. Frame arguments are `(PathBuf, Span)` for the same reason; the visited set stays keyed on `(file, Pos, frame hash)` as planned.
+- Plan/spec: "zero call sites → `stop: entry_point`". Done: the `param` node is emitted with the `entry_point` stop as its only child — the spec table's column is *Children*, and the parameter's own location is worth showing. Same shape as the plan's expected tree for `local_chain`.
+- `via` is set when a node is built, from its kind: `binding` → `match`, `param` → `arg`, `call_result` → `return`, `field` → `field_set`, stops → `null`. It reads as "how the value above is fed by this node", so the root carries one too.
+- Matching a reference to a call site compares `callee_text` to the function name exactly or after a `mod:` prefix, not a plain `ends_with`: `flag` ends with `g`.
+- Resolving a parameter through the frame pops that frame while expanding the argument. The argument is the *caller's* expression, so its own parameters must resolve against the caller's frame (spec §5.3); without the pop a two-deep call chain resolves the outer parameter in the inner callee's frame.
+- `node_count` increments once per `expand` call, before the budget checks (bound is `> limits.nodes`), so `limit: nodes` trips on the way down. Counting at node *construction* never trips: children are built before their parent.
+- Enumerating a file's function clauses and locating a clause's `@function.name` are done by walking the tree and testing `has_cap`; `Doc` exposes neither. Both are vocabulary-only and belong in `syntax.rs` if a second caller appears.
+- A reference outside the language registry (a hit in a file with no grammar) is skipped rather than failing the trace.
+- `stats.host_requests` counts `host/text` alongside `definition`/`references`: it is the count of requests the editor answered.
+- Not implemented, deliberately: the `documentHighlight` rebinding pass of §5.2. Erlang is single-assignment, so it would emit nothing; `Via::Rebind`/`Mutation` wait for M2.

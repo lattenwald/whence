@@ -1,0 +1,42 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [],
+        "id": "62666409b83f59d4",
+        "kind": "stop",
+        "label": "Req",
+        "loc": {
+          "col": 7,
+          "file": "e.erl",
+          "line": 3
+        },
+        "snippet": "handle(Req) ->",
+        "stop": {
+          "detail": "no call sites of handle/1",
+          "reason": "entry_point"
+        },
+        "truncated": 0,
+        "via": null
+      }
+    ],
+    "id": "ee1363258d688784",
+    "kind": "param",
+    "label": "Req",
+    "loc": {
+      "col": 7,
+      "file": "e.erl",
+      "line": 3
+    },
+    "snippet": "handle(Req) ->",
+    "stop": null,
+    "truncated": 0,
+    "via": "arg"
+  },
+  "stats": {
+    "host_requests": 3,
+    "ms": 0,
+    "nodes": 2,
+    "truncated": 0
+  }
+}

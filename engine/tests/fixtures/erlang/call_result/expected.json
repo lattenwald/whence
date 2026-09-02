@@ -1,0 +1,76 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "0bcf00679a508681",
+            "kind": "stop",
+            "label": "{ok, N}",
+            "loc": {
+              "col": 22,
+              "file": "d.erl",
+              "line": 11
+            },
+            "snippet": "pick(N) when N > 5 -> {ok, N};",
+            "stop": {
+              "detail": "constructed value tuple",
+              "reason": "unresolved"
+            },
+            "truncated": 0,
+            "via": null
+          },
+          {
+            "children": [],
+            "id": "f08478c22044de7c",
+            "kind": "stop",
+            "label": "error",
+            "loc": {
+              "col": 11,
+              "file": "d.erl",
+              "line": 12
+            },
+            "snippet": "pick(_) -> error.",
+            "stop": {
+              "detail": "atom",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "adfc6fef9fcdd2b4",
+        "kind": "call_result",
+        "label": "pick",
+        "loc": {
+          "col": 8,
+          "file": "d.erl",
+          "line": 4
+        },
+        "snippet": "R = pick(3),",
+        "stop": null,
+        "truncated": 0,
+        "via": "return"
+      }
+    ],
+    "id": "47da4da06dd2d05c",
+    "kind": "binding",
+    "label": "R",
+    "loc": {
+      "col": 4,
+      "file": "d.erl",
+      "line": 4
+    },
+    "snippet": "R = pick(3),",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 3,
+    "ms": 0,
+    "nodes": 4,
+    "truncated": 0
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "definition": {
+    "d.erl:5:4": [
+      { "file": "d.erl", "range": { "start": { "line": 4, "col": 4 }, "end": { "line": 4, "col": 5 } } }
+    ],
+    "d.erl:4:8": [
+      { "file": "d.erl", "range": { "start": { "line": 11, "col": 0 }, "end": { "line": 11, "col": 4 } } }
+    ],
+    "d.erl:9:4": [
+      { "file": "d.erl", "range": { "start": { "line": 8, "col": 4 }, "end": { "line": 8, "col": 5 } } }
+    ],
+    "d.erl:8:8": [
+      { "file": "d.erl", "range": { "start": { "line": 14, "col": 0 }, "end": { "line": 14, "col": 2 } } }
+    ],
+    "d.erl:14:9": [
+      { "file": "d.erl", "range": { "start": { "line": 14, "col": 3 }, "end": { "line": 14, "col": 4 } } }
+    ]
+  },
+  "references": {},
+  "documentHighlight": {}
+}

@@ -1,0 +1,78 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [],
+        "id": "e22593e6f390ad17",
+        "kind": "stop",
+        "label": "1",
+        "loc": {
+          "col": 8,
+          "file": "m.erl",
+          "line": 4
+        },
+        "snippet": "l:p(1),",
+        "stop": {
+          "detail": "integer",
+          "reason": "literal"
+        },
+        "truncated": 0,
+        "via": null
+      },
+      {
+        "children": [],
+        "id": "ae083910a5f226e4",
+        "kind": "stop",
+        "label": "2",
+        "loc": {
+          "col": 8,
+          "file": "m.erl",
+          "line": 5
+        },
+        "snippet": "l:p(2),",
+        "stop": {
+          "detail": "integer",
+          "reason": "literal"
+        },
+        "truncated": 0,
+        "via": null
+      },
+      {
+        "children": [],
+        "id": "62dfb2b472186bbc",
+        "kind": "stop",
+        "label": "3",
+        "loc": {
+          "col": 8,
+          "file": "m.erl",
+          "line": 6
+        },
+        "snippet": "l:p(3),",
+        "stop": {
+          "detail": "integer",
+          "reason": "literal"
+        },
+        "truncated": 0,
+        "via": null
+      }
+    ],
+    "id": "c73bf1bfa2c06a30",
+    "kind": "param",
+    "label": "A",
+    "loc": {
+      "col": 2,
+      "file": "l.erl",
+      "line": 3
+    },
+    "snippet": "p(A) -> A.",
+    "stop": null,
+    "truncated": 9,
+    "via": "arg"
+  },
+  "stats": {
+    "host_requests": 4,
+    "ms": 0,
+    "nodes": 4,
+    "truncated": 9
+  }
+}

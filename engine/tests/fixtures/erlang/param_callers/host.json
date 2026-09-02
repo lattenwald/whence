@@ -1,0 +1,23 @@
+{
+  "definition": {
+    "b.erl:3:8": [
+      { "file": "b.erl", "range": { "start": { "line": 3, "col": 2 }, "end": { "line": 3, "col": 3 } } }
+    ],
+    "c.erl:6:8": [
+      { "file": "c.erl", "range": { "start": { "line": 4, "col": 4 }, "end": { "line": 4, "col": 7 } } }
+    ],
+    "c.erl:4:13": [
+      {
+        "file": "/usr/lib/erlang/lib/kernel/src/os.erl",
+        "range": { "start": { "line": 122, "col": 0 }, "end": { "line": 122, "col": 6 } }
+      }
+    ]
+  },
+  "references": {
+    "b.erl:3:0|nodecl": [
+      { "file": "c.erl", "range": { "start": { "line": 5, "col": 6 }, "end": { "line": 5, "col": 7 } } },
+      { "file": "c.erl", "range": { "start": { "line": 6, "col": 6 }, "end": { "line": 6, "col": 7 } } }
+    ]
+  },
+  "documentHighlight": {}
+}

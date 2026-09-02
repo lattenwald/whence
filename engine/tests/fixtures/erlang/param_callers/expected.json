@@ -1,0 +1,76 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [],
+        "id": "74a8cbfc014813d6",
+        "kind": "stop",
+        "label": "1",
+        "loc": {
+          "col": 8,
+          "file": "c.erl",
+          "line": 5
+        },
+        "snippet": "b:g(1),",
+        "stop": {
+          "detail": "integer",
+          "reason": "literal"
+        },
+        "truncated": 0,
+        "via": null
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "987f36455b673a87",
+            "kind": "stop",
+            "label": "os:getenv(\"V\")",
+            "loc": {
+              "col": 10,
+              "file": "c.erl",
+              "line": 4
+            },
+            "snippet": "Val = os:getenv(\"V\"),",
+            "stop": {
+              "detail": "os:getenv",
+              "reason": "external"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "29ce64f70675ab91",
+        "kind": "binding",
+        "label": "Val",
+        "loc": {
+          "col": 4,
+          "file": "c.erl",
+          "line": 4
+        },
+        "snippet": "Val = os:getenv(\"V\"),",
+        "stop": null,
+        "truncated": 0,
+        "via": "match"
+      }
+    ],
+    "id": "ee4f42a591247147",
+    "kind": "param",
+    "label": "A",
+    "loc": {
+      "col": 2,
+      "file": "b.erl",
+      "line": 3
+    },
+    "snippet": "g(A) -> A.",
+    "stop": null,
+    "truncated": 0,
+    "via": "arg"
+  },
+  "stats": {
+    "host_requests": 6,
+    "ms": 0,
+    "nodes": 4,
+    "truncated": 0
+  }
+}

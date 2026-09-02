@@ -1,0 +1,74 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "533a33d9dcf93662",
+                "kind": "stop",
+                "label": "X",
+                "loc": {
+                  "col": 2,
+                  "file": "a.erl",
+                  "line": 3
+                },
+                "snippet": "f(X) ->",
+                "stop": {
+                  "detail": "no call sites of f/1",
+                  "reason": "entry_point"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "1e3076367a105846",
+            "kind": "param",
+            "label": "X",
+            "loc": {
+              "col": 2,
+              "file": "a.erl",
+              "line": 3
+            },
+            "snippet": "f(X) ->",
+            "stop": null,
+            "truncated": 0,
+            "via": "arg"
+          }
+        ],
+        "id": "71c9ab1ee5fe0330",
+        "kind": "binding",
+        "label": "Y",
+        "loc": {
+          "col": 4,
+          "file": "a.erl",
+          "line": 4
+        },
+        "snippet": "Y = X,",
+        "stop": null,
+        "truncated": 0,
+        "via": "match"
+      }
+    ],
+    "id": "73bb283c596e7207",
+    "kind": "binding",
+    "label": "Z",
+    "loc": {
+      "col": 4,
+      "file": "a.erl",
+      "line": 5
+    },
+    "snippet": "Z = Y,",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 5,
+    "ms": 0,
+    "nodes": 4,
+    "truncated": 0
+  }
+}

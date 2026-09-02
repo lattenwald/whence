@@ -1,0 +1,42 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [],
+        "id": "6353c78d0448e5e9",
+        "kind": "stop",
+        "label": "cowboy_req:body(Req)",
+        "loc": {
+          "col": 8,
+          "file": "e.erl",
+          "line": 4
+        },
+        "snippet": "B = cowboy_req:body(Req),",
+        "stop": {
+          "detail": "cowboy_req:body",
+          "reason": "external"
+        },
+        "truncated": 0,
+        "via": null
+      }
+    ],
+    "id": "d13890c8f5733ddc",
+    "kind": "binding",
+    "label": "B",
+    "loc": {
+      "col": 4,
+      "file": "e.erl",
+      "line": 4
+    },
+    "snippet": "B = cowboy_req:body(Req),",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 3,
+    "ms": 0,
+    "nodes": 2,
+    "truncated": 0
+  }
+}
