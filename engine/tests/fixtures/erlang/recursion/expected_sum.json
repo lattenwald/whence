@@ -134,7 +134,7 @@
     "via": "match"
   },
   "stats": {
-    "host_requests": 7,
+    "host_requests": 5,
     "ms": 0,
     "nodes": 8,
     "truncated": 0

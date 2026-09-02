@@ -184,7 +184,7 @@ pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
 }
 
 fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, TraceError> {
-    let defs = distinct(&ctx.host.definition(file, site.pos())?);
+    let defs = distinct(&ctx.definition(file, site.pos())?);
     let def = match defs.len() {
         0 => return Ok(unresolved(site, "no definition from language server")),
         1 => &defs[0],
@@ -303,7 +303,7 @@ fn param(
     else {
         return Ok(unresolved(site, "function declaration has no name"));
     };
-    let refs = ctx.host.references(file, doc.pos_of(name), false)?;
+    let refs = ctx.references(file, doc.pos_of(name), false)?;
 
     let arity = func.params.len();
     let mut sites: Vec<ExprRef> = Vec::new();
@@ -522,7 +522,7 @@ fn call_result(
     site: &Site,
     depth: u32,
 ) -> Result<Node, TraceError> {
-    let defs = distinct(&ctx.host.definition(file, name_pos)?);
+    let defs = distinct(&ctx.definition(file, name_pos)?);
     if defs.is_empty() {
         return Ok(unresolved(site, "callee not found"));
     }

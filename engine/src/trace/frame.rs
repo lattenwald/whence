@@ -5,8 +5,9 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use crate::host::Host;
+use crate::host::{Host, Location};
 use crate::lang::Registry;
+use crate::pos::Pos;
 use crate::syntax::{Doc, Span};
 use crate::trace::TraceError;
 use crate::tree::Limits;
@@ -24,6 +25,9 @@ pub struct Ctx<'a> {
     pub reg: &'a Registry,
     pub root: &'a Path,
     pub docs: HashMap<PathBuf, Rc<Doc<'a>>>,
+    /// Host answers are facts about the snapshot in `docs`, so they live exactly as long.
+    defs: HashMap<(PathBuf, Pos), Vec<Location>>,
+    refs: HashMap<(PathBuf, Pos, bool), Vec<Location>>,
     pub frames: Vec<Frame>,
     /// The expressions on the *current* expansion path, not everything seen (spec §5.4).
     pub visited: HashSet<(PathBuf, Span, u64)>,
@@ -46,6 +50,8 @@ impl<'a> Ctx<'a> {
             reg,
             root,
             docs: HashMap::new(),
+            defs: HashMap::new(),
+            refs: HashMap::new(),
             frames: Vec::new(),
             visited: HashSet::new(),
             limits,
@@ -67,6 +73,31 @@ impl<'a> Ctx<'a> {
         let doc = Rc::new(Doc::parse(lang, file.to_path_buf(), text));
         self.docs.insert(file.to_path_buf(), doc.clone());
         Ok(doc)
+    }
+
+    pub fn definition(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, TraceError> {
+        let key = (file.to_path_buf(), pos);
+        if let Some(v) = self.defs.get(&key) {
+            return Ok(v.clone());
+        }
+        let v = self.host.definition(file, pos)?;
+        self.defs.insert(key, v.clone());
+        Ok(v)
+    }
+
+    pub fn references(
+        &mut self,
+        file: &Path,
+        pos: Pos,
+        include_decl: bool,
+    ) -> Result<Vec<Location>, TraceError> {
+        let key = (file.to_path_buf(), pos, include_decl);
+        if let Some(v) = self.refs.get(&key) {
+            return Ok(v.clone());
+        }
+        let v = self.host.references(file, pos, include_decl)?;
+        self.refs.insert(key, v.clone());
+        Ok(v)
     }
 
     pub fn frame_hash(&self) -> u64 {
