@@ -343,12 +343,6 @@ impl<'l> Doc<'l> {
             .collect()
     }
 
-    pub fn arg_index(&self, call: &CallSite, n: N) -> Option<usize> {
-        call.args
-            .iter()
-            .position(|a| a.0.start_byte() <= n.0.start_byte() && n.0.end_byte() <= a.0.end_byte())
-    }
-
     pub fn callee_text(&self, call: &CallSite) -> String {
         let name = self.text_of(call.callee);
         if let Some(p) = call.node.0.parent()
@@ -386,6 +380,13 @@ impl<'l> Doc<'l> {
         };
         let mut out = Vec::new();
         self.expand_return(last, &mut out);
+        out
+    }
+
+    /// Every branch tail of a `@return.container`, nested containers expanded in turn.
+    pub fn tails_of<'a>(&'a self, container: N<'a>) -> Vec<N<'a>> {
+        let mut out = Vec::new();
+        self.expand_return(container, &mut out);
         out
     }
 

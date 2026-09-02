@@ -1,0 +1,61 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "2772caf956321ed7",
+            "kind": "stop",
+            "label": "cb",
+            "loc": {
+              "col": 22,
+              "file": "c.erl",
+              "line": 3
+            },
+            "snippet": "g(L) -> lists:map(fun cb/1, L).",
+            "stop": {
+              "detail": "reference is not a call site",
+              "reason": "unresolved"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "153c35c0c4558563",
+        "kind": "stop",
+        "label": "A",
+        "loc": {
+          "col": 3,
+          "file": "c.erl",
+          "line": 5
+        },
+        "snippet": "cb(A) -> A.",
+        "stop": {
+          "detail": "1 reference(s) to cb/1 are not call sites",
+          "reason": "unresolved"
+        },
+        "truncated": 0,
+        "via": null
+      }
+    ],
+    "id": "88589097257616ab",
+    "kind": "param",
+    "label": "A",
+    "loc": {
+      "col": 3,
+      "file": "c.erl",
+      "line": 5
+    },
+    "snippet": "cb(A) -> A.",
+    "stop": null,
+    "truncated": 0,
+    "via": "arg"
+  },
+  "stats": {
+    "host_requests": 3,
+    "ms": 0,
+    "nodes": 3,
+    "truncated": 0
+  }
+}

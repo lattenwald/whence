@@ -1,0 +1,42 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [],
+        "id": "ca0e812a74dceb74",
+        "kind": "stop",
+        "label": "X",
+        "loc": {
+          "col": 8,
+          "file": "m.erl",
+          "line": 8
+        },
+        "snippet": "Y = X,",
+        "stop": {
+          "detail": "2 definitions",
+          "reason": "unresolved"
+        },
+        "truncated": 0,
+        "via": null
+      }
+    ],
+    "id": "c2551b0350893803",
+    "kind": "binding",
+    "label": "Y",
+    "loc": {
+      "col": 4,
+      "file": "m.erl",
+      "line": 8
+    },
+    "snippet": "Y = X,",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 3,
+    "ms": 0,
+    "nodes": 2,
+    "truncated": 0
+  }
+}

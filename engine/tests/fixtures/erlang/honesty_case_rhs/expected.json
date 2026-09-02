@@ -1,0 +1,76 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "ab6cd71d48c73dac",
+            "kind": "stop",
+            "label": "one",
+            "loc": {
+              "col": 17,
+              "file": "z.erl",
+              "line": 5
+            },
+            "snippet": "1 -> one;",
+            "stop": {
+              "detail": "atom",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": "match"
+          },
+          {
+            "children": [],
+            "id": "42a21c738ded3ae1",
+            "kind": "stop",
+            "label": "two",
+            "loc": {
+              "col": 17,
+              "file": "z.erl",
+              "line": 6
+            },
+            "snippet": "_ -> two",
+            "stop": {
+              "detail": "atom",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": "match"
+          }
+        ],
+        "id": "8e9153f4d39c502a",
+        "kind": "branch",
+        "label": "case K of",
+        "loc": {
+          "col": 8,
+          "file": "z.erl",
+          "line": 4
+        },
+        "snippet": "Z = case K of",
+        "stop": null,
+        "truncated": 0,
+        "via": "match"
+      }
+    ],
+    "id": "e32e5f37878e2223",
+    "kind": "binding",
+    "label": "Z",
+    "loc": {
+      "col": 4,
+      "file": "z.erl",
+      "line": 4
+    },
+    "snippet": "Z = case K of",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 2,
+    "ms": 0,
+    "nodes": 4,
+    "truncated": 0
+  }
+}

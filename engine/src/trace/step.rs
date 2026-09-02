@@ -53,11 +53,27 @@ fn label_of(doc: &Doc, n: N) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
+    clip(&s)
+}
+
+fn first_line_of(doc: &Doc, n: N) -> String {
+    clip(doc.text_of(n).lines().next().unwrap_or("").trim())
+}
+
+fn clip(s: &str) -> String {
     if s.chars().count() > 40 {
         s.chars().take(39).collect::<String>() + "…"
     } else {
-        s
+        s.to_string()
     }
+}
+
+fn line_at(text: &str, p: Pos) -> String {
+    text.lines()
+        .nth(p.line as usize)
+        .unwrap_or("")
+        .trim()
+        .to_string()
 }
 
 fn make(
@@ -142,7 +158,7 @@ pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
     if ctx.node_count > ctx.limits.nodes {
         return Ok(stop(&site, StopReason::Limit, "nodes"));
     }
-    if Instant::now() > ctx.deadline {
+    if Instant::now() >= ctx.deadline {
         return Ok(stop(&site, StopReason::Limit, "time"));
     }
     let path_key = (file.clone(), Span::of(node), ctx.frame_hash());
@@ -161,9 +177,11 @@ pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
 }
 
 fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, TraceError> {
-    let defs = ctx.host.definition(file, site.pos())?;
-    let Some(def) = pick_definition(&defs, file) else {
-        return Ok(unresolved(site, "no definition from language server"));
+    let defs = distinct(&ctx.host.definition(file, site.pos())?);
+    let def = match defs.len() {
+        0 => return Ok(unresolved(site, "no definition from language server")),
+        1 => &defs[0],
+        n => return Ok(unresolved(site, format!("{n} definitions"))),
     };
     if !ctx.in_root(&def.file) {
         return Ok(stop(site, StopReason::External, site.label.clone()));
@@ -179,7 +197,7 @@ fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, Tr
         Role::BoundBy { pattern, value } => {
             let source = doc.destructure(pattern, ident, value).unwrap_or(value);
             let child = Expr::Value(def.file.clone(), Span::of(source));
-            let child = expand(ctx, &child, depth + 1)?;
+            let child = matched(expand(ctx, &child, depth + 1)?);
             Ok(make(
                 ctx,
                 NodeKind::Binding,
@@ -192,7 +210,7 @@ fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, Tr
         Role::BranchPattern { pattern, subject } => {
             let source = doc.destructure(pattern, ident, subject).unwrap_or(subject);
             let child = Expr::Value(def.file.clone(), Span::of(source));
-            let child = expand(ctx, &child, depth + 1)?;
+            let child = matched(expand(ctx, &child, depth + 1)?);
             Ok(make(
                 ctx,
                 NodeKind::Binding,
@@ -202,22 +220,55 @@ fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, Tr
                 0,
             ))
         }
-        Role::Param { func, index } => param(ctx, &doc, &def.file, &func, index, &dsite, depth),
+        Role::Param { func, index } => {
+            param(ctx, &doc, &def.file, &func, index, ident, &dsite, depth)
+        }
         Role::Opaque(n) => Ok(unresolved(&dsite, format!("bound inside {}", n.0.kind()))),
         Role::Use => Ok(unresolved(&dsite, "definition site not recognised")),
     }
 }
 
-fn pick_definition<'l>(defs: &'l [Location], file: &Path) -> Option<&'l Location> {
-    defs.iter().find(|l| l.file == file).or(defs.first())
+/// `via` is the edge from the parent: through a pattern a parameter is matched, not passed.
+fn matched(mut n: Node) -> Node {
+    if n.kind == NodeKind::Param && n.via == Some(Via::Arg) {
+        n.via = Some(Via::Match);
+    }
+    n
 }
 
+/// Servers repeat a definition per client and per index; the same (file, range) is one place.
+fn distinct(defs: &[Location]) -> Vec<Location> {
+    let mut out: Vec<Location> = Vec::new();
+    for d in defs {
+        if !out.iter().any(|o| o.file == d.file && o.range == d.range) {
+            out.push(d.clone());
+        }
+    }
+    out
+}
+
+/// Destructuring needs one document: a caller in another file keeps the whole argument.
+fn narrow(doc: &Doc, pattern: Option<N>, ident: N, file: &Path, arg: &ExprRef) -> Span {
+    if arg.0 != file {
+        return arg.1;
+    }
+    let Some(pattern) = pattern else { return arg.1 };
+    let Some(value) = node_at(doc, arg.1) else {
+        return arg.1;
+    };
+    doc.destructure(pattern, ident, value)
+        .map(Span::of)
+        .unwrap_or(arg.1)
+}
+
+#[allow(clippy::too_many_arguments)]
 fn param(
     ctx: &mut Ctx,
     doc: &Doc,
     file: &Path,
     func: &FnDecl,
     index: usize,
+    ident: N,
     site: &Site,
     depth: u32,
 ) -> Result<Node, TraceError> {
@@ -232,7 +283,10 @@ fn param(
         let arg = frame.args.get(index).cloned();
         // The argument is the caller's expression: expand it in the caller's frame.
         let child = match arg {
-            Some((f, s)) => expand(ctx, &Expr::Value(f, s), depth + 1),
+            Some(a) => {
+                let s = narrow(doc, func.params.get(index).copied(), ident, file, &a);
+                expand(ctx, &Expr::Value(a.0, s), depth + 1)
+            }
             None => {
                 ctx.node_count += 1;
                 Ok(unresolved(
@@ -253,36 +307,69 @@ fn param(
     };
     let refs = ctx.host.references(file, doc.pos_of(name), false)?;
 
+    let arity = func.params.len();
     let mut sites: Vec<ExprRef> = Vec::new();
+    // An `-export` entry or a `fun f/1` value is a reference, not a caller.
+    let mut strays: Vec<(PathBuf, Pos)> = Vec::new();
+    let mut refs_seen = 0u32;
     for r in refs {
         if !ctx.in_root(&r.file) || ctx.reg.for_file(&r.file).is_none() {
+            refs_seen += 1;
             continue;
         }
         let rdoc = ctx.doc(&r.file)?;
+        if at_declaration(&rdoc, r.range.start) {
+            continue;
+        }
+        refs_seen += 1;
+        let mut matched = false;
         for call in rdoc.calls_containing(r.range.start) {
-            if !names(&rdoc.callee_text(&call), &func.name) || call.args.len() != func.params.len()
-            {
+            if !names(&rdoc.callee_text(&call), &func.name) || call.args.len() != arity {
                 continue;
             }
             if let Some(a) = call.args.get(index) {
                 sites.push((r.file.clone(), Span::of(*a)));
             }
+            matched = true;
             break;
+        }
+        if !matched {
+            strays.push((r.file.clone(), r.range.start));
         }
     }
 
     if sites.is_empty() {
-        let detail = format!("no call sites of {}/{}", func.name, func.params.len());
-        let child = stop(site, StopReason::EntryPoint, detail);
         ctx.node_count += 1;
+        let child = if refs_seen == 0 {
+            let detail = format!("no call sites of {}/{arity}", func.name);
+            stop(site, StopReason::EntryPoint, detail)
+        } else {
+            strays.sort_by(|a, b| {
+                (a.0 != file, &a.0, a.1.line, a.1.col).cmp(&(b.0 != file, &b.0, b.1.line, b.1.col))
+            });
+            let dropped = fanout(ctx, &mut strays);
+            let mut kids = Vec::new();
+            for (f, p) in strays {
+                kids.push(stray_stop(ctx, &f, p, &func.name)?);
+            }
+            let detail = format!(
+                "{refs_seen} reference(s) to {}/{arity} are not call sites",
+                func.name
+            );
+            let mut n = unresolved(site, detail);
+            n.children = kids;
+            n.truncated = dropped;
+            n
+        };
         return Ok(make(ctx, NodeKind::Param, site, Via::Arg, vec![child], 0));
     }
 
     sites.sort_by(|a, b| (a.0 != file, &a.0, a.1.start).cmp(&(b.0 != file, &b.0, b.1.start)));
     let dropped = fanout(ctx, &mut sites);
     let mut children = Vec::new();
-    for (f, s) in sites {
-        children.push(expand(ctx, &Expr::Value(f, s), depth + 1)?);
+    for a in sites {
+        let s = narrow(doc, func.params.get(index).copied(), ident, file, &a);
+        children.push(expand(ctx, &Expr::Value(a.0, s), depth + 1)?);
     }
     Ok(make(
         ctx,
@@ -292,6 +379,36 @@ fn param(
         children,
         dropped,
     ))
+}
+
+fn stray_stop(ctx: &mut Ctx, file: &Path, p: Pos, name: &str) -> Result<Node, TraceError> {
+    let doc = ctx.doc(file)?;
+    let (label, snippet) = match doc.ident_at(p) {
+        Some(n) => (label_of(&doc, n), doc.line_of(n).to_string()),
+        None => (name.to_string(), line_at(&doc.text, p)),
+    };
+    ctx.node_count += 1;
+    Ok(Node::stop(
+        ctx.rel(file),
+        Loc {
+            file: file.to_path_buf(),
+            line: p.line,
+            col: p.col,
+        },
+        &label,
+        &snippet,
+        StopReason::Unresolved,
+        "reference is not a call site",
+    ))
+}
+
+fn at_declaration(doc: &Doc, p: Pos) -> bool {
+    let Some(off) = pos::byte_offset(&doc.text, p) else {
+        return false;
+    };
+    capture_in(doc, N(doc.tree.root_node()), vocab::FUNCTION_NAME)
+        .iter()
+        .any(|n| n.0.start_byte() <= off && off < n.0.end_byte())
 }
 
 /// `mod:fun` and `fun` both name `fun`; `flag` does not.
@@ -324,17 +441,28 @@ fn value(
     if doc.is_opaque(n) {
         return Ok(unresolved(site, n.0.kind()));
     }
+    if doc.has_cap(n, vocab::RETURN_CONTAINER) {
+        return branch(ctx, doc, file, n, site, depth);
+    }
     if let Some((container, field)) = doc.field_access(n) {
-        if let Some(source) = field_source(doc, n, container, &field) {
-            let child = Expr::Value(file.to_path_buf(), Span::of(source));
-            let child = expand(ctx, &child, depth + 1)?;
+        let mut sources: Vec<Span> = field_sources(doc, n, container, &field)
+            .iter()
+            .map(|s| Span::of(*s))
+            .collect();
+        if !sources.is_empty() {
+            // Every construction that reaches this use, never the last one alone (§5.5).
+            let dropped = fanout(ctx, &mut sources);
+            let mut children = Vec::new();
+            for s in sources {
+                children.push(expand(ctx, &Expr::Value(file.to_path_buf(), s), depth + 1)?);
+            }
             return Ok(make(
                 ctx,
                 NodeKind::Field,
                 site,
                 Via::FieldSet,
-                vec![child],
-                0,
+                children,
+                dropped,
             ));
         }
         let container_expr = if doc.has_cap(container, vocab::IDENT) {
@@ -385,6 +513,24 @@ fn value(
     Ok(unresolved(site, n.0.kind()))
 }
 
+#[derive(PartialEq)]
+struct Callee {
+    file: PathBuf,
+    name: String,
+    arity: usize,
+}
+
+impl Callee {
+    fn func_id(&self, ctx: &Ctx) -> String {
+        format!(
+            "{}:{}/{}",
+            ctx.rel(&self.file).display(),
+            self.name,
+            self.arity
+        )
+    }
+}
+
 fn call_result(
     ctx: &mut Ctx,
     name_pos: Pos,
@@ -394,59 +540,90 @@ fn call_result(
     site: &Site,
     depth: u32,
 ) -> Result<Node, TraceError> {
-    let defs = ctx.host.definition(file, name_pos)?;
+    let defs = distinct(&ctx.host.definition(file, name_pos)?);
     if defs.is_empty() {
         return Ok(unresolved(site, "callee not found"));
     }
-    if defs.iter().any(|l| !ctx.in_root(&l.file)) {
+    let outside = defs.iter().filter(|l| !ctx.in_root(&l.file)).count();
+    if outside == defs.len() {
         return Ok(stop(site, StopReason::External, callee));
     }
-    let def = pick_definition(&defs, file).expect("non-empty").clone();
-
-    let doc = ctx.doc(&def.file)?;
-    let Some(decl) = function_at(&doc, def.range.start) else {
+    if outside > 0 {
         return Ok(unresolved(
             site,
-            format!("definition of {callee} is not a function"),
-        ));
-    };
-    let arity = decl.params.len();
-    let func_id = format!("{}:{}/{}", ctx.rel(&def.file).display(), decl.name, arity);
-    if ctx
-        .frames
-        .iter()
-        .any(|f| f.func_id == func_id && f.args == args)
-    {
-        return Ok(unresolved(
-            site,
-            format!("recursive call to {}/{arity}", decl.name),
+            format!("{} definitions, some outside root", defs.len()),
         ));
     }
 
-    let mut returns: Vec<Span> = functions(&doc)
-        .iter()
-        .filter(|c| c.name == decl.name && c.params.len() == arity)
-        .flat_map(|c| doc.returns_of(c))
-        .map(Span::of)
-        .collect();
-    returns.sort_by_key(|s| s.start);
-    let dropped = fanout(ctx, &mut returns);
-
-    ctx.frames.push(Frame { func_id, args });
-    let mut children = Vec::new();
-    let mut failure = None;
-    for s in returns {
-        match expand(ctx, &Expr::Value(def.file.clone(), s), depth + 1) {
-            Ok(n) => children.push(n),
-            Err(e) => {
-                failure = Some(e);
-                break;
-            }
+    // Distinct callees, not clauses: several definitions of one function collapse here.
+    let mut targets: Vec<Callee> = Vec::new();
+    for d in &defs {
+        let doc = ctx.doc(&d.file)?;
+        let Some(decl) = function_at(&doc, d.range.start) else {
+            return Ok(unresolved(
+                site,
+                format!("definition of {callee} is not a function"),
+            ));
+        };
+        let t = Callee {
+            file: d.file.clone(),
+            name: decl.name.clone(),
+            arity: decl.params.len(),
+        };
+        if !targets.contains(&t) {
+            targets.push(t);
         }
     }
-    ctx.frames.pop();
-    if let Some(e) = failure {
-        return Err(e);
+
+    let mut plan: Vec<(usize, Span)> = Vec::new();
+    let mut recursive: Vec<usize> = Vec::new();
+    for (i, t) in targets.iter().enumerate() {
+        let func_id = t.func_id(ctx);
+        if ctx
+            .frames
+            .iter()
+            .any(|f| f.func_id == func_id && f.args == args)
+        {
+            recursive.push(i);
+            continue;
+        }
+        let doc = ctx.doc(&t.file)?;
+        let mut returns: Vec<Span> = functions(&doc)
+            .iter()
+            .filter(|c| c.name == t.name && c.params.len() == t.arity)
+            .flat_map(|c| doc.returns_of(c))
+            .map(Span::of)
+            .collect();
+        returns.sort_by_key(|s| s.start);
+        plan.extend(returns.into_iter().map(|s| (i, s)));
+    }
+    if plan.is_empty() && !recursive.is_empty() {
+        let t = &targets[recursive[0]];
+        return Ok(unresolved(
+            site,
+            format!("recursive call to {}/{}", t.name, t.arity),
+        ));
+    }
+
+    let dropped = fanout(ctx, &mut plan);
+    let mut children = Vec::new();
+    for (i, s) in plan {
+        let t = &targets[i];
+        let frame = Frame {
+            func_id: t.func_id(ctx),
+            args: args.clone(),
+        };
+        let f = t.file.clone();
+        ctx.frames.push(frame);
+        let child = expand(ctx, &Expr::Value(f, s), depth + 1);
+        ctx.frames.pop();
+        children.push(child?);
+    }
+    for i in recursive {
+        let t = &targets[i];
+        let detail = format!("recursive call to {}/{}", t.name, t.arity);
+        children.push(stop(site, StopReason::Unresolved, detail));
+        ctx.node_count += 1;
     }
 
     let site = Site {
@@ -465,10 +642,12 @@ fn call_result(
     ))
 }
 
-fn field_source<'d>(doc: &'d Doc<'_>, n: N<'d>, container: N<'d>, field: &str) -> Option<N<'d>> {
-    let func = doc.enclosing_function(n)?;
+fn field_sources<'d>(doc: &'d Doc<'_>, n: N<'d>, container: N<'d>, field: &str) -> Vec<N<'d>> {
+    let Some(func) = doc.enclosing_function(n) else {
+        return Vec::new();
+    };
     let want = doc.text_of(container);
-    let mut best: Option<(usize, N)> = None;
+    let mut out = Vec::new();
     for b in capture_in(doc, func.node, vocab::BINDING) {
         if b.0.start_byte() >= n.0.start_byte() {
             continue;
@@ -479,14 +658,48 @@ fn field_source<'d>(doc: &'d Doc<'_>, n: N<'d>, container: N<'d>, field: &str) -
         if doc.text_of(pattern) != want || !doc.has_cap(value, vocab::CONSTRUCT) {
             continue;
         }
-        let Some(set) = doc.construct_field(value, field) else {
-            continue;
-        };
-        if best.is_none_or(|(start, _)| start < b.0.start_byte()) {
-            best = Some((b.0.start_byte(), set));
+        if let Some(set) = doc.construct_field(value, field) {
+            out.push(set);
         }
     }
-    best.map(|(_, n)| n)
+    out
+}
+
+fn branch(
+    ctx: &mut Ctx,
+    doc: &Doc,
+    file: &Path,
+    n: N,
+    site: &Site,
+    depth: u32,
+) -> Result<Node, TraceError> {
+    let mut tails: Vec<Span> = doc.tails_of(n).iter().map(|t| Span::of(*t)).collect();
+    tails.sort_by_key(|s| s.start);
+    tails.dedup();
+    if tails.is_empty() {
+        return Ok(unresolved(site, n.0.kind()));
+    }
+    let dropped = fanout(ctx, &mut tails);
+    let mut children = Vec::new();
+    for s in tails {
+        let mut child = expand(ctx, &Expr::Value(file.to_path_buf(), s), depth + 1)?;
+        child.via = Some(Via::Match);
+        children.push(child);
+    }
+    let site = Site {
+        loc: site.loc.clone(),
+        rel: site.rel.clone(),
+        label: first_line_of(doc, n),
+        snippet: site.snippet.clone(),
+    };
+    Ok(make(
+        ctx,
+        NodeKind::Branch,
+        &site,
+        Via::Match,
+        children,
+        dropped,
+    ))
 }
 
 fn binding_parts<'d>(doc: &'d Doc<'_>, binding: N<'d>) -> Option<(N<'d>, N<'d>)> {

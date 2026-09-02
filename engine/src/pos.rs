@@ -64,6 +64,7 @@ pub fn pos_of(text: &str, byte: usize) -> Pos {
     Pos { line, col }
 }
 
+#[cfg(test)]
 pub fn to_point(text: &str, p: Pos) -> Option<tree_sitter::Point> {
     let off = byte_offset(text, p)?;
     let start = line_start(text, p.line)?;
@@ -73,6 +74,7 @@ pub fn to_point(text: &str, p: Pos) -> Option<tree_sitter::Point> {
     })
 }
 
+#[cfg(test)]
 pub fn from_point(text: &str, pt: tree_sitter::Point) -> Pos {
     let start = line_start(text, pt.row as u32).unwrap_or(text.len());
     let end = line_end(text, start);

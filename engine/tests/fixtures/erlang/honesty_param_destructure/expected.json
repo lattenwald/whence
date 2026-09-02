@@ -1,0 +1,42 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [],
+        "id": "392a266695c3511e",
+        "kind": "stop",
+        "label": "hello",
+        "loc": {
+          "col": 30,
+          "file": "p.erl",
+          "line": 7
+        },
+        "snippet": "go() -> read_body(#req{body = hello}).",
+        "stop": {
+          "detail": "atom",
+          "reason": "literal"
+        },
+        "truncated": 0,
+        "via": null
+      }
+    ],
+    "id": "6be2d182963689dd",
+    "kind": "param",
+    "label": "B",
+    "loc": {
+      "col": 22,
+      "file": "p.erl",
+      "line": 5
+    },
+    "snippet": "read_body(#req{body = B}) -> B.",
+    "stop": null,
+    "truncated": 0,
+    "via": "arg"
+  },
+  "stats": {
+    "host_requests": 3,
+    "ms": 0,
+    "nodes": 2,
+    "truncated": 0
+  }
+}

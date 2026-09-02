@@ -138,7 +138,7 @@ Highlight = { "range": { "start": {"line","col"}, "end": {"line","col"} },
 
 Node = {
   "id": string,          // stable hash of (root-relative path, line, col, kind, frame)
-  "kind": "binding" | "param" | "call_result" | "field" | "stop",
+  "kind": "binding" | "branch" | "param" | "call_result" | "field" | "stop",
   "label": string,       // identifier or short expression text
   "loc": { "file": string, "line": int, "col": int },
   "via": "match" | "rebind" | "mutation" | "arg" | "return" | "field_set"
@@ -153,7 +153,9 @@ Node = {
 
 `via` says how the value *above* is fed by this node; the root carries one
 too. Children are ordered same-file first, then by path, then by position;
-rebindings newest-first. `stop` is non-null exactly when `kind` is `"stop"`.
+rebindings newest-first. `stop` is non-null exactly when `kind` is `"stop"`; a
+stop node is usually a leaf but may carry children (the references that were
+not call sites, so the user can jump to each).
 See [spec §5.1](superpowers/specs/2026-09-01-whence-design.md#51-tree) for the
 model and [§5.5](superpowers/specs/2026-09-01-whence-design.md#55-honesty-rule)
 for the honesty rule the tree obeys: every edge points at a syntax node the

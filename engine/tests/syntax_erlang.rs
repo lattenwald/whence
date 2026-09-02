@@ -62,7 +62,7 @@ fn call_site_args_and_callee() {
     let call = d.call_at(value).unwrap();
     assert_eq!(d.callee_text(&call), "maps:get");
     assert_eq!(call.args.len(), 3);
-    assert_eq!(d.arg_index(&call, call.args[1]), Some(1));
+    assert_eq!(d.text_of(call.args[1]), "Opts");
 }
 
 #[test]

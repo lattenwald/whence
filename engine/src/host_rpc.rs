@@ -19,6 +19,7 @@ pub struct RpcHost<'a, W: Write> {
 }
 
 impl<'a, W: Write> RpcHost<'a, W> {
+    #[cfg(test)]
     pub fn new(writer: W, inbox: &'a mut Receiver<Message>, supports_highlight: bool) -> Self {
         Self::resume(writer, inbox, supports_highlight, 1)
     }
@@ -45,6 +46,30 @@ impl<'a, W: Write> RpcHost<'a, W> {
     }
 
     fn call<T: DeserializeOwned>(&mut self, method: &str, params: Value) -> Result<T, HostError> {
+        let result = self.call_raw(method, params)?;
+        serde_json::from_value(result).map_err(|e| HostError::Rpc {
+            method: method.to_string(),
+            message: e.to_string(),
+        })
+    }
+
+    /// LSP answers a location request with `null` for "nothing"; a VS Code host passes it on.
+    fn call_list<T: DeserializeOwned>(
+        &mut self,
+        method: &str,
+        params: Value,
+    ) -> Result<Vec<T>, HostError> {
+        let result = self.call_raw(method, params)?;
+        if result.is_null() {
+            return Ok(Vec::new());
+        }
+        serde_json::from_value(result).map_err(|e| HostError::Rpc {
+            method: method.to_string(),
+            message: e.to_string(),
+        })
+    }
+
+    fn call_raw(&mut self, method: &str, params: Value) -> Result<Value, HostError> {
         let id = Id::Num(self.next_id);
         self.next_id += 1;
         self.count += 1;
@@ -56,11 +81,7 @@ impl<'a, W: Write> RpcHost<'a, W> {
                 params,
             }),
         )?;
-        let result = self.await_response(method, &id)?;
-        serde_json::from_value(result).map_err(|e| HostError::Rpc {
-            method: method.to_string(),
-            message: e.to_string(),
-        })
+        self.await_response(method, &id)
     }
 
     fn await_response(&mut self, method: &str, id: &Id) -> Result<Value, HostError> {
@@ -112,7 +133,7 @@ impl<W: Write> Host for RpcHost<'_, W> {
     }
 
     fn definition(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, HostError> {
-        self.call(
+        self.call_list(
             "host/definition",
             json!({"file": file, "line": pos.line, "col": pos.col}),
         )
@@ -124,7 +145,7 @@ impl<W: Write> Host for RpcHost<'_, W> {
         pos: Pos,
         include_decl: bool,
     ) -> Result<Vec<Location>, HostError> {
-        self.call(
+        self.call_list(
             "host/references",
             json!({"file": file, "line": pos.line, "col": pos.col,
                    "includeDeclaration": include_decl}),
@@ -135,7 +156,7 @@ impl<W: Write> Host for RpcHost<'_, W> {
         if !self.supports_highlight {
             return Err(HostError::Unsupported("documentHighlight"));
         }
-        self.call(
+        self.call_list(
             "host/documentHighlight",
             json!({"file": file, "line": pos.line, "col": pos.col}),
         )
@@ -172,6 +193,26 @@ mod tests {
         let sent = String::from_utf8(out).unwrap();
         assert!(sent.contains(r#""method":"host/definition""#));
         assert!(sent.contains(r#""line":5"#));
+    }
+
+    #[test]
+    fn null_result_for_a_location_list_is_empty() {
+        for answer in [None, Some(Value::Null)] {
+            let (tx, mut rx) = mpsc::channel();
+            let mut out = Vec::new();
+            let mut h = RpcHost::new(&mut out, &mut rx, true);
+            tx.send(Message::Response(Response {
+                id: Id::Num(1),
+                error: None,
+                result: answer,
+            }))
+            .unwrap();
+            assert_eq!(
+                h.definition(std::path::Path::new("/x.erl"), Pos { line: 0, col: 0 })
+                    .unwrap(),
+                Vec::new()
+            );
+        }
     }
 
     #[test]

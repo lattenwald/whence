@@ -1,0 +1,13 @@
+{
+  "definition": {
+    "c.erl:5:9": [
+      { "file": "c.erl", "range": { "start": { "line": 5, "col": 3 }, "end": { "line": 5, "col": 4 } } }
+    ]
+  },
+  "references": {
+    "c.erl:5:0|nodecl": [
+      { "file": "c.erl", "range": { "start": { "line": 3, "col": 22 }, "end": { "line": 3, "col": 24 } } }
+    ]
+  },
+  "documentHighlight": {}
+}

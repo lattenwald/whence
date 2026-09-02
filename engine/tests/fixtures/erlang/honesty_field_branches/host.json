@@ -1,0 +1,9 @@
+{
+  "definition": {
+    "f.erl:11:4": [
+      { "file": "f.erl", "range": { "start": { "line": 10, "col": 4 }, "end": { "line": 10, "col": 5 } } }
+    ]
+  },
+  "references": {},
+  "documentHighlight": {}
+}

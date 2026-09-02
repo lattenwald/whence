@@ -103,6 +103,8 @@ fn local_chain() {
     assert_eq!((&y["kind"], &y["label"]), (&"binding".into(), &"Y".into()));
     let x = &y["children"][0];
     assert_eq!((&x["kind"], &x["label"]), (&"param".into(), &"X".into()));
+    // The parameter is reached through Y's pattern, not through a call site.
+    assert_eq!(x["via"], "match");
     assert_eq!(x["children"][0]["stop"]["reason"], "entry_point");
 }
 
@@ -333,6 +335,117 @@ fn field_set_is_followed_to_the_construction() {
     assert_eq!(container["kind"], "param");
     assert_eq!(container["via"], "field");
     assert_eq!(container["children"][0]["stop"]["reason"], "entry_point");
+}
+
+#[test]
+fn every_construction_of_the_container_is_a_sibling() {
+    let v = check(Case {
+        dir: "honesty_field_branches",
+        file: "f.erl",
+        pos: (11, 4),
+        limits: Limits::default(),
+        expected: "expected.json",
+    });
+    let set = &v["root"]["children"][0];
+    assert_eq!(set["kind"], "field");
+    assert_eq!(set["via"], "field_set");
+    // Both case branches construct R; neither one is the answer on its own.
+    let kids = set["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 2);
+    assert_eq!(kids[0]["label"], "one");
+    assert_eq!(kids[1]["label"], "two");
+}
+
+#[test]
+fn references_that_are_not_call_sites_are_not_an_entry_point() {
+    let v = check(Case {
+        dir: "honesty_callback_ref",
+        file: "c.erl",
+        pos: (5, 9),
+        limits: Limits::default(),
+        expected: "expected.json",
+    });
+    let stop = &v["root"]["children"][0];
+    assert_eq!(stop["stop"]["reason"], "unresolved");
+    assert_eq!(
+        stop["stop"]["detail"],
+        "1 reference(s) to cb/1 are not call sites"
+    );
+    // `fun cb/1` is where the user has to look, so it is a node to jump to.
+    let stray = &stop["children"][0];
+    assert_eq!(stray["stop"]["detail"], "reference is not a call site");
+    assert_eq!(
+        (&stray["loc"]["line"], &stray["loc"]["col"]),
+        (&3.into(), &22.into())
+    );
+}
+
+#[test]
+fn several_definitions_are_unresolved() {
+    let v = check(Case {
+        dir: "honesty_multi_def",
+        file: "m.erl",
+        pos: (9, 4),
+        limits: Limits::default(),
+        expected: "expected.json",
+    });
+    let x = &v["root"]["children"][0];
+    assert_eq!(x["stop"]["reason"], "unresolved");
+    assert_eq!(x["stop"]["detail"], "2 definitions");
+}
+
+#[test]
+fn a_branching_right_hand_side_expands_to_its_tails() {
+    let v = check(Case {
+        dir: "honesty_case_rhs",
+        file: "z.erl",
+        pos: (8, 4),
+        limits: Limits::default(),
+        expected: "expected.json",
+    });
+    let branch = &v["root"]["children"][0];
+    assert_eq!(branch["kind"], "branch");
+    assert_eq!(branch["label"], "case K of");
+    assert_eq!(branch["via"], "match");
+    let kids = branch["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 2);
+    for (k, label) in kids.iter().zip(["one", "two"]) {
+        assert_eq!(k["label"], label);
+        assert_eq!(k["via"], "match");
+        assert_eq!(k["stop"]["reason"], "literal");
+    }
+}
+
+#[test]
+fn a_destructuring_parameter_narrows_the_argument() {
+    let v = check(Case {
+        dir: "honesty_param_destructure",
+        file: "p.erl",
+        pos: (5, 29),
+        limits: Limits::default(),
+        expected: "expected.json",
+    });
+    assert_eq!(v["root"]["kind"], "param");
+    // The pattern binds B to the record's `body` field, not to the whole record.
+    let arg = &v["root"]["children"][0];
+    assert_eq!(arg["label"], "hello");
+    assert_eq!(arg["stop"]["reason"], "literal");
+}
+
+#[test]
+fn a_zero_time_budget_stops_at_once() {
+    let v = run(&Case {
+        dir: "local_chain",
+        file: "a.erl",
+        pos: (6, 4),
+        limits: Limits {
+            time_ms: 0,
+            ..Default::default()
+        },
+        expected: "",
+    });
+    assert_eq!(v["root"]["stop"]["reason"], "limit");
+    assert_eq!(v["root"]["stop"]["detail"], "time");
 }
 
 #[test]

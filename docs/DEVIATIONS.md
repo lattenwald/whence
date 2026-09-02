@@ -81,3 +81,58 @@ Each entry: which task, what the plan said, what was done instead, why. Entries 
 - Review round 1: the archive checksum is computed in process — `vim.fn.sha256(vim.fn.readfile(path, "B"))` — not by shelling out. `sha256sum` does not exist on Windows (which is in the target table) and is spelled `shasum -a 256` on macOS. Verified byte-exact against `sha256sum` on the 52 MB engine binary.
 - Review round 1: a repeated request answered differently is not silently overwritten. The first answer is kept, the key is appended to `conflicts` in `whence-record.json`, and `finish()` warns: the fixture then cannot reproduce the session it was recorded from, and a golden built from it would be fiction.
 - `record.begin` refuses a non-empty directory: `host.json` is rewritten wholesale but source files copied by an earlier recording would survive into the new fixture.
+
+## Whole-branch review — honesty pass
+
+Rulings from the M1 branch review; each landed with the spec section it changes.
+
+- Spec §5.2 field row: `field_source` kept only the *last* earlier construction of the
+  container, so `case K of 1 -> R = #r{a = one}; 2 -> R = #r{a = two} end, R#r.a` showed
+  `two` alone — a wrong edge, not a missing one. Done: all matching constructions become
+  children of the one `field` node (`via: field_set`, source order, fan-out bound);
+  exactly one is the old shape, zero keeps the container-trace fallback (`via: field`).
+  Fixture `honesty_field_branches/`.
+- Spec §5.2 parameter row: `entry_point` was reported whenever no *call site* was found,
+  including when the server did return references (a `fun cb/1` passed to `lists:map`, an
+  `-export` entry, a reference in a file with no grammar). "Nobody calls this" and "the
+  callers are not shaped like calls" are different answers. Done: references are counted;
+  with none (or only the declaration, detected as a `@function.name` capture at the
+  reference) the stop stays `entry_point`, otherwise it is
+  `unresolved: <N> reference(s) to <name>/<arity> are not call sites` carrying one
+  jumpable `unresolved: reference is not a call site` child per in-root reference,
+  fan-out bounded. Fixture `honesty_callback_ref/`. This is the one place a `stop` node
+  has children (spec §5.1).
+- Spec §5.2 variable-use and call rows: `pick_definition` picked the same-file definition,
+  and a call was `external` if *any* definition was outside the root. Done: definitions are
+  de-duplicated by (file, range); for a variable, more than one distinct definition is
+  `unresolved: <N> definitions`; for a callee, all-outside is `external`, mixed is
+  `unresolved: <N> definitions, some outside root`, and all-inside collects the clauses of
+  every definition into one `call_result`. Fixture `honesty_multi_def/`.
+- Spec §5.1 and §5.2 (new row): a binding whose value is a `@return.container`
+  (`case`/`if`/`try`/`begin`/parens) stopped with `unresolved: case_expr`, which is where
+  most real Erlang provenance ends. Done: `NodeKind::Branch` (serde `"branch"`), label =
+  the container's first line clipped to 40 chars, `via: match` from the binding, one child
+  per tail — also `via: match`, since each tail is what the value matches to. `syntax.rs`
+  exposes the existing `expand_return` walk as `Doc::tails_of`. `render.rs` and
+  `nvim/lua/whence/panel.lua` needed no change: both treat kinds generically and only test
+  for `"stop"` (covered by a panel test). Fixture `honesty_case_rhs/`.
+- A parameter bound through a destructuring pattern (`read_body(#req{body = B}) -> B`)
+  received the whole call argument. Done: `destructure(param_pattern, ident, arg)` narrows
+  it, mirroring `BoundBy`, on both the frame and the references path. Limitation:
+  `Doc::destructure` resolves captures in one document, so an argument from another file
+  keeps its whole span. Fixture `honesty_param_destructure/`.
+- Spec §5.1: `via` describes the edge from the parent. A `param` reached through a binding
+  or branch pattern was left at the constructor's `via: arg`; it is now `via: match`.
+  `via: arg` remains for the frame and call-site rows. Asserted in `local_chain`.
+- The wall-clock check was `now() > deadline`, so `time_ms = 0` depended on the clock
+  ticking. Now `>=`: a zero budget stops at the first expansion, which is what the new
+  replay test asserts.
+- `RpcHost` treats a JSON `null` result for the `Location[]`/`Highlight[]` methods as an
+  empty list. LSP allows `null` there and a VS Code host passes it through; deserialising
+  it as an error would abort the whole trace over a normal "nothing found".
+- Dead surface removed: `syntax::arg_index` (and its assertion, replaced by one on the
+  argument text), `vocab::BRANCH` (the `@branch` capture stays in `whence.scm` — language
+  data may describe more than the engine reads), and `engine.lua`'s `opts.handle`
+  injection, which nothing has passed since Task 12 routed the recorder through
+  `host.handle`. `pos::to_point`/`from_point` and `RpcHost::new` are used only by tests
+  and are `#[cfg(test)]`-gated rather than deleted.

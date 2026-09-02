@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 #[serde(rename_all = "snake_case")]
 pub enum NodeKind {
     Binding,
+    Branch,
     Param,
     CallResult,
     Field,

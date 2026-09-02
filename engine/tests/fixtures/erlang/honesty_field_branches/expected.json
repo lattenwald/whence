@@ -1,0 +1,76 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "2d02e28a0be2b0ae",
+            "kind": "stop",
+            "label": "one",
+            "loc": {
+              "col": 24,
+              "file": "f.erl",
+              "line": 7
+            },
+            "snippet": "1 -> R = #r{a = one};",
+            "stop": {
+              "detail": "atom",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": null
+          },
+          {
+            "children": [],
+            "id": "2a875da151cb0372",
+            "kind": "stop",
+            "label": "two",
+            "loc": {
+              "col": 24,
+              "file": "f.erl",
+              "line": 8
+            },
+            "snippet": "_ -> R = #r{a = two}",
+            "stop": {
+              "detail": "atom",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "cf87a4c62d183533",
+        "kind": "field",
+        "label": "R#r.a",
+        "loc": {
+          "col": 8,
+          "file": "f.erl",
+          "line": 10
+        },
+        "snippet": "V = R#r.a,",
+        "stop": null,
+        "truncated": 0,
+        "via": "field_set"
+      }
+    ],
+    "id": "01b501e1ee60857b",
+    "kind": "binding",
+    "label": "V",
+    "loc": {
+      "col": 4,
+      "file": "f.erl",
+      "line": 10
+    },
+    "snippet": "V = R#r.a,",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 2,
+    "ms": 0,
+    "nodes": 4,
+    "truncated": 0
+  }
+}

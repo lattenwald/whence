@@ -52,6 +52,24 @@ describe("panel.render", function()
     assert.is_nil(index[4])
   end)
 
+  it("marks a branch node as a value, not a stop", function()
+    local tree = {
+      root = {
+        id = "a",
+        kind = "branch",
+        label = "case K of",
+        loc = { file = "/p/a.erl", line = 4, col = 8 },
+        via = "match",
+        snippet = "Z = case K of",
+        stop = vim.NIL,
+        truncated = 0,
+        children = {},
+      },
+    }
+    local lines = require("whence.panel").render(tree, "/p")
+    assert.equals("● case K of  ← match  a.erl:5:9", lines[1])
+  end)
+
   it("keeps absolute paths that are not under the root", function()
     local tree = {
       root = {
@@ -86,7 +104,7 @@ describe("panel.show", function()
     assert.same({
       "● Z  ← match  a.erl:6:5",
       "  ● Y  ← match  a.erl:5:5",
-      "    ● X  ← arg  a.erl:4:3",
+      "    ● X  ← match  a.erl:4:3",
       "      ■ X  a.erl:4:3  [entry_point: no call sites of f/1]",
     }, vim.api.nvim_buf_get_lines(panel_buf, 0, -1, false))
     assert.is_false(vim.bo[panel_buf].modifiable)
