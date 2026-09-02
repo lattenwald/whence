@@ -8,7 +8,7 @@ use crate::lang::vocab;
 use crate::pos::Pos;
 use crate::syntax::{Doc, FnDecl, N, Role, Span};
 use crate::trace::TraceError;
-use crate::trace::frame::{Ctx, ExprRef, Frame};
+use crate::trace::frame::{Ctx, ExprRef, Frame, FuncId};
 use crate::tree::{Loc, Node, NodeKind, StopReason, Via, node_id, path_id};
 
 pub enum Expr {
@@ -323,7 +323,11 @@ fn param(
     site: &Site,
     depth: u32,
 ) -> Result<Node, TraceError> {
-    let func_id = ctx.func_id(file, &func.name, func.params.len());
+    let func_id = FuncId {
+        file: file.to_path_buf(),
+        name: func.name.clone(),
+        arity: func.params.len(),
+    };
 
     if let Some(frame) = ctx.frames.pop_if(|f| f.func_id == func_id) {
         let arg = frame.args.get(index).cloned();
@@ -338,7 +342,10 @@ fn param(
                 Ok(unresolved(
                     ctx,
                     site,
-                    format!("frame has no argument {index} for {func_id}"),
+                    format!(
+                        "frame has no argument {index} for {}",
+                        func_id.describe(ctx)
+                    ),
                 ))
             }
         };
@@ -579,19 +586,6 @@ fn value(
     Ok(unresolved(ctx, site, n.0.kind()))
 }
 
-#[derive(PartialEq)]
-struct Callee {
-    file: PathBuf,
-    name: String,
-    arity: usize,
-}
-
-impl Callee {
-    fn func_id(&self, ctx: &Ctx) -> String {
-        ctx.func_id(&self.file, &self.name, self.arity)
-    }
-}
-
 fn call_result(
     ctx: &mut Ctx,
     name_pos: Pos,
@@ -618,7 +612,7 @@ fn call_result(
     }
 
     // Distinct callees, not clauses: several definitions of one function collapse here.
-    let mut targets: Vec<Callee> = Vec::new();
+    let mut targets: Vec<FuncId> = Vec::new();
     for d in &defs {
         let doc = ctx.doc(&d.file)?;
         let Some(decl) = doc.function_at(d.range.start) else {
@@ -628,7 +622,7 @@ fn call_result(
                 format!("definition of {callee} is not a function"),
             ));
         };
-        let t = Callee {
+        let t = FuncId {
             file: d.file.clone(),
             name: decl.name.clone(),
             arity: decl.params.len(),
@@ -641,12 +635,7 @@ fn call_result(
     let mut plan: Vec<(usize, Span)> = Vec::new();
     let mut recursive: Vec<usize> = Vec::new();
     for (i, t) in targets.iter().enumerate() {
-        let func_id = t.func_id(ctx);
-        if ctx
-            .frames
-            .iter()
-            .any(|f| f.func_id == func_id && f.args == args)
-        {
+        if ctx.frames.iter().any(|f| &f.func_id == t && f.args == args) {
             recursive.push(i);
             continue;
         }
@@ -683,7 +672,7 @@ fn call_result(
     for (i, s) in plan {
         let t = &targets[i];
         let frame = Frame {
-            func_id: t.func_id(ctx),
+            func_id: t.clone(),
             args: args.clone(),
         };
         let f = t.file.clone();

@@ -14,9 +14,27 @@ use crate::tree::Limits;
 
 pub type ExprRef = (PathBuf, Span);
 
+/// A function clause set: what frames and the recursion cut match on.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FuncId {
+    pub file: PathBuf,
+    pub name: String,
+    pub arity: usize,
+}
+
+impl FuncId {
+    pub fn describe(&self, ctx: &Ctx) -> String {
+        format!(
+            "{}:{}/{}",
+            ctx.rel(&self.file).display(),
+            self.name,
+            self.arity
+        )
+    }
+}
+
 pub struct Frame {
-    /// `<file>:<name>/<arity>` of the callee we descended into.
-    pub func_id: String,
+    pub func_id: FuncId,
     pub args: Vec<ExprRef>,
 }
 
@@ -125,11 +143,6 @@ impl<'a> Ctx<'a> {
     /// Ids and hashes use this, so the same workspace traces alike at any checkout path.
     pub fn rel<'p>(&self, file: &'p Path) -> &'p Path {
         file.strip_prefix(self.root).unwrap_or(file)
-    }
-
-    /// `<relpath>:<name>/<arity>`: what frames and the recursion cut match on.
-    pub fn func_id(&self, file: &Path, name: &str, arity: usize) -> String {
-        format!("{}:{name}/{arity}", self.rel(file).display())
     }
 
     pub fn in_root(&self, file: &Path) -> bool {
