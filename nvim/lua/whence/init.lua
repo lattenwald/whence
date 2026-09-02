@@ -82,7 +82,10 @@ function M.trace_at(file, line, col, on_done)
     return
   end
   local source_win = vim.api.nvim_get_current_win()
+  local host = require("whence.host")
+  host.reset()
   engine.trace(client, { file = file, line = line, col = col, limits = config.limits }, function(err, tree)
+    host.reset()
     if err then
       notify(err.message or vim.inspect(err))
       on_done(err)

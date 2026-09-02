@@ -27,6 +27,21 @@ describe("host", function()
     assert.same({}, result)
   end)
 
+  it("waits for a client once per buffer until reset", function()
+    local scratch = vim.fn.tempname() .. ".txt"
+    vim.fn.writefile({ "nothing here" }, scratch)
+    local function timed()
+      local t0 = vim.uv.hrtime()
+      host.bufnr_for(scratch)
+      return (vim.uv.hrtime() - t0) / 1e6
+    end
+    host.reset()
+    assert.is_true(timed() >= 1500)
+    assert.is_true(timed() < 500)
+    host.reset()
+    assert.is_true(timed() >= 1500)
+  end)
+
   it("rejects an unknown method", function()
     local result, err = host.handle("host/nope", {})
     assert.is_nil(result)

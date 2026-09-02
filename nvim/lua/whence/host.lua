@@ -5,6 +5,13 @@ local CODES = vim.lsp.protocol.ErrorCodes
 
 local HIGHLIGHT_KIND = { "text", "read", "write" }
 
+-- Valid for one trace: init resets it around each.
+local no_client = {}
+
+function M.reset()
+  no_client = {}
+end
+
 function M.bufnr_for(file)
   local fresh = vim.fn.bufexists(file) == 0
   local b = vim.fn.bufadd(file)
@@ -12,9 +19,12 @@ function M.bufnr_for(file)
   if fresh then
     vim.bo[b].buflisted = false
   end
-  vim.wait(2000, function()
-    return #vim.lsp.get_clients({ bufnr = b }) > 0
-  end)
+  if not no_client[b] then
+    local attached = vim.wait(2000, function()
+      return #vim.lsp.get_clients({ bufnr = b }) > 0
+    end)
+    no_client[b] = not attached
+  end
   return b
 end
 
@@ -182,17 +192,9 @@ local function highlights(params)
   end, found)
 end
 
-local function loaded_bufnr(file)
-  for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_loaded(b) and vim.api.nvim_buf_get_name(b) == file then
-      return b
-    end
-  end
-end
-
 function M.text(file)
-  local b = loaded_bufnr(file)
-  if b then
+  local b = vim.uri_to_bufnr(vim.uri_from_fname(file))
+  if vim.api.nvim_buf_is_loaded(b) then
     return table.concat(vim.api.nvim_buf_get_lines(b, 0, -1, false), "\n") .. "\n"
   end
   return table.concat(vim.fn.readfile(file), "\n") .. "\n"
