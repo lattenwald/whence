@@ -40,7 +40,7 @@ pub fn write_message(w: &mut impl Write, m: &Message) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::{Id, Request};
+    use crate::protocol::{E_HOST, Id, Notification, Request, Response, RpcError};
     use std::io::Cursor;
 
     #[test]
@@ -57,6 +57,50 @@ mod tests {
         assert!(s.contains("\r\n\r\n{"));
         let back = read_message(&mut Cursor::new(buf)).unwrap().unwrap();
         assert_eq!(back, m);
+    }
+
+    fn roundtrip(m: Message) -> String {
+        let mut buf = Vec::new();
+        write_message(&mut buf, &m).unwrap();
+        let back = read_message(&mut Cursor::new(buf.clone()))
+            .unwrap()
+            .unwrap();
+        assert_eq!(back, m);
+        String::from_utf8(buf).unwrap()
+    }
+
+    #[test]
+    fn roundtrip_success_response_with_null_result() {
+        let s = roundtrip(Message::Response(Response {
+            id: Id::Num(7),
+            result: Some(serde_json::Value::Null),
+            error: None,
+        }));
+        assert!(s.contains(r#""result":null"#));
+        assert!(s.contains(r#""jsonrpc":"2.0""#));
+        assert!(!s.contains("error"));
+    }
+
+    #[test]
+    fn roundtrip_error_response_with_string_id() {
+        let s = roundtrip(Message::Response(Response {
+            id: Id::Str("abc".into()),
+            result: None,
+            error: Some(RpcError::new(E_HOST, "boom")),
+        }));
+        assert!(s.contains(r#""id":"abc""#));
+        assert!(!s.contains("result"));
+        assert!(!s.contains("data"));
+    }
+
+    #[test]
+    fn roundtrip_notification_omits_null_params() {
+        let s = roundtrip(Message::Notification(Notification {
+            method: "exit".into(),
+            params: serde_json::Value::Null,
+        }));
+        assert!(!s.contains("params"));
+        assert!(!s.contains("id"));
     }
 
     #[test]

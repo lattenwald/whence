@@ -74,10 +74,23 @@ struct Wire {
     method: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     params: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    // `"result": null` is a valid success reply (LSP "no definition"), distinct from absent.
+    #[serde(
+        default,
+        deserialize_with = "present_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     result: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<RpcError>,
+}
+
+fn present_value<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Value>, D::Error> {
+    Value::deserialize(d).map(Some)
+}
+
+fn present(v: &Value) -> Option<Value> {
+    (!v.is_null()).then(|| v.clone())
 }
 
 impl Message {
@@ -90,11 +103,11 @@ impl Message {
             Message::Request(r) => {
                 w.id = Some(r.id.clone());
                 w.method = Some(r.method.clone());
-                w.params = Some(r.params.clone());
+                w.params = present(&r.params);
             }
             Message::Notification(n) => {
                 w.method = Some(n.method.clone());
-                w.params = Some(n.params.clone());
+                w.params = present(&n.params);
             }
             Message::Response(r) => {
                 w.id = Some(r.id.clone());
