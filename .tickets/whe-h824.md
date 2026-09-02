@@ -1,6 +1,6 @@
 ---
 id: whe-h824
-status: open
+status: in_progress
 deps: [whe-g5ve]
 links: []
 created: 2026-09-02T07:00:24Z

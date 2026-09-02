@@ -49,7 +49,6 @@ local function client_for(root)
   local client, err = engine.start({
     cmd = { bin, "serve" },
     root = root,
-    handle = config._replay and require("whence.host_replay").handle(config._replay) or nil,
     on_exit = function()
       clients[root] = nil
     end,
@@ -64,18 +63,29 @@ end
 
 function M.setup(opts)
   config = vim.tbl_deep_extend("force", config, opts or {})
+  -- Routed through host.handle so the recorder, which wraps it, sees replayed answers too.
+  if config._replay then
+    require("whence.host").handle = require("whence.host_replay").handle(config._replay)
+  end
 end
 
-function M.trace_at(file, line, col)
+function M.root(file)
+  return root_of(file)
+end
+
+function M.trace_at(file, line, col, on_done)
+  on_done = on_done or function() end
   local root = root_of(file)
   local client = client_for(root)
   if not client then
+    on_done("engine unavailable")
     return
   end
   local source_win = vim.api.nvim_get_current_win()
   engine.trace(client, { file = file, line = line, col = col, limits = config.limits }, function(err, tree)
     if err then
       notify(err.message or vim.inspect(err))
+      on_done(err)
       return
     end
     require("whence.panel").show(tree, {
@@ -84,20 +94,24 @@ function M.trace_at(file, line, col)
       limits = config.limits,
       width = (config.panel or {}).width,
     })
+    on_done(nil)
   end)
 end
 
-function M.trace()
+function M.trace(on_done)
   local file = vim.api.nvim_buf_get_name(0)
   if file == "" then
     notify("buffer has no file")
+    if on_done then
+      on_done("buffer has no file")
+    end
     return
   end
   local cursor = vim.api.nvim_win_get_cursor(0)
   local line = cursor[1] - 1
   local text = vim.api.nvim_buf_get_lines(0, line, line + 1, false)[1] or ""
   local ok, col = pcall(vim.str_utfindex, text, "utf-16", cursor[2])
-  M.trace_at(file, line, ok and col or cursor[2])
+  M.trace_at(file, line, ok and col or cursor[2], on_done)
 end
 
 function M.stop()

@@ -34,7 +34,10 @@ local function fail_pending(state, code)
 end
 
 function M.start(opts)
-  local handler = opts.handle or require("whence.host").handle
+  -- Resolved per request so a recorder installed after the client started still sees them.
+  local handler = opts.handle or function(method, params)
+    return require("whence.host").handle(method, params)
+  end
   local state = { pending = {} }
   local ok, rpc = pcall(vim.lsp.rpc.start, opts.cmd, {
     server_request = host_dispatcher(handler),
