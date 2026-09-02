@@ -206,7 +206,7 @@ engine actually identified.
             "snippet": "f(X) ->",
             "stop": null,
             "truncated": 0,
-            "via": "arg"
+            "via": "match"
           }
         ],
         "id": "8562c1ef8da36e4c",
