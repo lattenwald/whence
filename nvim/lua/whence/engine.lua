@@ -64,8 +64,7 @@ function M.start(opts)
   }
 
   local done, ierr, info = false, nil, nil
-  -- false until M2: the engine has no rebinding pass and never sends documentHighlight.
-  client.request("initialize", { root = opts.root, capabilities = { documentHighlight = false } }, function(e, r)
+  client.request("initialize", { root = opts.root, capabilities = { documentHighlight = true } }, function(e, r)
     ierr, info, done = e, r, true
   end)
   if not vim.wait(5000, function()
