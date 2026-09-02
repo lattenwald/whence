@@ -1,0 +1,4 @@
+target/
+nvim/bin/
+*.log
+.superpowers/
