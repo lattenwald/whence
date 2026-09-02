@@ -23,6 +23,11 @@ pub enum HostSource {
     Replay(PathBuf),
 }
 
+enum Source {
+    Stdio,
+    Replay(ReplayHost),
+}
+
 struct SharedWriter<W>(Arc<Mutex<W>>);
 
 impl<W> Clone for SharedWriter<W> {
@@ -72,9 +77,10 @@ where
     R: BufRead + Send + 'static,
     W: Write + Send + 'static,
 {
-    if let HostSource::Replay(dir) = &source {
-        ReplayHost::load(dir)?;
-    }
+    let mut source = match source {
+        HostSource::Stdio => Source::Stdio,
+        HostSource::Replay(dir) => Source::Replay(ReplayHost::load(&dir)?),
+    };
     let reg = Registry::embedded()?;
     let out = SharedWriter(Arc::new(Mutex::new(writer)));
     let (tx, mut rx) = mpsc::channel();
@@ -119,7 +125,7 @@ where
             "initialize" => initialize(&reg, &req, &mut session),
             "whence/trace" => match &session {
                 None => Err(RpcError::new(E_INVALID_REQUEST, "not initialized")),
-                Some(s) => run_trace(&reg, s, &req, &source, &out, &mut rx, &mut next_host_id),
+                Some(s) => run_trace(&reg, s, &req, &mut source, &out, &mut rx, &mut next_host_id),
             },
             "shutdown" => {
                 reply(&out, id, Ok(json!({})));
@@ -151,7 +157,7 @@ fn run_trace<W: Write>(
     reg: &Registry,
     session: &Session,
     req: &Request,
-    source: &HostSource,
+    source: &mut Source,
     out: &SharedWriter<W>,
     rx: &mut Receiver<Message>,
     next_host_id: &mut i64,
@@ -167,12 +173,11 @@ fn run_trace<W: Write>(
         limits: p.limits,
     };
     let tree = match source {
-        HostSource::Replay(dir) => {
-            let mut host =
-                ReplayHost::load(dir).map_err(|e| RpcError::new(E_HOST, e.to_string()))?;
-            trace(&mut host, reg, &treq)
+        Source::Replay(host) => {
+            host.reset();
+            trace(host, reg, &treq)
         }
-        HostSource::Stdio => {
+        Source::Stdio => {
             let mut host =
                 RpcHost::resume(out.clone(), rx, session.supports_highlight, *next_host_id);
             let tree = trace(&mut host, reg, &treq);

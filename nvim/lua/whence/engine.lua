@@ -2,7 +2,7 @@ local M = {}
 
 -- Neovim asserts server_request error codes are in vim.lsp.protocol.ErrorCodes,
 -- which excludes the engine's own -32000 (E_HOST); only the message reaches it.
-local INTERNAL_ERROR = -32603
+local INTERNAL_ERROR = vim.lsp.protocol.ErrorCodes.InternalError
 local E_HOST = -32000
 
 local function host_dispatcher(handler)

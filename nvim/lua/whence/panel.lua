@@ -1,5 +1,6 @@
 local M = {}
 
+local util = require("whence.util")
 local NS = vim.api.nvim_create_namespace("whence")
 
 local BUF_OPTIONS = {
@@ -27,16 +28,6 @@ local function present(value)
   return value
 end
 
-local function relativise(file, root)
-  if root and root ~= "" then
-    local rel = vim.fs.relpath(root, file)
-    if rel then
-      return rel
-    end
-  end
-  return file
-end
-
 function M.render(tree, root)
   local lines, index = {}, {}
 
@@ -58,7 +49,7 @@ function M.render(tree, root)
       .. node.label
       .. viaText
       .. "  "
-      .. relativise(loc.file, root)
+      .. util.rel(loc.file, root)
       .. ":"
       .. (loc.line + 1)
       .. ":"
@@ -209,9 +200,7 @@ local function goto_node(node, buf, centre, keep_focus)
 
   local line = math.min(node.loc.line + 1, vim.api.nvim_buf_line_count(0))
   local text = vim.api.nvim_buf_get_lines(0, line - 1, line, false)[1] or ""
-  -- str_byteindex errors past the end of the line.
-  local ok, col = pcall(vim.str_byteindex, text, "utf-16", node.loc.col)
-  vim.api.nvim_win_set_cursor(0, { line, ok and col or #text })
+  vim.api.nvim_win_set_cursor(0, { line, util.byte_col(text, node.loc.col) })
 
   if centre then
     vim.cmd("normal! zz")

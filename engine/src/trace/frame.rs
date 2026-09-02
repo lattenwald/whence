@@ -7,40 +7,9 @@ use std::time::{Duration, Instant};
 
 use crate::host::Host;
 use crate::lang::Registry;
-use crate::syntax::{Doc, N};
+use crate::syntax::{Doc, Span};
 use crate::trace::TraceError;
 use crate::tree::Limits;
-
-/// Names a node across borrows: `tree_sitter` node ids are valid for one tree borrow only.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Span {
-    pub start: usize,
-    pub end: usize,
-    pub kind_id: u16,
-}
-
-impl Span {
-    pub fn of(n: N) -> Span {
-        Span {
-            start: n.0.start_byte(),
-            end: n.0.end_byte(),
-            kind_id: n.0.kind_id(),
-        }
-    }
-}
-
-pub fn node_at<'d>(doc: &'d Doc<'_>, span: Span) -> Option<N<'d>> {
-    let mut n = doc
-        .tree
-        .root_node()
-        .descendant_for_byte_range(span.start, span.end)?;
-    loop {
-        if n.start_byte() == span.start && n.end_byte() == span.end && n.kind_id() == span.kind_id {
-            return Some(N(n));
-        }
-        n = n.parent()?;
-    }
-}
 
 pub type ExprRef = (PathBuf, Span);
 
@@ -115,6 +84,11 @@ impl<'a> Ctx<'a> {
     /// Ids and hashes use this, so the same workspace traces alike at any checkout path.
     pub fn rel<'p>(&self, file: &'p Path) -> &'p Path {
         file.strip_prefix(self.root).unwrap_or(file)
+    }
+
+    /// `<relpath>:<name>/<arity>`: what frames and the recursion cut match on.
+    pub fn func_id(&self, file: &Path, name: &str, arity: usize) -> String {
+        format!("{}:{name}/{arity}", self.rel(file).display())
     }
 
     pub fn in_root(&self, file: &Path) -> bool {

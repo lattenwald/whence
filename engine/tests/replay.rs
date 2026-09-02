@@ -16,6 +16,18 @@ struct Case {
     expected: &'static str,
 }
 
+impl Default for Case {
+    fn default() -> Self {
+        Case {
+            dir: "",
+            file: "",
+            pos: (0, 0),
+            limits: Limits::default(),
+            expected: "expected.json",
+        }
+    }
+}
+
 fn fixture(dir: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/erlang")
@@ -92,8 +104,7 @@ fn local_chain() {
         dir: "local_chain",
         file: "a.erl",
         pos: (6, 4),
-        limits: Limits::default(),
-        expected: "expected.json",
+        ..Default::default()
     });
     let z = &v["root"];
     assert_eq!(z["kind"], "binding");
@@ -114,8 +125,7 @@ fn param_callers() {
         dir: "param_callers",
         file: "b.erl",
         pos: (3, 8),
-        limits: Limits::default(),
-        expected: "expected.json",
+        ..Default::default()
     });
     assert_eq!(v["root"]["kind"], "param");
     let kids = v["root"]["children"].as_array().unwrap();
@@ -132,8 +142,7 @@ fn call_result() {
         dir: "call_result",
         file: "d.erl",
         pos: (5, 4),
-        limits: Limits::default(),
-        expected: "expected.json",
+        ..Default::default()
     });
     let call = &v["root"]["children"][0];
     assert_eq!(call["kind"], "call_result");
@@ -169,8 +178,7 @@ fn external_call() {
         dir: "external_and_entry",
         file: "e.erl",
         pos: (5, 4),
-        limits: Limits::default(),
-        expected: "expected.json",
+        ..Default::default()
     });
     let stop = &v["root"]["children"][0]["stop"];
     assert_eq!(stop["reason"], "external");
@@ -234,7 +242,7 @@ fn depth_limit_stops() {
             depth: 1,
             ..Default::default()
         },
-        expected: "",
+        ..Default::default()
     });
     assert_eq!(v["root"]["children"][0]["stop"]["reason"], "limit");
     assert_eq!(v["root"]["children"][0]["stop"]["detail"], "depth");
@@ -250,7 +258,7 @@ fn node_limit_stops() {
             nodes: 2,
             ..Default::default()
         },
-        expected: "",
+        ..Default::default()
     });
     assert_eq!(
         v["root"]["children"][0]["children"][0]["stop"]["detail"],
@@ -264,8 +272,7 @@ fn a_diamond_is_not_recursion() {
         dir: "diamond",
         file: "n.erl",
         pos: (5, 4),
-        limits: Limits::default(),
-        expected: "expected.json",
+        ..Default::default()
     });
     // Both clauses of pick/1 return their parameter, so both reach the same argument.
     let kids = v["root"]["children"][0]["children"].as_array().unwrap();
@@ -320,8 +327,7 @@ fn field_set_is_followed_to_the_construction() {
         dir: "field_access",
         file: "g.erl",
         pos: (8, 4),
-        limits: Limits::default(),
-        expected: "expected.json",
+        ..Default::default()
     });
     let set = &v["root"]["children"][0];
     assert_eq!(set["kind"], "field");
@@ -343,8 +349,7 @@ fn every_construction_of_the_container_is_a_sibling() {
         dir: "honesty_field_branches",
         file: "f.erl",
         pos: (11, 4),
-        limits: Limits::default(),
-        expected: "expected.json",
+        ..Default::default()
     });
     let set = &v["root"]["children"][0];
     assert_eq!(set["kind"], "field");
@@ -362,8 +367,7 @@ fn references_that_are_not_call_sites_are_not_an_entry_point() {
         dir: "honesty_callback_ref",
         file: "c.erl",
         pos: (5, 9),
-        limits: Limits::default(),
-        expected: "expected.json",
+        ..Default::default()
     });
     let stop = &v["root"]["children"][0];
     assert_eq!(stop["stop"]["reason"], "unresolved");
@@ -386,8 +390,7 @@ fn several_definitions_are_unresolved() {
         dir: "honesty_multi_def",
         file: "m.erl",
         pos: (9, 4),
-        limits: Limits::default(),
-        expected: "expected.json",
+        ..Default::default()
     });
     let x = &v["root"]["children"][0];
     assert_eq!(x["stop"]["reason"], "unresolved");
@@ -400,8 +403,7 @@ fn a_branching_right_hand_side_expands_to_its_tails() {
         dir: "honesty_case_rhs",
         file: "z.erl",
         pos: (8, 4),
-        limits: Limits::default(),
-        expected: "expected.json",
+        ..Default::default()
     });
     let branch = &v["root"]["children"][0];
     assert_eq!(branch["kind"], "branch");
@@ -422,8 +424,7 @@ fn a_destructuring_parameter_narrows_the_argument() {
         dir: "honesty_param_destructure",
         file: "p.erl",
         pos: (5, 29),
-        limits: Limits::default(),
-        expected: "expected.json",
+        ..Default::default()
     });
     assert_eq!(v["root"]["kind"], "param");
     // The pattern binds B to the record's `body` field, not to the whole record.
@@ -442,7 +443,7 @@ fn a_zero_time_budget_stops_at_once() {
             time_ms: 0,
             ..Default::default()
         },
-        expected: "",
+        ..Default::default()
     });
     assert_eq!(v["root"]["stop"]["reason"], "limit");
     assert_eq!(v["root"]["stop"]["detail"], "time");
@@ -454,8 +455,7 @@ fn ids_do_not_depend_on_the_checkout_path() {
         dir: "call_result",
         file: "d.erl",
         pos: (5, 4),
-        limits: Limits::default(),
-        expected: "expected.json",
+        ..Default::default()
     };
     let tmp = tempfile::tempdir().unwrap();
     let copy = tmp.path().join("elsewhere");
@@ -492,8 +492,7 @@ fn live_limit_recorded_from_elp() {
         dir: "live_limit",
         file: "src/handler.erl",
         pos: (8, 24),
-        limits: Limits::default(),
-        expected: "expected.json",
+        ..Default::default()
     });
     assert_eq!(v["root"]["label"], "Limit");
     let s = serde_json::to_string(&v).unwrap();
@@ -508,8 +507,7 @@ fn live_callers_recorded_from_elp() {
         dir: "live_callers",
         file: "src/handler.erl",
         pos: (12, 25),
-        limits: Limits::default(),
-        expected: "expected.json",
+        ..Default::default()
     });
     assert_eq!(v["root"]["kind"], "param");
     assert_eq!(v["root"]["children"].as_array().unwrap().len(), 3);

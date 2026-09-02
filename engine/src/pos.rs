@@ -8,20 +8,60 @@ pub struct Pos {
     pub col: u32,
 }
 
-fn line_start(text: &str, line: u32) -> Option<usize> {
-    if line == 0 {
-        return Some(0);
+/// Byte offsets of every line start, so position lookups are a binary search, not a scan.
+pub struct Lines(Vec<usize>);
+
+impl Lines {
+    pub fn new(text: &str) -> Lines {
+        let mut starts = vec![0];
+        starts.extend(
+            text.bytes()
+                .enumerate()
+                .filter(|(_, b)| *b == b'\n')
+                .map(|(i, _)| i + 1),
+        );
+        Lines(starts)
     }
-    let mut seen = 0u32;
-    for (i, b) in text.bytes().enumerate() {
-        if b == b'\n' {
-            seen += 1;
-            if seen == line {
-                return Some(i + 1);
+
+    pub fn start(&self, line: u32) -> Option<usize> {
+        self.0.get(line as usize).copied()
+    }
+
+    fn line_at(&self, byte: usize) -> (u32, usize) {
+        let line = self.0.partition_point(|&s| s <= byte) - 1;
+        (line as u32, self.0[line])
+    }
+
+    pub fn byte_offset(&self, text: &str, p: Pos) -> Option<usize> {
+        let start = self.start(p.line)?;
+        let end = line_end(text, start);
+        let mut units = 0u32;
+        for (i, c) in text[start..end].char_indices() {
+            if units == p.col {
+                return Some(start + i);
+            }
+            units += c.len_utf16() as u32;
+            if units > p.col {
+                return None;
             }
         }
+        if units == p.col { Some(end) } else { None }
     }
-    None
+
+    pub fn pos_of(&self, text: &str, byte: usize) -> Pos {
+        let byte = byte.min(text.len());
+        let (line, start) = self.line_at(byte);
+        let col = text[start..byte]
+            .chars()
+            .map(|c| c.len_utf16() as u32)
+            .sum();
+        Pos { line, col }
+    }
+
+    pub fn line_text<'t>(&self, text: &'t str, byte: usize) -> &'t str {
+        let (_, start) = self.line_at(byte.min(text.len()));
+        text[start..line_end(text, start)].trim()
+    }
 }
 
 fn line_end(text: &str, start: usize) -> usize {
@@ -32,42 +72,17 @@ fn line_end(text: &str, start: usize) -> usize {
 }
 
 pub fn byte_offset(text: &str, p: Pos) -> Option<usize> {
-    let start = line_start(text, p.line)?;
-    let end = line_end(text, start);
-    let mut units = 0u32;
-    for (i, c) in text[start..end].char_indices() {
-        if units == p.col {
-            return Some(start + i);
-        }
-        units += c.len_utf16() as u32;
-        if units > p.col {
-            return None;
-        }
-    }
-    if units == p.col { Some(end) } else { None }
+    Lines::new(text).byte_offset(text, p)
 }
 
 pub fn pos_of(text: &str, byte: usize) -> Pos {
-    let byte = byte.min(text.len());
-    let mut line = 0u32;
-    let mut start = 0usize;
-    for (i, b) in text.as_bytes()[..byte].iter().enumerate() {
-        if *b == b'\n' {
-            line += 1;
-            start = i + 1;
-        }
-    }
-    let col = text[start..byte]
-        .chars()
-        .map(|c| c.len_utf16() as u32)
-        .sum();
-    Pos { line, col }
+    Lines::new(text).pos_of(text, byte)
 }
 
 #[cfg(test)]
 pub fn to_point(text: &str, p: Pos) -> Option<tree_sitter::Point> {
     let off = byte_offset(text, p)?;
-    let start = line_start(text, p.line)?;
+    let start = Lines::new(text).start(p.line)?;
     Some(tree_sitter::Point {
         row: p.line as usize,
         column: off - start,
@@ -76,7 +91,7 @@ pub fn to_point(text: &str, p: Pos) -> Option<tree_sitter::Point> {
 
 #[cfg(test)]
 pub fn from_point(text: &str, pt: tree_sitter::Point) -> Pos {
-    let start = line_start(text, pt.row as u32).unwrap_or(text.len());
+    let start = Lines::new(text).start(pt.row as u32).unwrap_or(text.len());
     let end = line_end(text, start);
     let col_end = (start + pt.column).min(end);
     Pos {
@@ -117,6 +132,15 @@ mod tests {
         assert_eq!(byte_offset(t, Pos { line: 0, col: 2 }), Some(2));
         assert_eq!(byte_offset(t, Pos { line: 2, col: 0 }), Some(6));
         assert_eq!(byte_offset(t, Pos { line: 0, col: 3 }), None);
+    }
+
+    #[test]
+    fn line_text_is_trimmed_and_bounded() {
+        let t = "  a b \ncd";
+        let l = Lines::new(t);
+        assert_eq!(l.line_text(t, 3), "a b");
+        assert_eq!(l.line_text(t, 8), "cd");
+        assert_eq!(l.line_text(t, 99), "cd");
     }
 
     #[test]

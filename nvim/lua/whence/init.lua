@@ -1,6 +1,7 @@
 local M = {}
 
 local engine = require("whence.engine")
+local util = require("whence.util")
 
 local ROOT_MARKERS = { "rebar.config", "Cargo.toml", "go.mod", ".git" }
 
@@ -13,14 +14,13 @@ end
 
 local function find_bin()
   local candidates = {
-    config.bin,
-    vim.g.whence_bin,
+    config.bin or "",
+    vim.g.whence_bin or "",
     vim.fn.exepath("whence"),
     vim.fn.stdpath("data") .. "/whence/bin/whence",
   }
-  for i = 1, 4 do
-    local c = candidates[i]
-    if c and c ~= "" and vim.fn.executable(c) == 1 then
+  for _, c in ipairs(candidates) do
+    if c ~= "" and vim.fn.executable(c) == 1 then
       return c
     end
   end
@@ -100,19 +100,15 @@ function M.trace_at(file, line, col, on_done)
 end
 
 function M.trace(on_done)
-  local file = vim.api.nvim_buf_get_name(0)
-  if file == "" then
+  local target = util.cursor_target()
+  if not target then
     notify("buffer has no file")
     if on_done then
       on_done("buffer has no file")
     end
     return
   end
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  local line = cursor[1] - 1
-  local text = vim.api.nvim_buf_get_lines(0, line, line + 1, false)[1] or ""
-  local ok, col = pcall(vim.str_utfindex, text, "utf-16", cursor[2])
-  M.trace_at(file, line, ok and col or cursor[2], on_done)
+  M.trace_at(target.file, target.line, target.col, on_done)
 end
 
 function M.stop()

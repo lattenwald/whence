@@ -9,7 +9,8 @@ use crate::lang::Registry;
 use crate::pos::Pos;
 use crate::tree::{Limits, Stats, Tree};
 
-pub use frame::{Ctx, ExprRef, Frame, Span};
+pub use crate::syntax::Span;
+pub use frame::{Ctx, ExprRef, Frame};
 pub use step::{Expr, expand};
 
 pub struct TraceRequest {

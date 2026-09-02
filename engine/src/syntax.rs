@@ -2,17 +2,33 @@
 //! capture vocabulary in [`crate::lang::vocab`]: no grammar names live here.
 
 use crate::lang::{Language, Returns, vocab};
-use crate::pos::{self, Pos};
+use crate::pos::{Lines, Pos};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use tree_sitter::StreamingIterator;
 
+/// Names a node across borrows: `tree_sitter` node ids are valid for one tree borrow only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Span {
+    pub start: usize,
+    pub end: usize,
+    pub kind_id: u16,
+}
+
+impl Span {
+    pub fn of(n: N) -> Span {
+        Span {
+            start: n.0.start_byte(),
+            end: n.0.end_byte(),
+            kind_id: n.0.kind_id(),
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 struct Cap {
     cap: u32,
-    start: usize,
-    end: usize,
-    kind_id: u16,
+    span: Span,
 }
 
 #[derive(Clone, Copy)]
@@ -44,6 +60,7 @@ pub struct Doc<'l> {
     pub text: String,
     pub tree: tree_sitter::Tree,
     lang: &'l Language,
+    lines: Lines,
     caps: Vec<Cap>,
     set: HashSet<Cap>,
 }
@@ -65,18 +82,17 @@ impl<'l> Doc<'l> {
             for c in m.captures() {
                 caps.push(Cap {
                     cap: c.index,
-                    start: c.node.start_byte(),
-                    end: c.node.end_byte(),
-                    kind_id: c.node.kind_id(),
+                    span: Span::of(N(c.node)),
                 });
             }
         }
-        caps.sort_by_key(|c| (c.start, c.end, c.cap));
+        caps.sort_by_key(|c| (c.span.start, c.span.end, c.cap));
         caps.dedup();
         let set = caps.iter().copied().collect();
 
         Doc {
             path,
+            lines: Lines::new(&text),
             text,
             tree,
             lang,
@@ -89,28 +105,47 @@ impl<'l> Doc<'l> {
         self.lang.query.capture_index_for_name(name)
     }
 
-    fn node_of(&self, c: &Cap) -> Option<N<'_>> {
+    pub fn node(&self, span: Span) -> Option<N<'_>> {
         let mut n = self
             .tree
             .root_node()
-            .descendant_for_byte_range(c.start, c.end)?;
+            .descendant_for_byte_range(span.start, span.end)?;
         loop {
-            if n.start_byte() == c.start && n.end_byte() == c.end && n.kind_id() == c.kind_id {
+            if Span::of(N(n)) == span {
                 return Some(N(n));
             }
             n = n.parent()?;
         }
     }
 
-    fn caps_within(&self, cap: &str, start: usize, end: usize) -> Vec<N<'_>> {
+    pub fn caps_within(&self, cap: &str, start: usize, end: usize) -> Vec<N<'_>> {
         let Some(idx) = self.cap_index(cap) else {
             return Vec::new();
         };
         self.caps
             .iter()
-            .filter(|c| c.cap == idx && c.start >= start && c.end <= end)
-            .filter_map(|c| self.node_of(c))
+            .filter(|c| c.cap == idx && c.span.start >= start && c.span.end <= end)
+            .filter_map(|c| self.node(c.span))
             .collect()
+    }
+
+    fn caps_containing(&self, cap: &str, off: usize) -> Vec<Cap> {
+        let Some(idx) = self.cap_index(cap) else {
+            return Vec::new();
+        };
+        let mut hits: Vec<Cap> = self
+            .caps
+            .iter()
+            .copied()
+            .filter(|c| c.cap == idx && c.span.start <= off && off < c.span.end)
+            .collect();
+        hits.sort_by_key(|c| c.span.end - c.span.start);
+        hits
+    }
+
+    pub fn covers(&self, cap: &str, p: Pos) -> bool {
+        self.byte_offset(p)
+            .is_some_and(|off| !self.caps_containing(cap, off).is_empty())
     }
 
     fn caps_owned_by<'a>(&'a self, cap: &str, owner_cap: &str, owner: N<'a>) -> Vec<N<'a>> {
@@ -134,7 +169,7 @@ impl<'l> Doc<'l> {
         None
     }
 
-    fn caps_child_of<'a>(&'a self, cap: &str, parent: N<'a>) -> Vec<N<'a>> {
+    pub fn caps_child_of<'a>(&'a self, cap: &str, parent: N<'a>) -> Vec<N<'a>> {
         self.caps_within(cap, parent.0.start_byte(), parent.0.end_byte())
             .into_iter()
             .filter(|n| n.0.parent().is_some_and(|p| p.id() == parent.0.id()))
@@ -147,9 +182,7 @@ impl<'l> Doc<'l> {
         };
         self.set.contains(&Cap {
             cap: idx,
-            start: n.0.start_byte(),
-            end: n.0.end_byte(),
-            kind_id: n.0.kind_id(),
+            span: Span::of(n),
         })
     }
 
@@ -158,27 +191,58 @@ impl<'l> Doc<'l> {
     }
 
     pub fn line_of(&self, n: N) -> &str {
-        let start = self.text[..n.0.start_byte()]
-            .rfind('\n')
-            .map_or(0, |i| i + 1);
-        let end = self.text[start..]
-            .find('\n')
-            .map_or(self.text.len(), |i| start + i);
-        self.text[start..end].trim()
+        self.lines.line_text(&self.text, n.0.start_byte())
+    }
+
+    pub fn line_at(&self, p: Pos) -> &str {
+        self.lines
+            .start(p.line)
+            .map_or("", |b| self.lines.line_text(&self.text, b))
     }
 
     pub fn pos_of(&self, n: N) -> Pos {
-        pos::pos_of(&self.text, n.0.start_byte())
+        self.pos_at(n.0.start_byte())
+    }
+
+    pub fn pos_at(&self, byte: usize) -> Pos {
+        self.lines.pos_of(&self.text, byte)
+    }
+
+    pub fn byte_offset(&self, p: Pos) -> Option<usize> {
+        self.lines.byte_offset(&self.text, p)
     }
 
     pub fn ident_at(&self, p: Pos) -> Option<N<'_>> {
-        let off = pos::byte_offset(&self.text, p)?;
-        let idx = self.cap_index(vocab::IDENT)?;
-        self.caps
-            .iter()
-            .filter(|c| c.cap == idx && c.start <= off && off < c.end)
-            .min_by_key(|c| c.end - c.start)
-            .and_then(|c| self.node_of(c))
+        let off = self.byte_offset(p)?;
+        self.caps_containing(vocab::IDENT, off)
+            .first()
+            .and_then(|c| self.node(c.span))
+    }
+
+    /// Every clause in the file: multi-clause functions are separate `@function` matches.
+    pub fn functions(&self) -> Vec<FnDecl<'_>> {
+        self.caps_within(vocab::FUNCTION, 0, self.text.len())
+            .into_iter()
+            .filter_map(|f| self.fn_decl(f))
+            .collect()
+    }
+
+    pub fn function_at(&self, p: Pos) -> Option<FnDecl<'_>> {
+        let off = self.byte_offset(p)?;
+        let at = self.tree.root_node().descendant_for_byte_range(off, off)?;
+        self.enclosing_function(N(at))
+    }
+
+    pub fn binding_parts<'a>(&'a self, binding: N<'a>) -> Option<(N<'a>, N<'a>)> {
+        let pattern = self
+            .caps_child_of(vocab::BINDING_PATTERN, binding)
+            .first()
+            .copied()?;
+        let value = self
+            .caps_child_of(vocab::BINDING_VALUE, binding)
+            .first()
+            .copied()?;
+        Some((pattern, value))
     }
 
     pub fn enclosing_function(&self, n: N) -> Option<FnDecl<'_>> {
@@ -206,12 +270,7 @@ impl<'l> Doc<'l> {
             .caps_within(vocab::FUNCTION_BODY, s, e)
             .first()
             .copied()?;
-        let node = self.node_of(&Cap {
-            cap: self.cap_index(vocab::FUNCTION)?,
-            start: s,
-            end: e,
-            kind_id: func.0.kind_id(),
-        })?;
+        let node = self.node(Span::of(func))?;
         Some(FnDecl {
             node,
             name,
@@ -227,12 +286,12 @@ impl<'l> Doc<'l> {
             if self.has_cap(n, vocab::BINDING_PATTERN)
                 && let Some(binding) = c.parent()
                 && self.has_cap(N(binding), vocab::BINDING)
-                && let Some(binding) = self.reborrow(N(binding))
+                && let Some(binding) = self.node(Span::of(N(binding)))
                 && let Some(value) = self
                     .caps_child_of(vocab::BINDING_VALUE, binding)
                     .into_iter()
                     .next()
-                && let Some(pattern) = self.reborrow(n)
+                && let Some(pattern) = self.node(Span::of(n))
             {
                 return Role::BoundBy { pattern, value };
             }
@@ -246,17 +305,17 @@ impl<'l> Doc<'l> {
             if self.has_cap(n, vocab::BRANCH_PATTERN)
                 && let Some(branch) = c.parent()
                 && let Some(case) = branch.parent()
-                && let Some(case) = self.reborrow(N(case))
+                && let Some(case) = self.node(Span::of(N(case)))
                 && let Some(subject) = self
                     .caps_child_of(vocab::BRANCH_SUBJECT, case)
                     .into_iter()
                     .next()
-                && let Some(pattern) = self.reborrow(n)
+                && let Some(pattern) = self.node(Span::of(n))
             {
                 return Role::BranchPattern { pattern, subject };
             }
             if self.has_cap(n, vocab::OPAQUE)
-                && let Some(op) = self.reborrow(n)
+                && let Some(op) = self.node(Span::of(n))
             {
                 return Role::Opaque(op);
             }
@@ -268,22 +327,6 @@ impl<'l> Doc<'l> {
         Role::Use
     }
 
-    fn reborrow(&self, n: N) -> Option<N<'_>> {
-        let mut cur = self
-            .tree
-            .root_node()
-            .descendant_for_byte_range(n.0.start_byte(), n.0.end_byte())?;
-        loop {
-            if cur.start_byte() == n.0.start_byte()
-                && cur.end_byte() == n.0.end_byte()
-                && cur.kind_id() == n.0.kind_id()
-            {
-                return Some(N(cur));
-            }
-            cur = cur.parent()?;
-        }
-    }
-
     pub fn call_at(&self, n: N) -> Option<CallSite<'_>> {
         let n = self.through(n)?;
         if self.has_cap(n, vocab::CALL) {
@@ -292,19 +335,19 @@ impl<'l> Doc<'l> {
         if let Some(p) = n.0.parent()
             && self.has_cap(N(p), vocab::CALL)
         {
-            return self.call_site(self.reborrow(N(p))?);
+            return self.call_site(self.node(Span::of(N(p)))?);
         }
         None
     }
 
     pub fn through(&self, n: N) -> Option<N<'_>> {
         if !self.has_cap(n, vocab::THROUGH) {
-            return self.reborrow(n);
+            return self.node(Span::of(n));
         }
         self.caps_within(vocab::THROUGH_INNER, n.0.start_byte(), n.0.end_byte())
             .first()
             .copied()
-            .or_else(|| self.reborrow(n))
+            .or_else(|| self.node(Span::of(n)))
     }
 
     fn call_site<'a>(&'a self, call: N<'a>) -> Option<CallSite<'a>> {
@@ -324,21 +367,12 @@ impl<'l> Doc<'l> {
     }
 
     pub fn calls_containing(&self, p: Pos) -> Vec<CallSite<'_>> {
-        let Some(off) = pos::byte_offset(&self.text, p) else {
+        let Some(off) = self.byte_offset(p) else {
             return Vec::new();
         };
-        let Some(idx) = self.cap_index(vocab::CALL) else {
-            return Vec::new();
-        };
-        let mut hits: Vec<Cap> = self
-            .caps
+        self.caps_containing(vocab::CALL, off)
             .iter()
-            .copied()
-            .filter(|c| c.cap == idx && c.start <= off && off < c.end)
-            .collect();
-        hits.sort_by_key(|c| c.end - c.start);
-        hits.iter()
-            .filter_map(|c| self.node_of(c))
+            .filter_map(|c| self.node(c.span))
             .filter_map(|n| self.call_site(n))
             .collect()
     }
@@ -357,10 +391,6 @@ impl<'l> Doc<'l> {
         name.to_string()
     }
 
-    pub fn callee_name_pos(&self, call: &CallSite) -> Pos {
-        self.pos_of(call.callee)
-    }
-
     pub fn returns_of(&self, f: &FnDecl) -> Vec<N<'_>> {
         if self.lang.quirks.returns != Returns::Tail {
             warn_returns_unsupported(self.lang.name, self.lang.quirks.returns);
@@ -375,7 +405,7 @@ impl<'l> Doc<'l> {
         else {
             return Vec::new();
         };
-        let Some(last) = self.reborrow(N(last)) else {
+        let Some(last) = self.node(Span::of(N(last))) else {
             return Vec::new();
         };
         let mut out = Vec::new();
@@ -479,7 +509,7 @@ impl<'l> Doc<'l> {
         if pattern.0.start_byte() == ident.0.start_byte()
             && pattern.0.end_byte() == ident.0.end_byte()
         {
-            return self.reborrow(value);
+            return self.node(Span::of(value));
         }
         if pattern.0.kind_id() != value.0.kind_id()
             || !self.has_cap(pattern, vocab::CONSTRUCT)

@@ -1,8 +1,7 @@
 local M = {}
 
 local TIMEOUT = 5000
-local METHOD_NOT_FOUND = -32601
-local INTERNAL_ERROR = -32603
+local CODES = vim.lsp.protocol.ErrorCodes
 
 local HIGHLIGHT_KIND = { "text", "read", "write" }
 
@@ -91,27 +90,38 @@ local function items_of(result)
   return result
 end
 
-function M._locations_from(per_client, line_at)
-  line_at = line_at or buffer_line
+-- Servers repeat an answer per client; the same (file, range) is one item.
+local function collect(per_client, items_of_entry, place_of, line_at)
   local out, seen = {}, {}
   for _, entry in ipairs(per_client) do
-    for _, item in ipairs(items_of(entry.result)) do
-      local uri = item.targetUri or item.uri
-      local range = item.targetUri and (item.targetSelectionRange or item.targetRange) or item.range
-      if uri and range then
-        local file = vim.uri_to_fname(uri)
+    for _, item in ipairs(items_of_entry(entry)) do
+      local file, range = place_of(item)
+      if file and range then
         local converted = range_to_utf16(range, entry.encoding, function(line)
           return line_at(file, line)
         end)
         local key = range_key(file, converted)
         if not seen[key] then
           seen[key] = true
-          out[#out + 1] = { file = file, range = converted }
+          out[#out + 1] = { file = file, range = converted, item = item }
         end
       end
     end
   end
   return out
+end
+
+function M._locations_from(per_client, line_at)
+  local found = collect(per_client, function(entry)
+    return items_of(entry.result)
+  end, function(item)
+    local uri = item.targetUri or item.uri
+    local range = item.targetUri and (item.targetSelectionRange or item.targetRange) or item.range
+    return uri and vim.uri_to_fname(uri), range
+  end, line_at or buffer_line)
+  return vim.tbl_map(function(f)
+    return { file = f.file, range = f.range }
+  end, found)
 end
 
 local function request(lsp_method, params, extra)
@@ -162,20 +172,14 @@ end
 local function highlights(params)
   local results, uri = request("textDocument/documentHighlight", params)
   local file = vim.uri_to_fname(uri)
-  local out, seen = {}, {}
-  for _, entry in ipairs(answers(results)) do
-    for _, item in ipairs(entry.result or {}) do
-      local range = range_to_utf16(item.range, entry.encoding, function(line)
-        return buffer_line(file, line)
-      end)
-      local key = range_key(file, range)
-      if not seen[key] then
-        seen[key] = true
-        out[#out + 1] = { range = range, kind = HIGHLIGHT_KIND[item.kind] or "text" }
-      end
-    end
-  end
-  return out
+  local found = collect(answers(results), function(entry)
+    return entry.result or {}
+  end, function(item)
+    return file, item.range
+  end, buffer_line)
+  return vim.tbl_map(function(f)
+    return { range = f.range, kind = HIGHLIGHT_KIND[f.item.kind] or "text" }
+  end, found)
 end
 
 local function loaded_bufnr(file)
@@ -212,11 +216,11 @@ local ANSWER = {
 function M.handle(method, params)
   local answer = ANSWER[method]
   if not answer then
-    return nil, { code = METHOD_NOT_FOUND, message = "unknown method " .. tostring(method) }
+    return nil, { code = CODES.MethodNotFound, message = "unknown method " .. tostring(method) }
   end
   local ok, result = pcall(answer, params)
   if not ok then
-    return nil, { code = INTERNAL_ERROR, message = tostring(result) }
+    return nil, { code = CODES.InternalError, message = tostring(result) }
   end
   return result
 end

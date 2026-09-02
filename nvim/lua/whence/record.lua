@@ -1,6 +1,7 @@
 local M = {}
 
 local host = require("whence.host")
+local util = require("whence.util")
 
 local SECTION = {
   ["host/definition"] = "definition",
@@ -10,30 +11,16 @@ local SECTION = {
 
 local active = nil
 
-function M._rel(file, root)
-  if root and root ~= "" then
-    local rel = vim.fs.relpath(root, file)
-    if rel then
-      return rel
-    end
-  end
-  return file
-end
-
-local function key(rec, params)
-  return ("%s:%d:%d"):format(M._rel(params.file, rec.root), params.line, params.col)
-end
-
 local function relativised(rec, locations)
   local out = vim.deepcopy(locations)
   for _, loc in ipairs(out) do
-    loc.file = M._rel(loc.file, rec.root)
+    loc.file = util.rel(loc.file, rec.root)
   end
   return out
 end
 
 local function copy_source(rec, file, text)
-  local rel = M._rel(file, rec.root)
+  local rel = util.rel(file, rec.root)
   if rel == file then
     return
   end
@@ -52,12 +39,9 @@ local function capture(rec, method, params, result)
   if not section then
     return
   end
-  local k = key(rec, params)
-  if method == "host/references" then
-    k = k .. (params.includeDeclaration and "|decl" or "|nodecl")
-  end
+  local k = util.fixture_key(rec.root, method, params)
   -- Fallback only: the engine's first positional request is at the identifier it resolved.
-  rec.target = rec.target or { file = M._rel(params.file, rec.root), line = params.line, col = params.col }
+  rec.target = rec.target or { file = util.rel(params.file, rec.root), line = params.line, col = params.col }
 
   local answer = section == "documentHighlight" and vim.deepcopy(result) or relativised(rec, result)
   local first = rec.recorded[section][k]
@@ -85,7 +69,7 @@ function M.begin(dir, root, target)
     recorded = { definition = {}, references = {}, documentHighlight = {} },
     conflicts = {},
     conflicting = {},
-    target = target and { file = M._rel(target.file, root), line = target.line, col = target.col } or nil,
+    target = target and { file = util.rel(target.file, root), line = target.line, col = target.col } or nil,
     orig = host.handle,
   }
   host.handle = function(method, params)
@@ -138,21 +122,8 @@ function M.finish()
   return ("whence replay %s %s:%d:%d"):format(rec.dir, rec.target.file, rec.target.line + 1, rec.target.col + 1)
 end
 
--- The cursor in the fixture's own coordinates: 0-based line, UTF-16 column.
-local function cursor_target()
-  local file = vim.api.nvim_buf_get_name(0)
-  if file == "" then
-    return nil
-  end
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  local line = cursor[1] - 1
-  local text = vim.api.nvim_buf_get_lines(0, line, line + 1, false)[1] or ""
-  local ok, col = pcall(vim.str_utfindex, text, "utf-16", cursor[2])
-  return { file = file, line = line, col = ok and col or cursor[2] }
-end
-
 function M.run(dir, root)
-  M.begin(dir, root, cursor_target())
+  M.begin(dir, root, util.cursor_target())
   local finished = false
   local function done()
     if finished then

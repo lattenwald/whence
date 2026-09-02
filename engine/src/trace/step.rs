@@ -5,15 +5,23 @@ use std::time::Instant;
 
 use crate::host::Location;
 use crate::lang::vocab;
-use crate::pos::{self, Pos};
-use crate::syntax::{Doc, FnDecl, N, Role};
+use crate::pos::Pos;
+use crate::syntax::{Doc, FnDecl, N, Role, Span};
 use crate::trace::TraceError;
-use crate::trace::frame::{Ctx, ExprRef, Frame, Span, node_at};
+use crate::trace::frame::{Ctx, ExprRef, Frame};
 use crate::tree::{Loc, Node, NodeKind, StopReason, Via, node_id};
 
 pub enum Expr {
     Ident(PathBuf, Pos),
     Value(PathBuf, Span),
+}
+
+impl Expr {
+    fn file(&self) -> &Path {
+        match self {
+            Expr::Ident(f, _) | Expr::Value(f, _) => f,
+        }
+    }
 }
 
 struct Site {
@@ -45,6 +53,15 @@ impl Site {
             col: self.loc.col,
         }
     }
+
+    fn relabel(&self, label: String) -> Site {
+        Site {
+            loc: self.loc.clone(),
+            rel: self.rel.clone(),
+            label,
+            snippet: self.snippet.clone(),
+        }
+    }
 }
 
 fn label_of(doc: &Doc, n: N) -> String {
@@ -66,14 +83,6 @@ fn clip(s: &str) -> String {
     } else {
         s.to_string()
     }
-}
-
-fn line_at(text: &str, p: Pos) -> String {
-    text.lines()
-        .nth(p.line as usize)
-        .unwrap_or("")
-        .trim()
-        .to_string()
 }
 
 fn make(
@@ -120,9 +129,7 @@ fn unresolved(site: &Site, detail: impl Into<String>) -> Node {
 }
 
 pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
-    let file = match e {
-        Expr::Ident(f, _) | Expr::Value(f, _) => f.clone(),
-    };
+    let file = e.file().to_path_buf();
     let doc = ctx.doc(&file)?;
     ctx.node_count += 1;
 
@@ -130,12 +137,12 @@ pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
     // cycle check keeps the two forms from colliding in the visited set.
     let node = match e {
         Expr::Ident(_, p) => doc.ident_at(*p),
-        Expr::Value(_, s) => node_at(&doc, *s),
+        Expr::Value(_, s) => doc.node(*s),
     };
     let Some(node) = node else {
         let p = match e {
             Expr::Ident(_, p) => *p,
-            Expr::Value(_, s) => pos::pos_of(&doc.text, s.start),
+            Expr::Value(_, s) => doc.pos_at(s.start),
         };
         let site = Site {
             loc: Loc {
@@ -194,21 +201,12 @@ fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, Tr
     let dsite = Site::new(ctx, &doc, &def.file, ident);
 
     match doc.role_of(ident) {
-        Role::BoundBy { pattern, value } => {
+        Role::BoundBy { pattern, value }
+        | Role::BranchPattern {
+            pattern,
+            subject: value,
+        } => {
             let source = doc.destructure(pattern, ident, value).unwrap_or(value);
-            let child = Expr::Value(def.file.clone(), Span::of(source));
-            let child = matched(expand(ctx, &child, depth + 1)?);
-            Ok(make(
-                ctx,
-                NodeKind::Binding,
-                &dsite,
-                Via::Match,
-                vec![child],
-                0,
-            ))
-        }
-        Role::BranchPattern { pattern, subject } => {
-            let source = doc.destructure(pattern, ident, subject).unwrap_or(subject);
             let child = Expr::Value(def.file.clone(), Span::of(source));
             let child = matched(expand(ctx, &child, depth + 1)?);
             Ok(make(
@@ -253,7 +251,7 @@ fn narrow(doc: &Doc, pattern: Option<N>, ident: N, file: &Path, arg: &ExprRef) -
         return arg.1;
     }
     let Some(pattern) = pattern else { return arg.1 };
-    let Some(value) = node_at(doc, arg.1) else {
+    let Some(value) = doc.node(arg.1) else {
         return arg.1;
     };
     doc.destructure(pattern, ident, value)
@@ -272,12 +270,7 @@ fn param(
     site: &Site,
     depth: u32,
 ) -> Result<Node, TraceError> {
-    let func_id = format!(
-        "{}:{}/{}",
-        ctx.rel(file).display(),
-        func.name,
-        func.params.len()
-    );
+    let func_id = ctx.func_id(file, &func.name, func.params.len());
 
     if let Some(frame) = ctx.frames.pop_if(|f| f.func_id == func_id) {
         let arg = frame.args.get(index).cloned();
@@ -299,7 +292,12 @@ fn param(
         return Ok(make(ctx, NodeKind::Param, site, Via::Arg, vec![child?], 0));
     }
 
-    let Some(name) = capture_in(doc, func.node, vocab::FUNCTION_NAME)
+    let Some(name) = doc
+        .caps_within(
+            vocab::FUNCTION_NAME,
+            func.node.0.start_byte(),
+            func.node.0.end_byte(),
+        )
         .into_iter()
         .next()
     else {
@@ -318,7 +316,7 @@ fn param(
             continue;
         }
         let rdoc = ctx.doc(&r.file)?;
-        if at_declaration(&rdoc, r.range.start) {
+        if rdoc.covers(vocab::FUNCTION_NAME, r.range.start) {
             continue;
         }
         refs_seen += 1;
@@ -344,9 +342,7 @@ fn param(
             let detail = format!("no call sites of {}/{arity}", func.name);
             stop(site, StopReason::EntryPoint, detail)
         } else {
-            strays.sort_by(|a, b| {
-                (a.0 != file, &a.0, a.1.line, a.1.col).cmp(&(b.0 != file, &b.0, b.1.line, b.1.col))
-            });
+            sort_local(&mut strays, file, |p| (p.line, p.col));
             let dropped = fanout(ctx, &mut strays);
             let mut kids = Vec::new();
             for (f, p) in strays {
@@ -364,7 +360,7 @@ fn param(
         return Ok(make(ctx, NodeKind::Param, site, Via::Arg, vec![child], 0));
     }
 
-    sites.sort_by(|a, b| (a.0 != file, &a.0, a.1.start).cmp(&(b.0 != file, &b.0, b.1.start)));
+    sort_local(&mut sites, file, |s| s.start);
     let dropped = fanout(ctx, &mut sites);
     let mut children = Vec::new();
     for a in sites {
@@ -385,7 +381,7 @@ fn stray_stop(ctx: &mut Ctx, file: &Path, p: Pos, name: &str) -> Result<Node, Tr
     let doc = ctx.doc(file)?;
     let (label, snippet) = match doc.ident_at(p) {
         Some(n) => (label_of(&doc, n), doc.line_of(n).to_string()),
-        None => (name.to_string(), line_at(&doc.text, p)),
+        None => (name.to_string(), doc.line_at(p).to_string()),
     };
     ctx.node_count += 1;
     Ok(Node::stop(
@@ -402,13 +398,9 @@ fn stray_stop(ctx: &mut Ctx, file: &Path, p: Pos, name: &str) -> Result<Node, Tr
     ))
 }
 
-fn at_declaration(doc: &Doc, p: Pos) -> bool {
-    let Some(off) = pos::byte_offset(&doc.text, p) else {
-        return false;
-    };
-    capture_in(doc, N(doc.tree.root_node()), vocab::FUNCTION_NAME)
-        .iter()
-        .any(|n| n.0.start_byte() <= off && off < n.0.end_byte())
+/// Same file first, then by path and position: the nearest candidates survive the fan-out cut.
+fn sort_local<T, K: Ord>(items: &mut [(PathBuf, T)], file: &Path, key: impl Fn(&T) -> K) {
+    items.sort_by(|a, b| (a.0 != file, &a.0, key(&a.1)).cmp(&(b.0 != file, &b.0, key(&b.1))));
 }
 
 /// `mod:fun` and `fun` both name `fun`; `flag` does not.
@@ -472,12 +464,7 @@ fn value(
         };
         let mut child = expand(ctx, &container_expr, depth + 1)?;
         child.via = Some(Via::Field);
-        let site = Site {
-            loc: site.loc.clone(),
-            rel: site.rel.clone(),
-            label: format!("{field} of {}", doc.text_of(container)),
-            snippet: site.snippet.clone(),
-        };
+        let site = site.relabel(format!("{field} of {}", doc.text_of(container)));
         return Ok(make(
             ctx,
             NodeKind::Field,
@@ -496,7 +483,7 @@ fn value(
             .collect();
         return call_result(
             ctx,
-            doc.callee_name_pos(&call),
+            doc.pos_of(call.callee),
             &callee,
             args,
             file,
@@ -522,12 +509,7 @@ struct Callee {
 
 impl Callee {
     fn func_id(&self, ctx: &Ctx) -> String {
-        format!(
-            "{}:{}/{}",
-            ctx.rel(&self.file).display(),
-            self.name,
-            self.arity
-        )
+        ctx.func_id(&self.file, &self.name, self.arity)
     }
 }
 
@@ -559,7 +541,7 @@ fn call_result(
     let mut targets: Vec<Callee> = Vec::new();
     for d in &defs {
         let doc = ctx.doc(&d.file)?;
-        let Some(decl) = function_at(&doc, d.range.start) else {
+        let Some(decl) = doc.function_at(d.range.start) else {
             return Ok(unresolved(
                 site,
                 format!("definition of {callee} is not a function"),
@@ -588,7 +570,8 @@ fn call_result(
             continue;
         }
         let doc = ctx.doc(&t.file)?;
-        let mut returns: Vec<Span> = functions(&doc)
+        let mut returns: Vec<Span> = doc
+            .functions()
             .iter()
             .filter(|c| c.name == t.name && c.params.len() == t.arity)
             .flat_map(|c| doc.returns_of(c))
@@ -626,12 +609,7 @@ fn call_result(
         ctx.node_count += 1;
     }
 
-    let site = Site {
-        loc: site.loc.clone(),
-        rel: site.rel.clone(),
-        label: callee.to_string(),
-        snippet: site.snippet.clone(),
-    };
+    let site = site.relabel(callee.to_string());
     Ok(make(
         ctx,
         NodeKind::CallResult,
@@ -648,11 +626,12 @@ fn field_sources<'d>(doc: &'d Doc<'_>, n: N<'d>, container: N<'d>, field: &str) 
     };
     let want = doc.text_of(container);
     let mut out = Vec::new();
-    for b in capture_in(doc, func.node, vocab::BINDING) {
+    let (s, e) = (func.node.0.start_byte(), func.node.0.end_byte());
+    for b in doc.caps_within(vocab::BINDING, s, e) {
         if b.0.start_byte() >= n.0.start_byte() {
             continue;
         }
-        let Some((pattern, value)) = binding_parts(doc, b) else {
+        let Some((pattern, value)) = doc.binding_parts(b) else {
             continue;
         };
         if doc.text_of(pattern) != want || !doc.has_cap(value, vocab::CONSTRUCT) {
@@ -686,12 +665,7 @@ fn branch(
         child.via = Some(Via::Match);
         children.push(child);
     }
-    let site = Site {
-        loc: site.loc.clone(),
-        rel: site.rel.clone(),
-        label: first_line_of(doc, n),
-        snippet: site.snippet.clone(),
-    };
+    let site = site.relabel(first_line_of(doc, n));
     Ok(make(
         ctx,
         NodeKind::Branch,
@@ -700,46 +674,4 @@ fn branch(
         children,
         dropped,
     ))
-}
-
-fn binding_parts<'d>(doc: &'d Doc<'_>, binding: N<'d>) -> Option<(N<'d>, N<'d>)> {
-    let mut cursor = binding.0.walk();
-    let mut pattern = None;
-    let mut value = None;
-    for c in binding.0.named_children(&mut cursor) {
-        if pattern.is_none() && doc.has_cap(N(c), vocab::BINDING_PATTERN) {
-            pattern = Some(N(c));
-        } else if value.is_none() && doc.has_cap(N(c), vocab::BINDING_VALUE) {
-            value = Some(N(c));
-        }
-    }
-    Some((pattern?, value?))
-}
-
-fn function_at<'d>(doc: &'d Doc<'_>, p: Pos) -> Option<FnDecl<'d>> {
-    let off = pos::byte_offset(&doc.text, p)?;
-    let at = doc.tree.root_node().descendant_for_byte_range(off, off)?;
-    doc.enclosing_function(N(at))
-}
-
-/// Every clause in the file: multi-clause functions are separate `@function` matches.
-fn functions<'d>(doc: &'d Doc<'_>) -> Vec<FnDecl<'d>> {
-    capture_in(doc, N(doc.tree.root_node()), vocab::FUNCTION)
-        .into_iter()
-        .filter_map(|n| doc.enclosing_function(n))
-        .collect()
-}
-
-fn capture_in<'d>(doc: &'d Doc<'_>, root: N<'d>, cap: &str) -> Vec<N<'d>> {
-    let mut out = Vec::new();
-    let mut stack = vec![root.0];
-    while let Some(n) = stack.pop() {
-        if doc.has_cap(N(n), cap) {
-            out.push(N(n));
-        }
-        let mut cursor = n.walk();
-        stack.extend(n.named_children(&mut cursor));
-    }
-    out.sort_by_key(|n| (n.0.start_byte(), n.0.end_byte()));
-    out
 }

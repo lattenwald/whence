@@ -48,17 +48,21 @@ impl ReplayHost {
         })
     }
 
+    pub fn reset(&mut self) {
+        self.count = 0;
+    }
+
     fn key(&self, file: &Path, pos: Pos) -> String {
         let rel = file.strip_prefix(&self.dir).unwrap_or(file);
         format!("{}:{}:{}", rel.display(), pos.line, pos.col)
     }
 }
 
-fn unrecorded<T>(method: &str) -> Result<T, HostError> {
-    Err(HostError::Rpc {
+fn unrecorded(method: &str) -> HostError {
+    HostError::Rpc {
         method: method.to_string(),
         message: "unrecorded".to_string(),
-    })
+    }
 }
 
 impl Host for ReplayHost {
@@ -69,10 +73,8 @@ impl Host for ReplayHost {
 
     fn definition(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, HostError> {
         self.count += 1;
-        match self.recorded.definition.get(&self.key(file, pos)) {
-            Some(v) => Ok(v.clone()),
-            None => unrecorded("host/definition"),
-        }
+        let hit = self.recorded.definition.get(&self.key(file, pos));
+        hit.cloned().ok_or_else(|| unrecorded("host/definition"))
     }
 
     fn references(
@@ -87,18 +89,15 @@ impl Host for ReplayHost {
             self.key(file, pos),
             if include_decl { "decl" } else { "nodecl" }
         );
-        match self.recorded.references.get(&key) {
-            Some(v) => Ok(v.clone()),
-            None => unrecorded("host/references"),
-        }
+        let hit = self.recorded.references.get(&key);
+        hit.cloned().ok_or_else(|| unrecorded("host/references"))
     }
 
     fn document_highlight(&mut self, file: &Path, pos: Pos) -> Result<Vec<Highlight>, HostError> {
         self.count += 1;
-        match self.recorded.document_highlight.get(&self.key(file, pos)) {
-            Some(v) => Ok(v.clone()),
-            None => unrecorded("host/documentHighlight"),
-        }
+        let hit = self.recorded.document_highlight.get(&self.key(file, pos));
+        hit.cloned()
+            .ok_or_else(|| unrecorded("host/documentHighlight"))
     }
 
     fn request_count(&self) -> u32 {
