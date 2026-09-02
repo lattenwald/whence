@@ -4,4 +4,5 @@ pub mod host_rpc;
 pub mod lang;
 pub mod pos;
 pub mod protocol;
+pub mod syntax;
 pub mod tree;

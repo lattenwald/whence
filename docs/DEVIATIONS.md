@@ -17,7 +17,11 @@ Each entry: which task, what the plan said, what was done instead, why. Entries 
 
 ## Task 7 — syntax
 
-- *Planned.* Plan: `Doc` stores captured `tree_sitter::Node`s alongside the tree it owns (self-referential; not expressible in safe Rust). Ruling: captures stored as byte ranges + kind id and re-resolved against the tree on demand.
+- Plan: `Doc` stores captured `tree_sitter::Node`s alongside the tree it owns (self-referential; not expressible in safe Rust). Done: captures stored as `(capture index, start byte, end byte, kind id)` and re-resolved against the tree on demand via `descendant_for_byte_range` plus a walk up to the matching range and kind. `has_cap` is a hash-set lookup on that tuple.
+- Plan: `returns_of` returns an empty vec plus a warning for non-`tail` languages. Done: it warns once (`log::warn!`) and still returns the tail-branch result — an approximation is more useful than nothing until M2 wires `@return.value` for `return`-statement languages, and no M1 language reaches it.
+- Plan: `call_at(value)` where `value` is the `remote` wrapper of `maps:get(..)`. Done: resolved through the `@through`/`@through.inner` captures added in `whe-ngsz`, exposed as `Doc::through`; the engine never names `remote`.
+- `destructure` returns `None` on any structural mismatch, per the plan, even after narrowing to a sub-value: a partially matched sub-value would claim precision the pattern does not support.
+- `role_of` returns `Opaque` for any ident under an `@opaque` ancestor, including one in the *body* of an anonymous fun, not only its parameter list; the plan's prose ("an ident inside a fun inside a match RHS is `Use`") describes the ancestor walk not treating the enclosing match as a binding, which it does not.
 
 ## Task 6 — Erlang queries
 

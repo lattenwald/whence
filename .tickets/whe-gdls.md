@@ -1,6 +1,6 @@
 ---
 id: whe-gdls
-status: open
+status: in_progress
 deps: [whe-ngsz]
 links: []
 created: 2026-09-02T07:00:24Z
