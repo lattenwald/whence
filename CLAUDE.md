@@ -28,3 +28,13 @@ change — it is the record of decisions, not a proposal.
   language servers actually return.
 - Deliver the requested scope; make routine judgment calls yourself, and voice
   a disagreement in a sentence rather than acting on it. Keep responses short.
+
+## Commands
+
+- `make test` — engine tests.
+- `make test-nvim` — plugin tests; needs `cargo build` first and plenary
+  (`PLENARY_DIR=…` if it is not in the lazy.nvim default location).
+- `whence replay <fixture-dir> <file:line:col>` — run a trace against a replay
+  fixture; the fastest way to debug one.
+- `UPDATE_EXPECTED=1 cargo test --test replay` — regenerate the goldens.
+  Inspect the diff before committing: a golden is a claim about correctness.

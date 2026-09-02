@@ -25,3 +25,13 @@ nvim-link: build ## Symlink release binary into the plugin's bin/
 .PHONY: fmt
 fmt: ## Format Rust sources
 	cargo fmt --all
+
+.PHONY: release-check
+release-check: ## Check engine, plugin and tag ($$GITHUB_REF_NAME) versions agree
+	@engine=$$(sed -n 's/^version = "\(.*\)"/\1/p' engine/Cargo.toml | head -1); \
+	plugin=$$(sed -n 's/^return "\(.*\)"/\1/p' nvim/lua/whence/version.lua | head -1); \
+	if [ -z "$$engine" ] || [ "$$engine" != "$$plugin" ]; then \
+	  echo "version mismatch: engine/Cargo.toml '$$engine' vs nvim/lua/whence/version.lua '$$plugin'" >&2; exit 1; fi; \
+	if [ -n "$$GITHUB_REF_NAME" ] && [ "$$GITHUB_REF_NAME" != "v$$engine" ]; then \
+	  echo "tag $$GITHUB_REF_NAME does not match version v$$engine" >&2; exit 1; fi; \
+	echo "version $$engine"

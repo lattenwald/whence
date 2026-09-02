@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  engine:
+    name: engine
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  nvim:
+    name: neovim plugin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98
+      - uses: Swatinem/rust-cache@v2
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - name: Install plenary
+        run: git clone --depth 1 https://github.com/nvim-lua/plenary.nvim "$RUNNER_TEMP/plenary.nvim"
+      - run: cargo build # the plugin tests drive target/debug/whence
+      - run: make test-nvim
+        env:
+          PLENARY_DIR: ${{ runner.temp }}/plenary.nvim

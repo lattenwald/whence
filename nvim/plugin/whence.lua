@@ -3,6 +3,12 @@ if vim.g.loaded_whence then
 end
 vim.g.loaded_whence = true
 
+-- vim.fs.relpath and 3-argument vim.str_byteindex are 0.11.
+if vim.fn.has("nvim-0.11") == 0 then
+  vim.notify("whence needs Neovim 0.11+", vim.log.levels.ERROR)
+  return
+end
+
 vim.api.nvim_create_user_command("Whence", function()
   require("whence").trace()
 end, { desc = "Trace the provenance of the identifier under the cursor" })

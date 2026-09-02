@@ -62,7 +62,7 @@ pass LSP results through untouched. Paths are absolute.
 ```
 initialize      { root: string, capabilities: { documentHighlight: bool } }
                 → { version: string, languages: [string] }
-whence/trace    { file, line, col, limits?: { depth?, fanout?, nodes? } }
+whence/trace    { file, line, col, limits?: { depth?, fanout?, nodes?, time_ms? } }
                 → Tree | error
 shutdown        {} → {}
 exit            (notification) ends the loop; so does EOF on stdin
@@ -217,6 +217,8 @@ loader interface prevents it: the embedded set is one implementation of
 
 ## 7. Neovim plugin (M1)
 
+- Requires Neovim ≥ 0.11 (`vim.fs.relpath`, 3-argument `vim.str_byteindex`);
+  the plugin refuses to load on older versions with a `vim.notify` error.
 - Commands `:Whence` and `:whence`, plus `<Plug>(whence)`. Cursor must be on
   an identifier; otherwise `vim.notify` error.
 - Engine spawned lazily on first use and reused for the session. Binary
