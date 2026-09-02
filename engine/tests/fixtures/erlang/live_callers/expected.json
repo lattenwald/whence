@@ -1,0 +1,110 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "54bfcc04081e6443",
+            "kind": "stop",
+            "label": "Opts",
+            "loc": {
+              "col": 13,
+              "file": "src/handler.erl",
+              "line": 5
+            },
+            "snippet": "handle(Req0, Opts) ->",
+            "stop": {
+              "detail": "no call sites of handle/2",
+              "reason": "entry_point"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "6e13e677c8cacb53",
+        "kind": "param",
+        "label": "Opts",
+        "loc": {
+          "col": 13,
+          "file": "src/handler.erl",
+          "line": 5
+        },
+        "snippet": "handle(Req0, Opts) ->",
+        "stop": null,
+        "truncated": 0,
+        "via": "arg"
+      },
+      {
+        "children": [],
+        "id": "78de2c932880564c",
+        "kind": "stop",
+        "label": "#{limit => 5}",
+        "loc": {
+          "col": 22,
+          "file": "src/caller.erl",
+          "line": 4
+        },
+        "snippet": "handler:limit_for(#{limit => 5}).",
+        "stop": {
+          "detail": "constructed value map_expr",
+          "reason": "unresolved"
+        },
+        "truncated": 0,
+        "via": null
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "3af3f63cefecde6f",
+            "kind": "stop",
+            "label": "#{limit => list_to_integer(os:getenv(En…",
+            "loc": {
+              "col": 11,
+              "file": "src/caller.erl",
+              "line": 7
+            },
+            "snippet": "Opts = #{limit => list_to_integer(os:getenv(Env))},",
+            "stop": {
+              "detail": "constructed value map_expr",
+              "reason": "unresolved"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "2d2b5e7bcac24254",
+        "kind": "binding",
+        "label": "Opts",
+        "loc": {
+          "col": 4,
+          "file": "src/caller.erl",
+          "line": 7
+        },
+        "snippet": "Opts = #{limit => list_to_integer(os:getenv(Env))},",
+        "stop": null,
+        "truncated": 0,
+        "via": "match"
+      }
+    ],
+    "id": "826d50fa4c051010",
+    "kind": "param",
+    "label": "Opts",
+    "loc": {
+      "col": 10,
+      "file": "src/handler.erl",
+      "line": 11
+    },
+    "snippet": "limit_for(Opts) ->",
+    "stop": null,
+    "truncated": 0,
+    "via": "arg"
+  },
+  "stats": {
+    "host_requests": 7,
+    "ms": 0,
+    "nodes": 6,
+    "truncated": 0
+  }
+}

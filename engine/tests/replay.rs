@@ -483,3 +483,36 @@ fn cursor_off_an_identifier_is_an_error() {
         Err(whence::trace::TraceError::NotIdentifier)
     ));
 }
+
+// live_*: host answers recorded from a real elp session (whence-record.json in each fixture).
+
+#[test]
+fn live_limit_recorded_from_elp() {
+    let v = check(Case {
+        dir: "live_limit",
+        file: "src/handler.erl",
+        pos: (8, 24),
+        limits: Limits::default(),
+        expected: "expected.json",
+    });
+    assert_eq!(v["root"]["label"], "Limit");
+    let s = serde_json::to_string(&v).unwrap();
+    assert!(s.contains(r#""reason":"literal""#));
+    assert!(s.contains("maps:get"));
+    assert!(!s.contains("recursion"));
+}
+
+#[test]
+fn live_callers_recorded_from_elp() {
+    let v = check(Case {
+        dir: "live_callers",
+        file: "src/handler.erl",
+        pos: (12, 25),
+        limits: Limits::default(),
+        expected: "expected.json",
+    });
+    assert_eq!(v["root"]["kind"], "param");
+    assert_eq!(v["root"]["children"].as_array().unwrap().len(), 3);
+    let s = serde_json::to_string(&v).unwrap();
+    assert!(s.contains("no call sites of handle/2"));
+}

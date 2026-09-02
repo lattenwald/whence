@@ -1,0 +1,108 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "97065d7dfa9bb140",
+                "kind": "stop",
+                "label": "10",
+                "loc": {
+                  "col": 19,
+                  "file": "src/handler.erl",
+                  "line": 22
+                },
+                "snippet": "default_limit() -> 10.",
+                "stop": {
+                  "detail": "integer",
+                  "reason": "literal"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "a8bc53221bf22a2b",
+            "kind": "call_result",
+            "label": "default_limit",
+            "loc": {
+              "col": 21,
+              "file": "src/handler.erl",
+              "line": 13
+            },
+            "snippet": "undefined -> default_limit();",
+            "stop": null,
+            "truncated": 0,
+            "via": "return"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "6cdaf24e5c935e49",
+                "kind": "stop",
+                "label": "maps:get(limit, Opts, undefined)",
+                "loc": {
+                  "col": 9,
+                  "file": "src/handler.erl",
+                  "line": 12
+                },
+                "snippet": "case maps:get(limit, Opts, undefined) of",
+                "stop": {
+                  "detail": "maps:get",
+                  "reason": "external"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "48f34595677a4898",
+            "kind": "binding",
+            "label": "N",
+            "loc": {
+              "col": 8,
+              "file": "src/handler.erl",
+              "line": 14
+            },
+            "snippet": "N -> N",
+            "stop": null,
+            "truncated": 0,
+            "via": "match"
+          }
+        ],
+        "id": "a82bc808fe923c2b",
+        "kind": "call_result",
+        "label": "limit_for",
+        "loc": {
+          "col": 12,
+          "file": "src/handler.erl",
+          "line": 7
+        },
+        "snippet": "Limit = limit_for(Opts),",
+        "stop": null,
+        "truncated": 0,
+        "via": "return"
+      }
+    ],
+    "id": "536e8af09c14a0b4",
+    "kind": "binding",
+    "label": "Limit",
+    "loc": {
+      "col": 4,
+      "file": "src/handler.erl",
+      "line": 7
+    },
+    "snippet": "Limit = limit_for(Opts),",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 6,
+    "ms": 0,
+    "nodes": 6,
+    "truncated": 0
+  }
+}

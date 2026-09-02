@@ -1,0 +1,10 @@
+{
+ "col": 24,
+ "conflicts": [],
+ "engine_version": "0.1.0",
+ "file": "src/handler.erl",
+ "line": 8,
+ "recorded_at": "2026-09-02T12:13:50Z",
+ "recorded_with": "elp (Erlang Language Platform), Neovim 0.12.5, headless :WhenceRecord-equivalent",
+ "root": "."
+}
