@@ -1,6 +1,6 @@
 ---
 id: whe-dhdc
-status: open
+status: in_progress
 deps: [whe-932u]
 links: []
 created: 2026-09-02T07:00:24Z

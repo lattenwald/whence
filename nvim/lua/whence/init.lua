@@ -1,0 +1,115 @@
+local M = {}
+
+local engine = require("whence.engine")
+
+local ROOT_MARKERS = { "rebar.config", "Cargo.toml", "go.mod", ".git" }
+
+local config = { bin = nil, limits = {}, panel = { width = 60 } }
+local clients = {}
+
+local function notify(msg, level)
+  vim.notify("whence: " .. msg, level or vim.log.levels.ERROR)
+end
+
+local function find_bin()
+  local candidates = {
+    config.bin,
+    vim.g.whence_bin,
+    vim.fn.exepath("whence"),
+    vim.fn.stdpath("data") .. "/whence/bin/whence",
+  }
+  for i = 1, 4 do
+    local c = candidates[i]
+    if c and c ~= "" and vim.fn.executable(c) == 1 then
+      return c
+    end
+  end
+  return nil
+end
+
+local function root_of(file)
+  if config.root then
+    return config.root
+  end
+  return vim.fs.root(file or 0, ROOT_MARKERS) or vim.fn.getcwd()
+end
+
+local function client_for(root)
+  if clients[root] and not clients[root].is_closing() then
+    return clients[root]
+  end
+  clients[root] = nil
+
+  local bin = find_bin()
+  if not bin then
+    notify("engine binary not found; run :WhenceInstall or set vim.g.whence_bin")
+    return nil
+  end
+
+  local client, err = engine.start({
+    cmd = { bin, "serve" },
+    root = root,
+    handle = config._replay and require("whence.host_replay").handle(config._replay) or nil,
+    on_exit = function()
+      clients[root] = nil
+    end,
+  })
+  if not client then
+    notify(err)
+    return nil
+  end
+  clients[root] = client
+  return client
+end
+
+function M.setup(opts)
+  config = vim.tbl_deep_extend("force", config, opts or {})
+end
+
+function M.trace_at(file, line, col)
+  local root = root_of(file)
+  local client = client_for(root)
+  if not client then
+    return
+  end
+  local source_win = vim.api.nvim_get_current_win()
+  engine.trace(client, { file = file, line = line, col = col, limits = config.limits }, function(err, tree)
+    if err then
+      notify(err.message or vim.inspect(err))
+      return
+    end
+    require("whence.panel").show(tree, { source_win = source_win, root = root, limits = config.limits })
+  end)
+end
+
+function M.trace()
+  local file = vim.api.nvim_buf_get_name(0)
+  if file == "" then
+    notify("buffer has no file")
+    return
+  end
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local line = cursor[1] - 1
+  local text = vim.api.nvim_buf_get_lines(0, line, line + 1, false)[1] or ""
+  local ok, col = pcall(vim.str_utfindex, text, "utf-16", cursor[2])
+  M.trace_at(file, line, ok and col or cursor[2])
+end
+
+function M.stop()
+  for root, client in pairs(clients) do
+    engine.stop(client)
+    clients[root] = nil
+  end
+end
+
+vim.api.nvim_create_autocmd("VimLeavePre", {
+  group = vim.api.nvim_create_augroup("whence", { clear = true }),
+  callback = function()
+    for _, client in pairs(clients) do
+      client.terminate()
+    end
+    clients = {}
+  end,
+})
+
+return M
