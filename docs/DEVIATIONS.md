@@ -45,7 +45,7 @@ Each entry: which task, what the plan said, what was done instead, why. Entries 
 - `stats.host_requests` counts `host/text` alongside `definition`/`references`: it is the count of requests the editor answered.
 - Review round 1 (three rulings, spec §5.4 updated in the same commit):
   node ids, `func_id` and the frame hash are built from root-relative paths
-  (`Node::stop_rel` takes the id path; `Node::stop` keeps its signature for other callers),
+  (`Node::stop` takes the root-relative id path as its first argument; the absolute-path variant was removed in round 2),
   so a trace is identical at any checkout path;
   the cycle set holds only the *current expansion path* (`(file, Span, frame hash)`,
   inserted on entry and removed on return) so diamonds — two clauses returning the same
