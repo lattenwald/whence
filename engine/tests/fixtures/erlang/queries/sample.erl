@@ -9,6 +9,7 @@ handle(Req0, Opts) ->
     R = #req{body = Body, peer = Peer},
     Limit = maps:get(limit, Opts, 10),
     _F = fun(X) -> X end,
+    _G = begin io:format("x"), 42 end,
     case pick(Limit) of
         {ok, V} -> {V, R};
         error -> {0, R}

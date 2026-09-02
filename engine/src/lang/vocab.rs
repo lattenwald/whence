@@ -26,6 +26,9 @@ pub const CALLEE_NAME: &str = "callee.name";
 
 pub const OPAQUE: &str = "opaque";
 
+pub const THROUGH: &str = "through";
+pub const THROUGH_INNER: &str = "through.inner";
+
 pub const FIELD: &str = "field";
 pub const FIELD_CONTAINER: &str = "field.container";
 pub const FIELD_NAME: &str = "field.name";

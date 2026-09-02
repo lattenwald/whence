@@ -37,6 +37,8 @@ fn bindings_calls_functions() {
     assert!(has(&c, vocab::CALL_ARGS, "(limit, Opts, 10)"));
     assert!(has(&c, vocab::CALLEE_MODULE, "maps"));
     assert!(has(&c, vocab::CALLEE_NAME, "get"));
+    assert!(has(&c, vocab::THROUGH, "maps:get(limit, Opts, 10)"));
+    assert!(has(&c, vocab::THROUGH_INNER, "get(limit, Opts, 10)"));
     assert_eq!(
         c[vocab::FUNCTION_NAME]
             .iter()
@@ -57,6 +59,7 @@ fn tail_returns_and_branches() {
     );
     assert!(has(&c, vocab::RETURN_VALUE, "{V, R}"));
     assert!(has(&c, vocab::RETURN_VALUE, "error"));
+    assert!(has(&c, vocab::RETURN_VALUE, "42"));
     assert!(has(&c, vocab::BRANCH_SUBJECT, "pick(Limit)"));
     assert!(has(&c, vocab::BRANCH_PATTERN, "{ok, V}"));
 }
