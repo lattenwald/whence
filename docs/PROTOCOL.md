@@ -47,8 +47,9 @@ only issue them.
 
 `root` bounds the trace: a definition outside it stops as `external`, and node
 ids are hashed from root-relative paths so a tree is identical at any checkout
-path. `capabilities.documentHighlight` declares whether the host can answer
-`host/documentHighlight`; when false the engine never sends it.
+path. `capabilities` is optional and each flag defaults to false;
+`capabilities.documentHighlight` declares whether the host can answer
+`host/documentHighlight`, and when false the engine never sends it.
 
 ### `whence/trace`
 
@@ -61,8 +62,11 @@ Tree   // see below
 ```
 
 `limits` is optional and each field defaults to the value shown. Traces are
-**single-flight**: a second `whence/trace` arriving while one runs is answered
-`busy` (see the error table).
+**single-flight**: a request that reaches the engine while it is blocked
+waiting for a `host/*` reply is answered `busy` immediately; one that arrives
+after the trace's last host request simply waits in the queue and is served
+normally once the trace returns. Either way a host should not have a second
+`whence/trace` outstanding.
 
 ### `shutdown`
 
@@ -77,8 +81,10 @@ The engine replies and exits the loop.
 
 ### `exit`
 
-A notification (no `id`, no result). Ends the loop immediately. **EOF on
-stdin does the same**, so closing the pipe is a valid teardown.
+A notification (no `id`, no result). It is honoured **between** traces; while
+a trace is running it is dropped, so it does not abort one. **EOF on stdin
+ends the session in either case** — closing the pipe is both a valid teardown
+and the only way to abort a running trace.
 
 ### Error codes
 
@@ -86,8 +92,8 @@ Codes are from [`engine/src/protocol/mod.rs`](../engine/src/protocol/mod.rs).
 
 | Code | Name | When the engine sends it |
 |---|---|---|
-| `-32700` | `E_PARSE` | reserved; malformed framing/JSON is currently an I/O failure that ends the loop |
-| `-32600` | `E_INVALID_REQUEST` | a message that is neither request, notification nor response; `whence/trace` before `initialize` (`"not initialized"`); any request arriving *during* a trace (`"busy"`) — `shutdown` included |
+| `-32700` | `E_PARSE` | reserved; never sent. Malformed framing or JSON is an I/O failure that ends the session |
+| `-32600` | `E_INVALID_REQUEST` | `whence/trace` before `initialize` (`"not initialized"`); any request reaching the engine while it waits on a `host/*` reply (`"busy"`) — `shutdown` included. A message that is neither request, notification nor response is *not* answered with this code: like a parse error, it ends the session |
 | `-32601` | `E_METHOD_NOT_FOUND` | unknown method |
 | `-32602` | `E_INVALID_PARAMS` | params do not deserialize |
 | `-32000` | `E_HOST` | a `host/*` request failed (host error, malformed host result, or a broken pipe), so the trace was aborted |
@@ -300,5 +306,6 @@ what the language servers actually return, not what a human guessed.
   when the process exits; keep your own pending map and fail in-flight traces
   on exit.
 - **Teardown**: send `shutdown`, then close stdin (EOF). Do not send
-  `shutdown` during a trace — it is answered `busy` like any other request;
-  wait for the trace to finish or just close the pipe.
+  `shutdown` while the engine is awaiting a host reply — it is answered `busy`
+  like any other request. `exit` is honoured between traces and dropped during
+  one, so to abort a running trace close stdin rather than sending it.

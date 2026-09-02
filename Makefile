@@ -28,7 +28,7 @@ fmt: ## Format Rust sources
 
 .PHONY: release-check
 release-check: ## Check engine, plugin and tag ($$GITHUB_REF_NAME) versions agree
-	@engine=$$(sed -n 's/^version = "\(.*\)"/\1/p' engine/Cargo.toml | head -1); \
+	@engine=$$(sed -n '/^\[package\]/,/^\[[^p]/ s/^version = "\(.*\)"/\1/p' engine/Cargo.toml | head -1); \
 	plugin=$$(sed -n 's/^return "\(.*\)"/\1/p' nvim/lua/whence/version.lua | head -1); \
 	if [ -z "$$engine" ] || [ "$$engine" != "$$plugin" ]; then \
 	  echo "version mismatch: engine/Cargo.toml '$$engine' vs nvim/lua/whence/version.lua '$$plugin'" >&2; exit 1; fi; \
