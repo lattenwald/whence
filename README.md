@@ -56,27 +56,59 @@ Commands: `:Whence` traces the identifier under the cursor into a side panel
 
 ## VS Code
 
-Download the `.vsix` for your platform from the
-[latest release](https://github.com/lattenwald/whence/releases/latest)
-(`linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64`) and
-install it with **Extensions: Install from VSIX…** or
+The extension is not on the Marketplace yet; install it from a VSIX.
+Download the one for your platform from the
+[latest release](https://github.com/lattenwald/whence/releases/latest):
+
+| Platform | File |
+|---|---|
+| Linux x64 | `whence-linux-x64-<version>.vsix` |
+| Linux arm64 | `whence-linux-arm64-<version>.vsix` |
+| macOS Intel | `whence-darwin-x64-<version>.vsix` |
+| macOS Apple silicon | `whence-darwin-arm64-<version>.vsix` |
+| Windows x64 | `whence-win32-x64-<version>.vsix` |
+
+Then either run **Extensions: Install from VSIX…** from the command palette or
 
 ```sh
 code --install-extension whence-linux-x64-<version>.vsix
 ```
 
-The engine binary is inside the VSIX; nothing else to install. A language
-server for the file's language must be active (Erlang: `elp` or
-`erlang_ls`).
+The engine binary is bundled inside the VSIX, so nothing else needs
+installing. A language server for the file's language must be active
+(Erlang: `elp` or `erlang_ls`); the extension asks it for definitions and
+references. To upgrade, install the newer VSIX over the old one.
 
-**Whence: Trace Variable** (`Ctrl+Alt+W`, `Cmd+Alt+W` on macOS, also in the
-editor context menu) opens the tree in the Panel. Click a node to preview
-its location, press Enter to open it, use the inline action to re-run from
-that node. **Whence: Record Fixture** writes a replay fixture for the trace
-under the cursor.
+### Usage
 
-To build the extension from source: `make vsix TARGET=<rust triple>` after
-`cargo build --release --target <rust triple>`.
+Put the cursor on a variable and run **Whence: Trace Variable**
+(`Ctrl+Alt+W`, `Cmd+Alt+W` on macOS; also in the editor context menu). The
+tree opens in a **Whence** tab in the Panel (next to Terminal and Problems)
+and the traced locations are highlighted in the editor.
+
+In the tree:
+
+- click a node to preview its location; `Enter` opens it;
+- **Re-run From Here** (inline icon or right-click) restarts the trace from
+  that node;
+- the tab's title bar has **Re-run Last Trace** and **Clear**, also
+  available from the command palette while a result is shown.
+
+**Whence: Record Fixture** writes a replay fixture for the trace under the
+cursor, for reproducing and reporting engine issues.
+
+### Building from source
+
+Needs Node.js and a Rust toolchain.
+
+```sh
+make vscode-deps                                         # npm ci
+cargo build --release --target x86_64-unknown-linux-gnu  # your triple
+make vsix TARGET=x86_64-unknown-linux-gnu
+```
+
+This writes `vscode/whence-<platform>-<version>.vsix`, which installs like a
+downloaded one. `make test-vscode` runs the extension tests.
 
 ## License
 
