@@ -28,6 +28,14 @@ change — it is the record of decisions, not a proposal.
   language servers actually return.
 - Deliver the requested scope; make routine judgment calls yourself, and voice
   a disagreement in a sentence rather than acting on it. Keep responses short.
+- `docs/DEVIATIONS.md` is **not** a changelog, and nothing else may enter it.
+  Every entry is one departure from the plan being executed, written as *Plan:
+  what it said. Done: what was built instead, and why.* If you cannot quote what
+  the plan said, it is not a deviation — do not write it there. Work with no
+  plan produces no entries. Never record what a commit already tells (features
+  added, files touched, tests written, spec or ticket edits), and never append a
+  per-milestone summary of the work. Prune, never accumulate: an entry that has
+  stopped being true is deleted, not annotated.
 
 ## Commands
 
