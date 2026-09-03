@@ -171,3 +171,7 @@ Rulings from the M1 branch review; each landed with the spec section it changes.
 - `vscode/src/engine.ts` listens for the child's `close`, not the plan's `exit`: a spawn that never starts (missing binary, EACCES) emits `error` and `close` but no `exit`, so `exited` never settled and `onExit` never fired.
 - `vscode/src/hostReplay.ts` attaches a no-op `catch` to the eagerly started `loadFixture`; a missing or invalid `host.json` rejected before the first `await` and surfaced as an unhandled rejection.
 - Spec §5 gained the known gap the VS Code host cannot close: `executeDefinitionProvider` answers `[]` both when no provider is registered and when a provider found nothing, so "no language server" ends in an `unresolved` stop rather than the `E_HOST` `docs/PROTOCOL.md` prescribes.
+
+### Task 5 — recorder
+
+- `vscode/test/record.test.ts`: the plan compares the replayed and live roots with a plain `assert.deepEqual`. Node ids do hash root-relative paths, but `loc.file` is absolute, so every node differed by its root (the fixture directory vs. the temporary recording directory). Done: both trees are compared with their own root prefix stripped.

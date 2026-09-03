@@ -5,11 +5,13 @@ import { Decorations } from "./decorations";
 import { Engine, EngineError } from "./engine";
 import { host } from "./host";
 import { replayHost } from "./hostReplay";
+import * as record from "./record";
 import { locationOf, WhenceTree, type Item } from "./tree";
 import type { Tree } from "./types";
 
 export type WhenceApi = {
   traceAt(file: string, line: number, col: number): Promise<Tree>;
+  recordAt(dir: string, file: string, line: number, col: number): Promise<string[]>;
   tree: WhenceTree;
   stopEngines(): Promise<void>;
 };
@@ -88,6 +90,25 @@ export function activate(context: vscode.ExtensionContext): WhenceApi {
     }
   }
 
+  async function recordAt(dir: string, file: string, line: number, col: number): Promise<string[]> {
+    const root = rootOf(file);
+    const version = (context.extension.packageJSON as { version: string }).version;
+    await record.begin({ dir, root, target: { file, line, col }, engineVersion: version });
+    let conflicts: string[];
+    try {
+      await traceAt(file, line, col);
+    } finally {
+      // Always unwrap the host, even when the trace failed.
+      conflicts = await record.finish();
+    }
+    if (conflicts.length > 0) {
+      void vscode.window.showWarningMessage(
+        `Whence: the host answered these differently on a repeat; the fixture keeps the first answer and does not reproduce the session: ${conflicts.join(", ")}`,
+      );
+    }
+    return conflicts;
+  }
+
   function report(e: unknown): void {
     const message = e instanceof EngineError ? `${e.message} (${e.code})` : e instanceof Error ? e.message : String(e);
     log.error(message);
@@ -148,13 +169,33 @@ export function activate(context: vscode.ExtensionContext): WhenceApi {
     }),
     vscode.commands.registerCommand("whence.preview", (item: Item) => reveal(item, false)),
     vscode.commands.registerCommand("whence.open", (item?: Item) => reveal(item, true)),
+    vscode.commands.registerCommand("whence.record", async () => {
+      const at = fromEditor();
+      if (!at) {
+        return;
+      }
+      const picked = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: "Record fixture here",
+        title: "Whence: choose an empty directory for the fixture",
+      });
+      const dir = picked?.[0]?.fsPath;
+      if (!dir) {
+        return;
+      }
+      await recordAt(dir, at.file, at.line, at.col)
+        .then(() => vscode.window.showInformationMessage(`Whence: recorded into ${dir}`))
+        .catch(report);
+    }),
     vscode.commands.registerCommand("whence.clear", () => {
       tree.clear();
       decorations.set(null);
     }),
   );
 
-  return { traceAt, tree, stopEngines };
+  return { traceAt, recordAt, tree, stopEngines };
 }
 
 export function deactivate(): void {}

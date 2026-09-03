@@ -22,6 +22,7 @@
       { "command": "whence.trace", "title": "Trace Variable", "category": "Whence", "icon": "$(list-tree)" },
       { "command": "whence.rerun", "title": "Re-run Last Trace", "category": "Whence", "icon": "$(refresh)" },
       { "command": "whence.clear", "title": "Clear", "category": "Whence", "icon": "$(clear-all)" },
+      { "command": "whence.record", "title": "Record Fixture", "category": "Whence" },
       { "command": "whence.rerunFromNode", "title": "Re-run From Here", "icon": "$(debug-restart)" },
       { "command": "whence.preview", "title": "Preview Location" },
       { "command": "whence.open", "title": "Open Location" }
