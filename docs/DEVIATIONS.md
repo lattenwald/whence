@@ -168,35 +168,31 @@ Rulings from the M1 branch review; each landed with the spec section it changes.
 
 ### Review of Tasks 2 and 3
 
-- `vscode/src/engine.ts` listens for the child's `close`, not the plan's `exit`: a spawn that never starts (missing binary, EACCES) emits `error` and `close` but no `exit`, so `exited` never settled and `onExit` never fired.
-- `vscode/src/hostReplay.ts` attaches a no-op `catch` to the eagerly started `loadFixture`; a missing or invalid `host.json` rejected before the first `await` and surfaced as an unhandled rejection.
-- Spec §5 gained the known gap the VS Code host cannot close: `executeDefinitionProvider` answers `[]` both when no provider is registered and when a provider found nothing, so "no language server" ends in an `unresolved` stop rather than the `E_HOST` `docs/PROTOCOL.md` prescribes.
+- Plan: the engine settles on the child's `exit`. Done: on `close` — a spawn that never starts (missing binary, EACCES) emits `error` and `close` but no `exit`, so `exited` never settled and `onExit` never fired.
+- Plan: `replayHost` starts `loadFixture` and awaits it per request. Done: a no-op `catch` is attached to it as well; a missing or invalid `host.json` rejected before the first `await` and surfaced as an unhandled rejection.
 
 ### Task 5 — recorder
 
-- `vscode/test/record.test.ts`: the plan compares the replayed and live roots with a plain `assert.deepEqual`. Node ids do hash root-relative paths, but `loc.file` is absolute, so every node differed by its root (the fixture directory vs. the temporary recording directory). Done: both trees are compared with their own root prefix stripped.
+- Plan: the replayed and live roots are compared with a plain `assert.deepEqual`. Node ids do hash root-relative paths, but `loc.file` is absolute, so every node differed by its root (the fixture directory vs. the temporary recording directory). Done: both trees are compared with their own root prefix stripped.
 
 ### Review of Tasks 4 and 5
 
-- `vscode/src/extension.ts`: an engine whose `initialize` fails while the process stays alive is removed from the per-root map and killed. The plan inserted it into the map before the handshake and only ever removed it on exit, so one failed handshake made every later trace in that root fail with `not initialized`.
-- `vscode/src/extension.ts`: `whence.preview` and `whence.open` route rejections through `report` like every other command; a click on a tree item whose file has since moved did nothing at all.
-- `vscode/src/record.ts`: `begin` claims `active` before its first `await`. The plan checked the flag, then awaited `mkdir`/`readdir`, so two overlapping recordings both passed the check, nested their host wrappers, and `finish` wrote the wrong one and left a wrapper installed for the rest of the session. `vscode/test/record.test.ts` now pins the guard that actually fires and checks the first recording's fixture and the host slot survive it.
-- `vscode/test/tree.test.ts`: the preview/open test asserted `activeTextEditor` after each command, which the headless test host resolves to the most recently changed input either way, so it could not fail. Done: it asserts the tab's `isPreview`, which is the observable difference. The engine-death test is renamed to what it does — stopping the engines and tracing again; killing the process is not reachable through `WhenceApi`.
+- Plan: `engineFor` inserts the engine into the per-root map before the handshake and only removes it on exit, so one failed `initialize` on a still-live process made every later trace in that root fail with `not initialized`. Done: a failed handshake removes and kills it.
+- Plan: `whence.preview` and `whence.open` are registered without an error path. Done: they route rejections through `report` like every other command; a click on a tree item whose file had moved did nothing at all.
+- Plan: `record.begin` checks the "already recording" flag, then awaits `mkdir`/`readdir`. Two overlapping recordings both passed the check, nested their host wrappers, and `finish` wrote the wrong one and left a wrapper installed for the rest of the session. Done: `begin` claims the flag before its first `await`, and the test pins the guard that actually fires.
+- Plan: the preview/open test asserts `activeTextEditor` after each command, which the headless test host resolves to the most recently changed input either way, so it could not fail. Done: it asserts the tab's `isPreview`. The engine-death test is renamed to what it does — stopping the engines and tracing again; killing the process is not reachable through `WhenceApi`.
 
-### Cleanup pass over the milestone
+### Cleanup pass over the plan's code
 
-- `Item` no longer carries `root`: the tree has one result, so `getTreeItem` reads it from there instead of every item copying it and `getParent` inventing a fallback.
-- `record.ts` imports `SECTION`/`Sections` from `hostReplay.ts` rather than restating the method→section table; `Loc` from `types.ts` replaces the `{ file, line, col }` literal spelled out in `host.ts` and `record.ts`.
-- `host.text` uses the same `openTextDocument` the other answers use; the plan's hand-rolled "open document else `workspace.fs.readFile` + `TextDecoder`" is exactly what that call already does.
-- `Decorations` buckets nodes by file once in `set`, and `select` repaints only the strong layer of the two editors involved. The plan recomputed every node's word range in every visible editor on each tree selection.
-- `traceAt` sets the decorations before awaiting the tree reveal; nothing in them depends on it.
-- The CI job runs `make vscode-deps` and `make test-vscode` instead of restating the recipe, like the Neovim job.
-
-### Code review of the milestone
-
-- `Engine` tracks its own `closed` code rather than reading `child.exitCode`, which stays `null` when the spawn never started, and a `stopping` flag marks a `kill`/`dispose` so the extension does not report a deliberate exit as a crash (SIGKILL closes with code `null`).
-- `Engine.trace` clears the single-flight slot in an `async` `finally` instead of a `.finally` on the inner chain, so a caller that awaits one trace and starts the next cannot be told `busy` by microtask ordering.
-- `extension.ts`: `onExit` only evicts the engine still mapped at that root — a retry during a dying engine's `close` could otherwise orphan the live process past `stopEngines`.
-- `recordAt` refuses to start while a trace is running. It used to wrap the host first, capture the other trace's answers, and leave a bogus fixture in the directory the user picked (which `begin` then refuses to reuse).
-- `record.ts` treats a second, different `host/text` answer for one file as a conflict instead of silently overwriting the copied source; the tree was built from the first text. `nvim/lua/whence/record.lua` still has that gap (ticket `whe-zcjm`).
-- `release.yml`'s `vsix` matrix uses the `- target:` form of the build matrix, and `targets.test.ts` now requires every triple to appear in both — the old regex saw only the build job, so a platform added there and in `TARGETS` would ship with no VSIX.
+- Plan: every `Item` carries `root`. Done: `Item` is `{ node }` and `getTreeItem` reads the root from the one result, so `getParent` no longer invents a `?? ""` fallback that could never be right.
+- Plan: `record.ts` declares its own method→section table and `{ file, line, col }` literals. Done: `SECTION`/`Sections` come from `hostReplay.ts` and `Loc` from `types.ts`.
+- Plan: `host.text` reads the open document else `workspace.fs.readFile` + `TextDecoder`. Done: `openTextDocument`, which is that logic, and which the file's other answers already use.
+- Plan: `Decorations.apply` recomputes every node's word range in every visible editor on each tree selection. Done: `set` buckets nodes by file once, and `select` repaints only the strong layer of the two editors involved.
+- Plan: `traceAt` awaits `tree.show` before setting decorations. Done: decorations first; nothing in them depends on the reveal.
+- Plan: the CI job spells out `cargo build`, `npm ci && npm run lint`, `xvfb-run -a npm test`. Done: `make vscode-deps` and `make test-vscode`, like the Neovim job.
+- Plan: `Engine.trace` clears its single-flight slot in a `.finally` chained on the inner request. Done: an `async` `finally`, so a caller awaiting one trace before starting the next cannot be told `busy` by microtask ordering.
+- Plan: liveness is `child.exitCode !== null`, which stays `null` when the spawn never started. Done: the engine records its own `close` code, and a `stopping` flag set by `kill`/`dispose` keeps a deliberate exit (SIGKILL closes with `null`) from being reported as a crash.
+- Plan: `onExit` deletes the root's entry unconditionally. Done: only when the dying engine is still the mapped one, or a retry during its `close` orphans the live process past `stopEngines`.
+- Plan: `recordAt` calls `record.begin` first. Done: it refuses while a trace runs — wrapping the host first captured the other trace's answers and left a fixture in the directory the user picked, which `begin` then refuses to reuse.
+- Plan: `copySource` overwrites the copied file. Done: a second, different `host/text` answer for one file is a conflict; the tree was built from the first text. `nvim/lua/whence/record.lua` has the same gap (`whe-zcjm`).
+- Plan: the `vsix` job lists its targets as a bare sequence and `targets.test.ts` scans for `- target:`. That regex saw only the build job, so a platform added there and in `TARGETS` would ship with no VSIX. Done: both matrices use `- target:` and the test requires each triple in both.
