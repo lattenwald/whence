@@ -2,7 +2,7 @@
   "name": "whence",
   "displayName": "Whence",
   "description": "Where does this value come from? Trace a variable back through bindings, call sites and returns.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "lattenwald",
   "license": "MIT",
   "repository": {
