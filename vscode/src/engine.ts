@@ -106,12 +106,14 @@ export class Engine {
     try {
       return (await this.connection.sendRequest(method, params)) as T;
     } catch (e) {
+      // A process that dies mid-request fails the write before `close` arrives; the library
+      // reports that as `MessageWriteError` when the write was already queued, raw otherwise.
+      const writeFailed = !(e instanceof ResponseError) || e.code === ErrorCodes.MessageWriteError;
+      if (writeFailed && (this.closed !== undefined || this.stopping || this.child.stdin?.writable === false)) {
+        throw new EngineError(E_HOST, this.closed === undefined ? "engine exited" : `engine exited ${this.closed}`);
+      }
       if (e instanceof ResponseError) {
         throw new EngineError(e.code, e.message);
-      }
-      // A process that dies mid-request fails the write before `close` arrives.
-      if (this.closed !== undefined || this.stopping || this.child.stdin?.writable === false) {
-        throw new EngineError(E_HOST, this.closed === undefined ? "engine exited" : `engine exited ${this.closed}`);
       }
       throw e;
     }
