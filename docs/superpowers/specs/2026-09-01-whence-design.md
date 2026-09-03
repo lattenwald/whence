@@ -265,7 +265,7 @@ Same host role: spawn the platform binary bundled in the VSIX, answer
 `host/*` via `vscode.commands.executeCommand("vscode.executeDefinitionProvider" |
 "vscode.executeReferenceProvider" | "vscode.executeDocumentHighlights", …)`,
 render a `TreeView` whose items reveal the location on click. No analysis
-logic. Detailed UX deferred to M3.
+logic. Detailed design: [VS Code extension design](2026-09-03-vscode-extension-design.md).
 
 ## 9. Testing
 
@@ -291,8 +291,8 @@ logic. Detailed UX deferred to M3.
 - GitHub Releases from a CI matrix: linux x86_64/aarch64, macOS
   arm64/x86_64, windows x86_64; `SHA256SUMS` published alongside.
 - Neovim plugin: works with any plugin manager; first-use download as in §7.
-- VS Code: platform-specific VSIX per target, published to the marketplace
-  or distributed internally.
+- VS Code: platform-specific VSIX per target with the engine binary inside,
+  attached to the same GitHub Release; marketplace publishing later.
 
 ## 11. Milestones
 
