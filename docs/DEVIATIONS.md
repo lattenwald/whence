@@ -12,3 +12,10 @@ Deviations from the plan being executed, and why.
   runner downloads.
 - `npm install` resolved TypeScript 6 and eslint 10 rather than the plan's
   TypeScript 5; both compile and lint the sources clean.
+
+### Task 2 (`whe-gakf`)
+
+- `vscode/eslint.config.mjs` gained an `ignores` entry for `.vscode-test/`,
+  `out/` and `dist/`. `eslint .` does not read `.gitignore`, so once the test
+  runner had downloaded VS Code it tried to lint the bundled extensions' own
+  configs and died on their missing dev dependencies.
