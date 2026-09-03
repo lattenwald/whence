@@ -1,6 +1,6 @@
 ---
 id: whe-yorn
-status: open
+status: closed
 deps: [whe-gakf, whe-9e88]
 links: []
 created: 2026-09-03T09:20:08Z

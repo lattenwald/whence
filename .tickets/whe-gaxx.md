@@ -1,6 +1,6 @@
 ---
 id: whe-gaxx
-status: open
+status: closed
 deps: [whe-cuts]
 links: []
 created: 2026-09-03T09:20:08Z

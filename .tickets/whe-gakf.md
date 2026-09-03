@@ -1,6 +1,6 @@
 ---
 id: whe-gakf
-status: open
+status: closed
 deps: [whe-jw7g]
 links: []
 created: 2026-09-03T09:20:08Z

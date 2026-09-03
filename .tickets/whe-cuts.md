@@ -1,6 +1,6 @@
 ---
 id: whe-cuts
-status: open
+status: closed
 deps: [whe-yorn]
 links: []
 created: 2026-09-03T09:20:08Z
