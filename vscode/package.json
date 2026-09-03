@@ -19,11 +19,47 @@
   "activationEvents": [],
   "contributes": {
     "commands": [
-      {
-        "command": "whence.trace",
-        "title": "Trace Variable",
-        "category": "Whence"
-      }
+      { "command": "whence.trace", "title": "Trace Variable", "category": "Whence", "icon": "$(list-tree)" },
+      { "command": "whence.rerun", "title": "Re-run Last Trace", "category": "Whence", "icon": "$(refresh)" },
+      { "command": "whence.clear", "title": "Clear", "category": "Whence", "icon": "$(clear-all)" },
+      { "command": "whence.rerunFromNode", "title": "Re-run From Here", "icon": "$(debug-restart)" },
+      { "command": "whence.preview", "title": "Preview Location" },
+      { "command": "whence.open", "title": "Open Location" }
+    ],
+    "viewsContainers": {
+      "panel": [
+        { "id": "whence", "title": "Whence", "icon": "$(list-tree)" }
+      ]
+    },
+    "views": {
+      "whence": [
+        { "id": "whence.tree", "name": "Provenance", "when": "whence.hasResult", "icon": "$(list-tree)" }
+      ]
+    },
+    "menus": {
+      "commandPalette": [
+        { "command": "whence.rerunFromNode", "when": "false" },
+        { "command": "whence.preview", "when": "false" },
+        { "command": "whence.open", "when": "false" },
+        { "command": "whence.rerun", "when": "whence.hasResult" },
+        { "command": "whence.clear", "when": "whence.hasResult" }
+      ],
+      "editor/context": [
+        { "command": "whence.trace", "when": "editorTextFocus", "group": "navigation@9" }
+      ],
+      "view/title": [
+        { "command": "whence.rerun", "when": "view == whence.tree", "group": "navigation@1" },
+        { "command": "whence.clear", "when": "view == whence.tree", "group": "navigation@2" }
+      ],
+      "view/item/context": [
+        { "command": "whence.rerunFromNode", "when": "view == whence.tree && viewItem =~ /^whence\\.(node|stop)$/", "group": "inline" },
+        { "command": "whence.rerunFromNode", "when": "view == whence.tree && viewItem =~ /^whence\\.(node|stop)$/", "group": "whence@1" },
+        { "command": "whence.open", "when": "view == whence.tree && viewItem =~ /^whence\\.(node|stop)$/", "group": "whence@2" }
+      ]
+    },
+    "keybindings": [
+      { "command": "whence.trace", "key": "ctrl+alt+w", "mac": "cmd+alt+w", "when": "editorTextFocus" },
+      { "command": "whence.open", "key": "enter", "when": "focusedView == whence.tree" }
     ]
   },
   "scripts": {

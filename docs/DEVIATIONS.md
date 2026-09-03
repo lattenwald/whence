@@ -158,6 +158,10 @@ Rulings from the M1 branch review; each landed with the spec section it changes.
 
 - `vscode/eslint.config.mjs` gained an `ignores` entry for `.vscode-test/`, `out/` and `dist/`. `eslint .` does not read `.gitignore`, so once the test runner had downloaded VS Code it tried to lint the bundled extensions' own configs and died on their missing dev dependencies.
 
-### Task 3 (`whe-9e88`)
+### Task 3 — host answers from VS Code providers
 
 - `vscode/test/host.test.ts`: the mixed `Location` / `LocationLink` array returned by the stub definition provider is cast `as unknown as vscode.LocationLink[]`. `ProviderResult<Definition | LocationLink[]>` admits no mixed array, so the plan's literal did not typecheck; the cast keeps the test exercising both shapes in one provider result.
+
+### Task 4 — tree view, decorations, commands
+
+- `vscode/test/tree.test.ts`, "re-runs from a node": the plan re-runs from the first child of the root, whose own location is `a.erl:4:4`. The `local_chain` fixture records host answers only for the trace at `6:4`, so that re-run failed with `unrecorded` and left the tree unchanged. Done: the item is the root node with its location set to `6:4`, which still exercises `whence.rerunFromNode` replacing the result through the command path.
