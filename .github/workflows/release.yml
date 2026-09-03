@@ -64,9 +64,41 @@ jobs:
           path: whence-${{ matrix.target }}.tar.gz
           if-no-files-found: error
 
+  vsix:
+    name: vsix ${{ matrix.target }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-apple-darwin
+          - aarch64-apple-darwin
+          - x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vscode/package-lock.json
+      - uses: actions/download-artifact@v8
+        with:
+          name: whence-${{ matrix.target }}
+      - run: mkdir -p engine-bin && tar -xzf whence-${{ matrix.target }}.tar.gz -C engine-bin
+      - run: cd vscode && npm ci
+      - run: make vsix TARGET=${{ matrix.target }} BIN=$PWD/engine-bin/$(ls engine-bin)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vsix-${{ matrix.target }}
+          path: vscode/*.vsix
+          if-no-files-found: error
+
   publish:
     name: publish
-    needs: build
+    needs: [build, vsix]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -77,9 +109,10 @@ jobs:
           merge-multiple: true
       - name: Checksums
         working-directory: dist
-        run: sha256sum *.tar.gz > SHA256SUMS
+        run: sha256sum *.tar.gz *.vsix > SHA256SUMS
       - uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/*.tar.gz
+            dist/*.vsix
             dist/SHA256SUMS

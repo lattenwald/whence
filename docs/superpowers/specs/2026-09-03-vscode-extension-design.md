@@ -1,6 +1,6 @@
 # whence — VS Code extension (M3) design
 
-- Status: approved design, not yet implemented
+- Status: implemented
 - Date: 2026-09-03
 - Parent: [whence design](2026-09-01-whence-design.md) §4 (protocol), §8 (this milestone), §9 (testing), §10 (distribution)
 - Protocol reference: [docs/PROTOCOL.md](../../PROTOCOL.md)

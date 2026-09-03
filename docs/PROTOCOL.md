@@ -1,6 +1,6 @@
 # Whence — host protocol
 
-- Status: implemented (M1)
+- Status: implemented (M1 engine, M1 Neovim host, M3 VS Code host)
 - Engine version: 0.1.0 (`engine/Cargo.toml`; reported by `initialize`)
 - Source of truth: [design spec §4](superpowers/specs/2026-09-01-whence-design.md#4-host-protocol) — when this file and the spec disagree, the spec wins and this file is wrong
 - Audience: authors of a *host* — the editor plugin that drives the engine (Neovim in M1, VS Code in M3)

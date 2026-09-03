@@ -36,3 +36,19 @@ jobs:
       - run: make test-nvim
         env:
           PLENARY_DIR: ${{ runner.temp }}/plenary.nvim
+
+  vscode:
+    name: vs code extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.98
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vscode/package-lock.json
+      - run: cargo build
+      - run: cd vscode && npm ci && npm run lint
+      - run: cd vscode && xvfb-run -a npm test
