@@ -40,6 +40,8 @@ change — it is the record of decisions, not a proposal.
 ## Commands
 
 - `make test` — engine tests.
+- `make hooks` — install the repo's pre-commit hook (`vscode/package-lock.json`
+  must resolve from the public npm registry); run once per clone.
 - `make test-nvim` — plugin tests; needs `cargo build` first and plenary
   (`PLENARY_DIR=…` if it is not in the lazy.nvim default location).
 - `whence replay <fixture-dir> <file:line:col>` — run a trace against a replay

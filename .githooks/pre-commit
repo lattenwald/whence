@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Staged package-lock.json and .npmrc may name no npm registry but this one.
+# Install with `make hooks`.
+set -eu
+
+public='https://registry.npmjs.org/'
+status=0
+
+while IFS= read -r file; do
+  case "$file" in
+    *package-lock.json)
+      bad=$(git show ":$file" | grep -o '"resolved": *"[^"]*"' | grep -v "\"$public" || true)
+      ;;
+    .npmrc | */.npmrc)
+      bad=$(git show ":$file" | grep -E '^[^#]*registry *=' | grep -v "$public" || true)
+      ;;
+    *)
+      continue
+      ;;
+  esac
+  if [ -n "$bad" ]; then
+    status=1
+    echo "pre-commit: $file names a registry other than $public" >&2
+    printf '%s\n' "$bad" | head -3 | sed 's/^/  /' >&2
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+exit "$status"

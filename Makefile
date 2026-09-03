@@ -35,6 +35,10 @@ test-vscode: ## Run VS Code extension tests (needs cargo build and vscode-deps)
 vsix: ## Package the VS Code extension for TARGET=<rust triple> (binary from target/<triple>/release, or BIN=...)
 	cd vscode && npm run compile && node out/scripts/vsix.js $(TARGET) $(BIN)
 
+.PHONY: hooks
+hooks: ## Install the repo's git hooks
+	ln -sfn ../../.githooks/pre-commit "$$(git rev-parse --git-common-dir)/hooks/pre-commit"
+
 .PHONY: fmt
 fmt: ## Format Rust sources
 	cargo fmt --all
