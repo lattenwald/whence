@@ -57,8 +57,10 @@ export function activate(context: vscode.ExtensionContext): WhenceApi {
       host: (method, params) => host.handle(method, params),
       log: (line) => log.info(line),
       onExit: (code) => {
-        engines.delete(root);
-        if (code !== 0) {
+        if (engines.get(root) === engine) {
+          engines.delete(root);
+        }
+        if (code !== 0 && !engine.stopping) {
           void vscode.window.showErrorMessage(`Whence: engine exited with ${code} (see the Whence output channel)`);
         }
       },
@@ -98,6 +100,10 @@ export function activate(context: vscode.ExtensionContext): WhenceApi {
   }
 
   async function recordAt(dir: string, file: string, line: number, col: number): Promise<string[]> {
+    if (tracing) {
+      // Wrapping the host now would capture the running trace's answers into this fixture.
+      throw new Error("a trace is already running");
+    }
     const root = rootOf(file);
     const version = (context.extension.packageJSON as { version: string }).version;
     await record.begin({ dir, root, target: { file, line, col }, engineVersion: version });

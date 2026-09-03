@@ -33,6 +33,9 @@ const E_HOST = -32000;
 
 export class Engine {
   private inflight: { reject: (e: Error) => void } | null = null;
+  private closed: number | null | undefined;
+  /** True once the extension asked this engine to go away, so its exit is not a crash. */
+  stopping = false;
   readonly exited: Promise<number | null>;
 
   private constructor(
@@ -43,6 +46,7 @@ export class Engine {
     this.exited = new Promise((resolve) => {
       // A failed spawn (missing binary, EACCES) emits `close` but never `exit`.
       child.once("close", (code) => {
+        this.closed = code;
         connection.dispose();
         this.inflight?.reject(new EngineError(E_HOST, `engine exited ${code}`));
         this.inflight = null;
@@ -84,17 +88,20 @@ export class Engine {
     if (this.inflight) {
       throw new EngineError(ErrorCodes.InvalidRequest, "busy");
     }
-    return new Promise<Tree>((resolve, reject) => {
-      this.inflight = { reject };
-      this.request<Tree>("whence/trace", params).then(resolve, reject).finally(() => {
-        this.inflight = null;
+    try {
+      return await new Promise<Tree>((resolve, reject) => {
+        this.inflight = { reject };
+        this.request<Tree>("whence/trace", params).then(resolve, reject);
       });
-    });
+    } finally {
+      this.inflight = null;
+    }
   }
 
   private async request<T>(method: string, params: unknown): Promise<T> {
-    if (this.child.exitCode !== null) {
-      throw new EngineError(E_HOST, `engine exited ${this.child.exitCode}`);
+    // Not `child.exitCode`: it stays null when the spawn itself never started.
+    if (this.closed !== undefined) {
+      throw new EngineError(E_HOST, `engine exited ${this.closed}`);
     }
     try {
       return (await this.connection.sendRequest(method, params)) as T;
@@ -108,7 +115,8 @@ export class Engine {
 
   /** `shutdown`, `exit`, then SIGKILL after a grace period. */
   async dispose(): Promise<void> {
-    if (this.child.exitCode !== null) {
+    this.stopping = true;
+    if (this.closed !== undefined) {
       return;
     }
     try {
@@ -123,6 +131,7 @@ export class Engine {
   }
 
   kill(): void {
+    this.stopping = true;
     this.child.kill("SIGKILL");
   }
 }

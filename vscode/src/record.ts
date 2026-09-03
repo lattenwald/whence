@@ -10,6 +10,7 @@ type Recording = {
   target: Loc;
   engineVersion: string;
   recorded: Required<Record<keyof Sections, Record<string, unknown>>>;
+  sources: Map<string, string>;
   conflicts: string[];
   original: HostHandler;
 };
@@ -21,6 +22,17 @@ async function copySource(rec: Recording, file: string, text: string): Promise<v
   if (rel === null) {
     return;
   }
+  const first = rec.sources.get(rel);
+  if (first !== undefined) {
+    if (first !== text) {
+      const label = `host/text ${rel}`;
+      if (!rec.conflicts.includes(label)) {
+        rec.conflicts.push(label);
+      }
+    }
+    return;
+  }
+  rec.sources.set(rel, text);
   const out = path.join(rec.dir, rel);
   await mkdir(path.dirname(out), { recursive: true });
   await writeFile(out, text);
@@ -58,6 +70,7 @@ export async function begin(opts: { dir: string; root: string; target: Loc; engi
   const rec: Recording = {
     ...opts,
     recorded: { definition: {}, references: {}, documentHighlight: {} },
+    sources: new Map(),
     conflicts: [],
     original: host.handle,
   };
