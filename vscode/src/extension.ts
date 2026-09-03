@@ -89,8 +89,8 @@ export function activate(context: vscode.ExtensionContext): WhenceApi {
         () => engine.trace({ file, line, col }),
       );
       last = { file, line, col };
-      await tree.show(result, root);
       decorations.set(result);
+      await tree.show(result, root);
       return result;
     } finally {
       tracing = false;

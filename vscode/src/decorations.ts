@@ -17,31 +17,48 @@ export class Decorations implements vscode.Disposable {
     border: "1px solid",
     borderColor: new vscode.ThemeColor("editor.wordHighlightStrongBorder"),
   });
-  private nodes: Node[] = [];
+  private byFile = new Map<string, Node[]>();
   private selected: Node | undefined;
   private readonly sub = vscode.window.onDidChangeVisibleTextEditors(() => this.apply());
 
   set(tree: Tree | null): void {
-    this.nodes = [];
+    this.byFile = new Map();
     this.selected = undefined;
+    const walk = (n: Node): void => {
+      const here = this.byFile.get(n.loc.file);
+      if (here) {
+        here.push(n);
+      } else {
+        this.byFile.set(n.loc.file, [n]);
+      }
+      n.children.forEach(walk);
+    };
     if (tree) {
-      const walk = (n: Node) => (this.nodes.push(n), n.children.forEach(walk));
       walk(tree.root);
     }
     this.apply();
   }
 
   select(node: Node | undefined): void {
+    const was = this.selected;
     this.selected = node;
-    this.apply();
+    for (const editor of vscode.window.visibleTextEditors) {
+      const file = editor.document.uri.fsPath;
+      if (file === was?.loc.file || file === node?.loc.file) {
+        editor.setDecorations(this.strong, node?.loc.file === file ? [rangeOf(editor.document, node)] : []);
+      }
+    }
   }
 
   private apply(): void {
     for (const editor of vscode.window.visibleTextEditors) {
-      const file = editor.document.uri.fsPath;
-      const here = this.nodes.filter((n) => n.loc.file === file);
-      editor.setDecorations(this.all, here.map((n) => rangeOf(editor.document, n)));
-      editor.setDecorations(this.strong, this.selected && this.selected.loc.file === file ? [rangeOf(editor.document, this.selected)] : []);
+      const here = this.byFile.get(editor.document.uri.fsPath) ?? [];
+      editor.setDecorations(
+        this.all,
+        here.map((n) => rangeOf(editor.document, n)),
+      );
+      const selected = this.selected?.loc.file === editor.document.uri.fsPath ? [rangeOf(editor.document, this.selected)] : [];
+      editor.setDecorations(this.strong, selected);
     }
   }
 

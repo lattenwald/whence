@@ -182,3 +182,12 @@ Rulings from the M1 branch review; each landed with the spec section it changes.
 - `vscode/src/extension.ts`: `whence.preview` and `whence.open` route rejections through `report` like every other command; a click on a tree item whose file has since moved did nothing at all.
 - `vscode/src/record.ts`: `begin` claims `active` before its first `await`. The plan checked the flag, then awaited `mkdir`/`readdir`, so two overlapping recordings both passed the check, nested their host wrappers, and `finish` wrote the wrong one and left a wrapper installed for the rest of the session. `vscode/test/record.test.ts` now pins the guard that actually fires and checks the first recording's fixture and the host slot survive it.
 - `vscode/test/tree.test.ts`: the preview/open test asserted `activeTextEditor` after each command, which the headless test host resolves to the most recently changed input either way, so it could not fail. Done: it asserts the tab's `isPreview`, which is the observable difference. The engine-death test is renamed to what it does — stopping the engines and tracing again; killing the process is not reachable through `WhenceApi`.
+
+### Cleanup pass over the milestone
+
+- `Item` no longer carries `root`: the tree has one result, so `getTreeItem` reads it from there instead of every item copying it and `getParent` inventing a fallback.
+- `record.ts` imports `SECTION`/`Sections` from `hostReplay.ts` rather than restating the method→section table; `Loc` from `types.ts` replaces the `{ file, line, col }` literal spelled out in `host.ts` and `record.ts`.
+- `host.text` uses the same `openTextDocument` the other answers use; the plan's hand-rolled "open document else `workspace.fs.readFile` + `TextDecoder`" is exactly what that call already does.
+- `Decorations` buckets nodes by file once in `set`, and `select` repaints only the strong layer of the two editors involved. The plan recomputed every node's word range in every visible editor on each tree selection.
+- `traceAt` sets the decorations before awaiting the tree reveal; nothing in them depends on it.
+- The CI job runs `make vscode-deps` and `make test-vscode` instead of restating the recipe, like the Neovim job.

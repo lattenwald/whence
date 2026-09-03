@@ -54,12 +54,12 @@ describe("tree", () => {
         .flatMap((g) => g.tabs)
         .find((t) => t.input instanceof vscode.TabInputText && t.input.uri.fsPath === first.loc.file)?.isPreview;
 
-    await vscode.commands.executeCommand("whence.preview", { kind: "node", node: first, root: fixture });
+    await vscode.commands.executeCommand("whence.preview", { kind: "node", node: first });
     const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.fsPath === first.loc.file)!;
     assert.deepEqual([editor.selection.start.line, editor.selection.start.character], [first.loc.line, first.loc.col]);
     assert.equal(tabIsPreview(), true);
 
-    await vscode.commands.executeCommand("whence.open", { kind: "node", node: first, root: fixture });
+    await vscode.commands.executeCommand("whence.open", { kind: "node", node: first });
     assert.equal(tabIsPreview(), false);
   });
 
@@ -68,7 +68,7 @@ describe("tree", () => {
     const before = await traceAt(file, 6, 4);
     // The fixture only answers host requests for the trace at 6:4, so re-run from a node placed there.
     const target: Node = { ...nodeItems(tree.getChildren())[0]!, loc: { file, line: 6, col: 4 } };
-    await vscode.commands.executeCommand("whence.rerunFromNode", { kind: "node", node: target, root: fixture });
+    await vscode.commands.executeCommand("whence.rerunFromNode", { kind: "node", node: target });
     assert.notEqual(tree.current?.tree, before);
     assert.equal(tree.current?.tree.root.label, target.label);
   });

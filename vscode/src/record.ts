@@ -1,21 +1,15 @@
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { host } from "./host";
-import { fixtureKey, portablePath, relPath } from "./hostReplay";
-import type { HostHandler, Location } from "./types";
-
-const SECTION: Record<string, "definition" | "references" | "documentHighlight"> = {
-  "host/definition": "definition",
-  "host/references": "references",
-  "host/documentHighlight": "documentHighlight",
-};
+import { fixtureKey, portablePath, relPath, SECTION, type Sections } from "./hostReplay";
+import type { HostHandler, Loc, Location } from "./types";
 
 type Recording = {
   dir: string;
   root: string;
-  target: { file: string; line: number; col: number };
+  target: Loc;
   engineVersion: string;
-  recorded: { definition: Record<string, unknown>; references: Record<string, unknown>; documentHighlight: Record<string, unknown> };
+  recorded: Required<Record<keyof Sections, Record<string, unknown>>>;
   conflicts: string[];
   original: HostHandler;
 };
@@ -57,12 +51,7 @@ async function capture(rec: Recording, method: string, params: any, result: unkn
   rec.recorded[section][key] = answer;
 }
 
-export async function begin(opts: {
-  dir: string;
-  root: string;
-  target: { file: string; line: number; col: number };
-  engineVersion: string;
-}): Promise<void> {
+export async function begin(opts: { dir: string; root: string; target: Loc; engineVersion: string }): Promise<void> {
   if (active) {
     throw new Error(`a recording into ${active.dir} is already active`);
   }
@@ -87,7 +76,6 @@ export async function begin(opts: {
     await capture(rec, method, params, result);
     return result;
   };
-  active = rec;
 }
 
 export async function finish(): Promise<string[]> {

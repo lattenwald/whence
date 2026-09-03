@@ -49,6 +49,5 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: vscode/package-lock.json
-      - run: cargo build
-      - run: cd vscode && npm ci && npm run lint
-      - run: cd vscode && xvfb-run -a npm test
+      - run: make vscode-deps
+      - run: xvfb-run -a make test-vscode

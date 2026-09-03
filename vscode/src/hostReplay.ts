@@ -4,13 +4,14 @@ import path from "node:path";
 import { ErrorCodes } from "vscode-jsonrpc/node";
 import { HostError, type HostHandler, type Location } from "./types";
 
-type Sections = {
+export type Sections = {
   definition?: Record<string, Location[]>;
   references?: Record<string, Location[]>;
   documentHighlight?: Record<string, unknown>;
 };
 
-const SECTION: Record<string, keyof Sections> = {
+/** Which `host.json` section answers a method; the recorder writes the same layout. */
+export const SECTION: Record<string, keyof Sections> = {
   "host/definition": "definition",
   "host/references": "references",
   "host/documentHighlight": "documentHighlight",

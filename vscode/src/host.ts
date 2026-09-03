@@ -1,8 +1,7 @@
 import * as vscode from "vscode";
 import { ErrorCodes } from "vscode-jsonrpc/node";
-import { HostError, type Highlight, type HostHandler, type Location } from "./types";
+import { HostError, type Highlight, type HostHandler, type Loc, type Location } from "./types";
 
-type At = { file: string; line: number; col: number };
 
 async function document(file: string): Promise<vscode.TextDocument> {
   // Loads the file without showing an editor; returns the live document if it is already open.
@@ -31,15 +30,10 @@ export function locationsFrom(items: readonly (vscode.Location | vscode.Location
 }
 
 export async function text(params: { file: string }): Promise<{ text: string }> {
-  const open = vscode.workspace.textDocuments.find((d) => d.uri.scheme === "file" && d.uri.fsPath === params.file);
-  if (open) {
-    return { text: open.getText() };
-  }
-  const bytes = await vscode.workspace.fs.readFile(vscode.Uri.file(params.file));
-  return { text: new TextDecoder("utf-8").decode(bytes) };
+  return { text: (await document(params.file)).getText() };
 }
 
-async function locations(command: string, params: At): Promise<Location[]> {
+async function locations(command: string, params: Loc): Promise<Location[]> {
   const doc = await document(params.file);
   const result = await vscode.commands.executeCommand<(vscode.Location | vscode.LocationLink)[] | vscode.Location | undefined>(
     command,
@@ -52,12 +46,12 @@ async function locations(command: string, params: At): Promise<Location[]> {
   return locationsFrom(Array.isArray(result) ? result : [result]);
 }
 
-export function definition(params: At): Promise<Location[]> {
+export function definition(params: Loc): Promise<Location[]> {
   return locations("vscode.executeDefinitionProvider", params);
 }
 
 /** VS Code always includes the declaration; the engine skips references on declarations itself. */
-export function references(params: At & { includeDeclaration: boolean }): Promise<Location[]> {
+export function references(params: Loc & { includeDeclaration: boolean }): Promise<Location[]> {
   return locations("vscode.executeReferenceProvider", params);
 }
 
@@ -67,7 +61,7 @@ const KIND: Record<vscode.DocumentHighlightKind, Highlight["kind"]> = {
   [vscode.DocumentHighlightKind.Write]: "write",
 };
 
-export async function documentHighlight(params: At): Promise<Highlight[]> {
+export async function documentHighlight(params: Loc): Promise<Highlight[]> {
   const doc = await document(params.file);
   const result = await vscode.commands.executeCommand<vscode.DocumentHighlight[] | undefined>(
     "vscode.executeDocumentHighlights",
