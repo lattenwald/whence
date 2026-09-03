@@ -66,6 +66,7 @@ export async function loadFixture(dir: string): Promise<Sections> {
 /** Answers host requests from a recorded fixture; `host/text` comes from disk. */
 export function replayHost(dir: string): HostHandler {
   const loaded = loadFixture(dir);
+  loaded.catch(() => {}); // The awaiting request reports it; without this it is an unhandled rejection.
   return async (method, params) => {
     if (method === "host/text") {
       return { text: await readFile(params.file, "utf8") };

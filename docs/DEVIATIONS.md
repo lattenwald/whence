@@ -165,3 +165,9 @@ Rulings from the M1 branch review; each landed with the spec section it changes.
 ### Task 4 — tree view, decorations, commands
 
 - `vscode/test/tree.test.ts`, "re-runs from a node": the plan re-runs from the first child of the root, whose own location is `a.erl:4:4`. The `local_chain` fixture records host answers only for the trace at `6:4`, so that re-run failed with `unrecorded` and left the tree unchanged. Done: the item is the root node with its location set to `6:4`, which still exercises `whence.rerunFromNode` replacing the result through the command path.
+
+### Review of Tasks 2 and 3
+
+- `vscode/src/engine.ts` listens for the child's `close`, not the plan's `exit`: a spawn that never starts (missing binary, EACCES) emits `error` and `close` but no `exit`, so `exited` never settled and `onExit` never fired.
+- `vscode/src/hostReplay.ts` attaches a no-op `catch` to the eagerly started `loadFixture`; a missing or invalid `host.json` rejected before the first `await` and surfaced as an unhandled rejection.
+- Spec §5 gained the known gap the VS Code host cannot close: `executeDefinitionProvider` answers `[]` both when no provider is registered and when a provider found nothing, so "no language server" ends in an `unresolved` stop rather than the `E_HOST` `docs/PROTOCOL.md` prescribes.

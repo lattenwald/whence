@@ -41,7 +41,8 @@ export class Engine {
     opts: EngineOptions,
   ) {
     this.exited = new Promise((resolve) => {
-      child.once("exit", (code) => {
+      // A failed spawn (missing binary, EACCES) emits `close` but never `exit`.
+      child.once("close", (code) => {
         connection.dispose();
         this.inflight?.reject(new EngineError(E_HOST, `engine exited ${code}`));
         this.inflight = null;

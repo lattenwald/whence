@@ -98,6 +98,13 @@ All positions are already UTF-16 in the VS Code API, so no conversion.
 - An empty result is returned as `[]`, never as an error. Only a thrown
   exception (a provider crash, an unreadable file) becomes a JSON-RPC error,
   which aborts the trace as the protocol prescribes.
+- Known gap against `docs/PROTOCOL.md`: "no language server for this file" is
+  supposed to be an error, not an empty list. `executeDefinitionProvider` and
+  friends answer `[]` for a document with no provider and VS Code exposes no
+  way to ask whether one is registered, so the VS Code host cannot tell the two
+  apart. A file whose language server is missing therefore ends in an
+  `unresolved` stop instead of a failed trace. Neovim, which can ask, still
+  raises the error.
 - `openTextDocument` on a file outside the workspace still works; the
   engine's `external` stop decides what to do with it.
 
