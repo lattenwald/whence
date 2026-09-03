@@ -1,21 +1,23 @@
-# Deviations from the M1 plan
+# Deviations
+
+Where the work departed from the plan it was executing, milestone by milestone. Each entry: which task, what the plan said, what was done instead, why. Entries marked *planned* were ruled before the task ran and are confirmed or amended when it lands.
+
+## M1 — Erlang and Neovim
 
 - Plan: [2026-09-01-m1-erlang-neovim.md](superpowers/plans/2026-09-01-m1-erlang-neovim.md)
 - Spec: [2026-09-01-whence-design.md](superpowers/specs/2026-09-01-whence-design.md)
 
-Each entry: which task, what the plan said, what was done instead, why. Entries marked *planned* were ruled before the task ran and are confirmed or amended when it lands.
-
-## Task 1 — workspace skeleton
+### Task 1 — workspace skeleton
 
 - Plan: `.gitignore` lists `target/`, `nvim/bin/`, `*.log`. Done: also `.superpowers/` (the SDD workspace is scratch, not source).
 - Plan: `tempfile` added to dev-dependencies in Task 3. Done: added in Task 1 with the rest of the manifest, so Task 3 touches no manifest.
 - Plan: `make test-nvim` assumes plenary is on the packpath. Done: `PLENARY_DIR ?= ~/.local/share/nvim/lazy/plenary.nvim` is exported to `nvim`; `nvim/tests/minimal_init.lua` (Task 10) must read `PLENARY_DIR` and prepend it to the runtimepath.
 
-## Task 3 — host seam
+### Task 3 — host seam
 
 - *Planned.* Plan: `RpcHost::new(writer, inbox: Receiver<Message>, ...)` (test passes `rx` by value). Ruling: `inbox: &mut Receiver<Message>` so the server loop (Task 9) keeps the receiver after a trace; test passes `&mut rx`.
 
-## Task 7 — syntax
+### Task 7 — syntax
 
 - Plan: `Doc` stores captured `tree_sitter::Node`s alongside the tree it owns (self-referential; not expressible in safe Rust). Done: captures stored as `(capture index, start byte, end byte, kind id)` and re-resolved against the tree on demand via `descendant_for_byte_range` plus a walk up to the matching range and kind. `has_cap` is a hash-set lookup on that tuple.
 - Plan: `returns_of` returns an empty vec plus a warning for non-`tail` languages. Done: it warns once (`log::warn!`) and still returns the tail-branch result — an approximation is more useful than nothing until M2 wires `@return.value` for `return`-statement languages, and no M1 language reaches it. *Superseded after M1 (2026-09-02):* the `returns` quirk is gone; return roots are the `@return` capture (spec §6), so a statement language needs a query line, not engine code.
@@ -25,14 +27,14 @@ Each entry: which task, what the plan said, what was done instead, why. Entries 
 - `is_literal` is recursive over named children rather than over named *leaves*: a construct is literal when every named child is. Same verdicts on the plan's examples, plus `{[], {}}` (no leaves at all) is literal, and `{ok, 1 + 2}` is not — a computed value is not a place the trace can stop.
 - `role_of` returns `Opaque` for any ident under an `@opaque` ancestor, including one in the *body* of an anonymous fun, not only its parameter list; the plan's prose ("an ident inside a fun inside a match RHS is `Use`") describes the ancestor walk not treating the enclosing match as a binding, which it does not.
 
-## Task 6 — Erlang queries
+### Task 6 — Erlang queries
 
 - Plan: `@call.callee` on `maps:get(...)` captures `maps:get`. Done: `tree-sitter-erlang` parses a remote call as `remote(module, fun: call(expr: get, args))`, so `@call.callee` is the bare `get` and `@callee.module`/`@callee.name` are captured from the enclosing `remote`. The engine composes `maps:get` for display (Task 7 `callee_text`); the definition lookup position is the bare name, which is what `erlang_ls` expects.
 - Plan: the query test asserts `@call.callee == "maps:get"`. Done: asserts `"get"` plus `@call.args == "(limit, Opts, 10)"`.
 - Plan fixture had no anonymous fun. Done: added `_F = fun(X) -> X end,` so `@opaque` is exercised.
 - Review fix: vocabulary gained `@through` / `@through.inner` ("classify this node by its inner child"), captured on `remote(fun: call)`, so Task 7 can reach the `@call` inside a remote call without Erlang-specific code. `@return.value` is also captured for `begin … end` and parenthesised bodies. `try … catch` body tails (no `of`) are captured with field-anchored patterns (`exprs: (_) @return.value . catch: …` / `. after: …`); the `of` form captures nothing from the body, which is correct since the body is then a subject, not a tail. `catch_expr` and `maybe_expr` added to `@opaque`.
 
-## Task 8 — trace core
+### Task 8 — trace core
 
 - Plan: `Expr::Value(PathBuf, Pos)`. Done: `Expr::Value(PathBuf, Span)` where `Span` is `(start byte, end byte, kind id)` — a position does not name a node (`pick` and `pick(3)` start at the same place), and Task 7's `Doc` re-resolves nodes from exactly that triple. Frame arguments are `(PathBuf, Span)` for the same reason; the visited set stays keyed on `(file, Pos, frame hash)` as planned.
 - Plan/spec: "zero call sites → `stop: entry_point`". Done: the `param` node is emitted with the `entry_point` stop as its only child — the spec table's column is *Children*, and the parameter's own location is worth showing. Same shape as the plan's expected tree for `local_chain`.
@@ -65,7 +67,7 @@ Each entry: which task, what the plan said, what was done instead, why. Entries 
   and ends where it ends.
 - Not implemented, deliberately: the `documentHighlight` rebinding pass of §5.2. Erlang is single-assignment, so it would emit nothing; `Via::Rebind`/`Mutation` wait for M2.
 
-## Task 10 — Neovim engine and host
+### Task 10 — Neovim engine and host
 
 - Plan: host errors (timeout, failure) are reported as JSON-RPC error `-32000`. Done: `-32603` (InternalError). `vim.lsp.rpc`'s `server_request` path asserts the error code is a member of `vim.lsp.protocol.ErrorCodes`; with `-32000` the assertion fires inside the scheduled coroutine and no response is ever sent, so the engine blocks forever on that request. The engine only uses the message text, so `HostError::Rpc` is unaffected.
 - Tests: LSP-backed paths of `host.lua` (encoding conversion, LocationLink flattening, multi-client merge) are not covered headlessly (no live server); `host/text`, the no-client case and dispatch are. Covered by the live dogfood in the M1 exit check instead. *Round 1 amendment:* the pure halves of those paths are now covered — `M._from_utf16`/`M._to_utf16` (ASCII, BMP, astral × utf-8/utf-32, both directions) and `M._locations_from` (`Location`, `Location[]`, `LocationLink[]`, cross-client de-dup) are exported for that purpose. What remains uncovered is only the `buf_request_sync` call itself.
@@ -73,7 +75,7 @@ Each entry: which task, what the plan said, what was done instead, why. Entries 
 - Review round 1: `vim.lsp.rpc` never fires pending request callbacks when the engine process dies, so a trace in flight hung with no feedback. `engine.lua` keeps its own pending-callback map keyed by request id and, on `on_exit`, notifies and fails every pending trace with `{ code = -32000, message = "engine exited" }` — this error never reaches `vim.lsp.rpc`, so the engine's own `E_HOST` code applies here. `M.start` therefore returns a small wrapper (`request`/`notify`/`is_closing`/`terminate`) rather than the raw rpc client.
 - Review round 1: `bufnr_for` unlists only buffers it created (`vim.fn.bufexists` checked before `bufadd`); tracing through a file the user already has open must not drop it from `:ls`.
 
-## Task 12 — Neovim recorder and installer
+### Task 12 — Neovim recorder and installer
 
 - Plan: the recorder wraps `host.handle`, and `_replay` (Task 10) "routes answers through `host.handle`". It did not — `init.lua` passed the replay handler to `engine.start` as `opts.handle`, bypassing `host.handle` entirely, so a recording made under `_replay` would have captured nothing. Done: `setup({_replay=dir})` installs the replay handler *as* `host.handle`, and `engine.lua` resolves `require("whence.host").handle` per request instead of once at `start`, so a recorder installed while an engine is already running is seen. `host.lua` itself is untouched.
 - Plan: `:WhenceRecord` prints the replay command. Done: it also writes `dir/whence-record.json` (`root`, `file`, `line`, `col`, `engine_version`, `recorded_at`, `conflicts`) so the recording can be replayed later without the printed hint. `whence trace`/`trace_at` gained an optional `on_done` callback (fired on every error path and, on success, *before* `panel.show`, so a render error cannot strand the wrapper) and `whence.root(file)` is exported for the command.
@@ -82,7 +84,7 @@ Each entry: which task, what the plan said, what was done instead, why. Entries 
 - Review round 1: a repeated request answered differently is not silently overwritten. The first answer is kept, the key is appended to `conflicts` in `whence-record.json`, and `finish()` warns: the fixture then cannot reproduce the session it was recorded from, and a golden built from it would be fiction.
 - `record.begin` refuses a non-empty directory: `host.json` is rewritten wholesale but source files copied by an earlier recording would survive into the new fixture.
 
-## Whole-branch review — honesty pass
+### Whole-branch review — honesty pass
 
 Rulings from the M1 branch review; each landed with the spec section it changes.
 
@@ -140,3 +142,61 @@ Rulings from the M1 branch review; each landed with the spec section it changes.
   as M1 behaviour, and `nvim/lua/whence/engine.lua` declares
   `capabilities.documentHighlight = false` — the engine never sends the request in M1, so
   declaring support was misleading.
+
+## M3 — VS Code extension
+
+- Plan: [2026-09-03-m3-vscode.md](superpowers/plans/2026-09-03-m3-vscode.md)
+- Spec: [2026-09-03-vscode-extension-design.md](superpowers/specs/2026-09-03-vscode-extension-design.md)
+
+### Task 1 — scaffold and toolchain
+
+- Plan: `lint` is `eslint src test scripts`. Done: `eslint .` — eslint 10 fails with "No files matching the pattern" until `scripts/` exists (Task 6).
+- `.gitignore` also ignores `vscode/.vscode-test/`, the VS Code build the test runner downloads.
+- Plan: TypeScript 5. Done: `npm install` resolved TypeScript 6 and eslint 10; both compile and lint the sources clean.
+
+### Task 2 — engine client and replay host
+
+- `vscode/eslint.config.mjs` gained an `ignores` entry for `.vscode-test/`, `out/` and `dist/`. `eslint .` does not read `.gitignore`, so once the test runner had downloaded VS Code it tried to lint the bundled extensions' own configs and died on their missing dev dependencies.
+
+### Task 3 — host answers from VS Code providers
+
+- `vscode/test/host.test.ts`: the mixed `Location` / `LocationLink` array returned by the stub definition provider is cast `as unknown as vscode.LocationLink[]`. `ProviderResult<Definition | LocationLink[]>` admits no mixed array, so the plan's literal did not typecheck; the cast keeps the test exercising both shapes in one provider result.
+
+### Task 4 — tree view, decorations, commands
+
+- `vscode/test/tree.test.ts`, "re-runs from a node": the plan re-runs from the first child of the root, whose own location is `a.erl:4:4`. The `local_chain` fixture records host answers only for the trace at `6:4`, so that re-run failed with `unrecorded` and left the tree unchanged. Done: the item is the root node with its location set to `6:4`, which still exercises `whence.rerunFromNode` replacing the result through the command path.
+
+### Review of Tasks 2 and 3
+
+- `vscode/src/engine.ts` listens for the child's `close`, not the plan's `exit`: a spawn that never starts (missing binary, EACCES) emits `error` and `close` but no `exit`, so `exited` never settled and `onExit` never fired.
+- `vscode/src/hostReplay.ts` attaches a no-op `catch` to the eagerly started `loadFixture`; a missing or invalid `host.json` rejected before the first `await` and surfaced as an unhandled rejection.
+- Spec §5 gained the known gap the VS Code host cannot close: `executeDefinitionProvider` answers `[]` both when no provider is registered and when a provider found nothing, so "no language server" ends in an `unresolved` stop rather than the `E_HOST` `docs/PROTOCOL.md` prescribes.
+
+### Task 5 — recorder
+
+- `vscode/test/record.test.ts`: the plan compares the replayed and live roots with a plain `assert.deepEqual`. Node ids do hash root-relative paths, but `loc.file` is absolute, so every node differed by its root (the fixture directory vs. the temporary recording directory). Done: both trees are compared with their own root prefix stripped.
+
+### Review of Tasks 4 and 5
+
+- `vscode/src/extension.ts`: an engine whose `initialize` fails while the process stays alive is removed from the per-root map and killed. The plan inserted it into the map before the handshake and only ever removed it on exit, so one failed handshake made every later trace in that root fail with `not initialized`.
+- `vscode/src/extension.ts`: `whence.preview` and `whence.open` route rejections through `report` like every other command; a click on a tree item whose file has since moved did nothing at all.
+- `vscode/src/record.ts`: `begin` claims `active` before its first `await`. The plan checked the flag, then awaited `mkdir`/`readdir`, so two overlapping recordings both passed the check, nested their host wrappers, and `finish` wrote the wrong one and left a wrapper installed for the rest of the session. `vscode/test/record.test.ts` now pins the guard that actually fires and checks the first recording's fixture and the host slot survive it.
+- `vscode/test/tree.test.ts`: the preview/open test asserted `activeTextEditor` after each command, which the headless test host resolves to the most recently changed input either way, so it could not fail. Done: it asserts the tab's `isPreview`, which is the observable difference. The engine-death test is renamed to what it does — stopping the engines and tracing again; killing the process is not reachable through `WhenceApi`.
+
+### Cleanup pass over the milestone
+
+- `Item` no longer carries `root`: the tree has one result, so `getTreeItem` reads it from there instead of every item copying it and `getParent` inventing a fallback.
+- `record.ts` imports `SECTION`/`Sections` from `hostReplay.ts` rather than restating the method→section table; `Loc` from `types.ts` replaces the `{ file, line, col }` literal spelled out in `host.ts` and `record.ts`.
+- `host.text` uses the same `openTextDocument` the other answers use; the plan's hand-rolled "open document else `workspace.fs.readFile` + `TextDecoder`" is exactly what that call already does.
+- `Decorations` buckets nodes by file once in `set`, and `select` repaints only the strong layer of the two editors involved. The plan recomputed every node's word range in every visible editor on each tree selection.
+- `traceAt` sets the decorations before awaiting the tree reveal; nothing in them depends on it.
+- The CI job runs `make vscode-deps` and `make test-vscode` instead of restating the recipe, like the Neovim job.
+
+### Code review of the milestone
+
+- `Engine` tracks its own `closed` code rather than reading `child.exitCode`, which stays `null` when the spawn never started, and a `stopping` flag marks a `kill`/`dispose` so the extension does not report a deliberate exit as a crash (SIGKILL closes with code `null`).
+- `Engine.trace` clears the single-flight slot in an `async` `finally` instead of a `.finally` on the inner chain, so a caller that awaits one trace and starts the next cannot be told `busy` by microtask ordering.
+- `extension.ts`: `onExit` only evicts the engine still mapped at that root — a retry during a dying engine's `close` could otherwise orphan the live process past `stopEngines`.
+- `recordAt` refuses to start while a trace is running. It used to wrap the host first, capture the other trace's answers, and leave a bogus fixture in the directory the user picked (which `begin` then refuses to reuse).
+- `record.ts` treats a second, different `host/text` answer for one file as a conflict instead of silently overwriting the copied source; the tree was built from the first text. `nvim/lua/whence/record.lua` still has that gap (ticket `whe-zcjm`).
+- `release.yml`'s `vsix` matrix uses the `- target:` form of the build matrix, and `targets.test.ts` now requires every triple to appear in both — the old regex saw only the build job, so a platform added there and in `TARGETS` would ship with no VSIX.

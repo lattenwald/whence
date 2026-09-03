@@ -54,6 +54,30 @@ Commands: `:Whence` traces the identifier under the cursor into a side panel
 (`<CR>` jumps, `p` previews, `R` re-runs from a node, `q` closes).
 `:WhenceRecord <dir>` records the same trace as a replay fixture.
 
+## VS Code
+
+Download the `.vsix` for your platform from the
+[latest release](https://github.com/lattenwald/whence/releases/latest)
+(`linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64`) and
+install it with **Extensions: Install from VSIX…** or
+
+```sh
+code --install-extension whence-linux-x64-<version>.vsix
+```
+
+The engine binary is inside the VSIX; nothing else to install. A language
+server for the file's language must be active (Erlang: `elp` or
+`erlang_ls`).
+
+**Whence: Trace Variable** (`Ctrl+Alt+W`, `Cmd+Alt+W` on macOS, also in the
+editor context menu) opens the tree in the Panel. Click a node to preview
+its location, press Enter to open it, use the inline action to re-run from
+that node. **Whence: Record Fixture** writes a replay fixture for the trace
+under the cursor.
+
+To build the extension from source: `make vsix TARGET=<rust triple>` after
+`cargo build --release --target <rust triple>`.
+
 ## License
 
 [MIT](LICENSE).

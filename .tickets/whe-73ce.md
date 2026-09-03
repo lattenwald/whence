@@ -1,6 +1,6 @@
 ---
 id: whe-73ce
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-09-03T09:20:08Z

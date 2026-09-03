@@ -1,0 +1,90 @@
+{
+  "name": "whence",
+  "displayName": "Whence",
+  "description": "Where does this value come from? Trace a variable back through bindings, call sites and returns.",
+  "version": "0.1.0",
+  "publisher": "lattenwald",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lattenwald/whence"
+  },
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      { "command": "whence.trace", "title": "Trace Variable", "category": "Whence", "icon": "$(list-tree)" },
+      { "command": "whence.rerun", "title": "Re-run Last Trace", "category": "Whence", "icon": "$(refresh)" },
+      { "command": "whence.clear", "title": "Clear", "category": "Whence", "icon": "$(clear-all)" },
+      { "command": "whence.record", "title": "Record Fixture", "category": "Whence" },
+      { "command": "whence.rerunFromNode", "title": "Re-run From Here", "icon": "$(debug-restart)" },
+      { "command": "whence.preview", "title": "Preview Location" },
+      { "command": "whence.open", "title": "Open Location" }
+    ],
+    "viewsContainers": {
+      "panel": [
+        { "id": "whence", "title": "Whence", "icon": "$(list-tree)" }
+      ]
+    },
+    "views": {
+      "whence": [
+        { "id": "whence.tree", "name": "Provenance", "when": "whence.hasResult", "icon": "$(list-tree)" }
+      ]
+    },
+    "menus": {
+      "commandPalette": [
+        { "command": "whence.rerunFromNode", "when": "false" },
+        { "command": "whence.preview", "when": "false" },
+        { "command": "whence.open", "when": "false" },
+        { "command": "whence.rerun", "when": "whence.hasResult" },
+        { "command": "whence.clear", "when": "whence.hasResult" }
+      ],
+      "editor/context": [
+        { "command": "whence.trace", "when": "editorTextFocus", "group": "navigation@9" }
+      ],
+      "view/title": [
+        { "command": "whence.rerun", "when": "view == whence.tree", "group": "navigation@1" },
+        { "command": "whence.clear", "when": "view == whence.tree", "group": "navigation@2" }
+      ],
+      "view/item/context": [
+        { "command": "whence.rerunFromNode", "when": "view == whence.tree && viewItem =~ /^whence\\.(node|stop)$/", "group": "inline" },
+        { "command": "whence.rerunFromNode", "when": "view == whence.tree && viewItem =~ /^whence\\.(node|stop)$/", "group": "whence@1" },
+        { "command": "whence.open", "when": "view == whence.tree && viewItem =~ /^whence\\.(node|stop)$/", "group": "whence@2" }
+      ]
+    },
+    "keybindings": [
+      { "command": "whence.trace", "key": "ctrl+alt+w", "mac": "cmd+alt+w", "when": "editorTextFocus" },
+      { "command": "whence.open", "key": "enter", "when": "focusedView == whence.tree" }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "bundle": "node esbuild.mjs",
+    "vscode:prepublish": "npm run bundle -- --production",
+    "lint": "eslint .",
+    "pretest": "npm run compile && npm run bundle",
+    "test": "vscode-test"
+  },
+  "dependencies": {
+    "vscode-jsonrpc": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.19.43",
+    "@types/vscode": "^1.96.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.9.1",
+    "mocha": "^11.8.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.68.0"
+  }
+}

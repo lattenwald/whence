@@ -22,16 +22,32 @@ test-nvim: ## Run Neovim plugin tests (override plenary path with PLENARY_DIR=..
 nvim-link: build ## Symlink release binary into the plugin's bin/
 	mkdir -p nvim/bin && ln -sf $(CURDIR)/target/release/whence nvim/bin/whence
 
+.PHONY: vscode-deps
+vscode-deps: ## Install VS Code extension dev dependencies
+	cd vscode && npm ci
+
+.PHONY: test-vscode
+test-vscode: ## Run VS Code extension tests (needs cargo build and vscode-deps)
+	cargo build
+	cd vscode && npm run lint && npm test
+
+.PHONY: vsix
+vsix: ## Package the VS Code extension for TARGET=<rust triple> (binary from target/<triple>/release, or BIN=...)
+	cd vscode && npm run compile && node out/scripts/vsix.js $(TARGET) $(BIN)
+
 .PHONY: fmt
 fmt: ## Format Rust sources
 	cargo fmt --all
 
 .PHONY: release-check
-release-check: ## Check engine, plugin and tag ($$GITHUB_REF_NAME) versions agree
+release-check: ## Check engine, plugin, extension and tag ($$GITHUB_REF_NAME) versions agree
 	@engine=$$(sed -n '/^\[package\]/,/^\[[^p]/ s/^version = "\(.*\)"/\1/p' engine/Cargo.toml | head -1); \
 	plugin=$$(sed -n 's/^return "\(.*\)"/\1/p' nvim/lua/whence/version.lua | head -1); \
+	code=$$(sed -n 's/^  "version": "\(.*\)",/\1/p' vscode/package.json | head -1); \
 	if [ -z "$$engine" ] || [ "$$engine" != "$$plugin" ]; then \
 	  echo "version mismatch: engine/Cargo.toml '$$engine' vs nvim/lua/whence/version.lua '$$plugin'" >&2; exit 1; fi; \
+	if [ "$$engine" != "$$code" ]; then \
+	  echo "version mismatch: engine/Cargo.toml '$$engine' vs vscode/package.json '$$code'" >&2; exit 1; fi; \
 	if [ -n "$$GITHUB_REF_NAME" ] && [ "$$GITHUB_REF_NAME" != "v$$engine" ]; then \
 	  echo "tag $$GITHUB_REF_NAME does not match version v$$engine" >&2; exit 1; fi; \
 	echo "version $$engine"

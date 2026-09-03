@@ -2,3 +2,10 @@ target/
 nvim/bin/
 *.log
 .superpowers/
+vscode/node_modules/
+vscode/.vscode-test/
+vscode/out/
+vscode/dist/
+vscode/bin/
+vscode/LICENSE
+*.vsix
