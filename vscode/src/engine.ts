@@ -109,6 +109,10 @@ export class Engine {
       if (e instanceof ResponseError) {
         throw new EngineError(e.code, e.message);
       }
+      // A process that dies mid-request fails the write before `close` arrives.
+      if (this.closed !== undefined || this.stopping || this.child.stdin?.writable === false) {
+        throw new EngineError(E_HOST, this.closed === undefined ? "engine exited" : `engine exited ${this.closed}`);
+      }
       throw e;
     }
   }
