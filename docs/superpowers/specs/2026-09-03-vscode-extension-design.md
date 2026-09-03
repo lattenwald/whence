@@ -42,6 +42,7 @@ vscode/
     tree.ts             TreeDataProvider, tree items, reveal
     decorations.ts      editor decorations for traced locations
     record.ts           fixture writer
+    hostReplay.ts       host answers from a fixture directory (tests only)
     targets.ts          Rust target triple ↔ VSIX target mapping
   test/                 @vscode/test-cli + Mocha specs
 ```
@@ -128,8 +129,9 @@ All positions are already UTF-16 in the VS Code API, so no conversion.
 - Interactions follow the References view:
   - single click: `command: whence.preview` → open the location in a
     preview editor beside the panel with `preserveFocus: true`;
-  - Enter or double click: `whence.open` → same, `preserveFocus: false`,
-    `preview: false`;
+  - Enter while the tree has focus: `whence.open` → same, `preserveFocus:
+    false`, `preview: false` (a tree view cannot distinguish a double click,
+    so Enter is the "open for real" gesture);
   - inline action and context menu on nodes: `whence.rerunFromNode`
     (calls the trace with the node's `loc`);
   - view title: `whence.rerun` (last trace again), `whence.clear`,
@@ -160,9 +162,10 @@ All positions are already UTF-16 in the VS Code API, so no conversion.
     the home directory, absolute otherwise.
   - every in-root file the engine asked `host/text` for, copied verbatim
     under its root-relative path;
-  - `whence-record.json`: `{ root, file, line, col, conflicts }` where
-    `file:line:col` is the cursor the trace started from and `conflicts`
-    lists keys that received two differing answers (first answer kept).
+  - `whence-record.json`: `{ root, file, line, col, engine_version,
+    recorded_at, conflicts }` where `file:line:col` is the cursor the trace
+    started from (root-relative, 0-based) and `conflicts` lists keys that
+    received two differing answers (first answer kept).
 - The recorder wraps the host handler for the duration of one trace, so
   `host.ts` does not know about it.
 
@@ -188,12 +191,17 @@ All positions are already UTF-16 in the VS Code API, so no conversion.
 - `@vscode/test-cli` (`.vscode-test.mjs`) runs Mocha specs in an Extension
   Development Host with the workspace set to a replay fixture directory. The
   engine binary is `target/debug/whence` from `cargo build`, pointed at
-  through the environment variable `WHENCE_TEST_BIN`, which `engine.ts`
+  through the environment variable `WHENCE_TEST_BIN`, which the extension
   honours only when `extensionMode` is `Test`; released builds ignore it.
+- Replay under test happens on the host side, as in Neovim: `hostReplay.ts`
+  answers `host/*` from a fixture directory (the `WHENCE_TEST_REPLAY`
+  variable, test mode only) so that the RPC seam, the host dispatcher, the
+  tree and the recorder are all exercised end to end by a real `whence
+  serve` process.
 - Specs, one file per module, following the same theater rules as the
   rest of the repo (no tests of VS Code APIs, no display text assertions,
   no restated fixtures):
-  - `engine`: spawn, `initialize`, a trace over `whence replay --serve`,
+  - `engine`: spawn, `initialize`, a trace answered by the replay host,
     single-flight rejection, failure of a pending trace when the process
     dies, respawn afterwards;
   - `host`: text from an unsaved open document vs. disk; definition and
