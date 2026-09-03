@@ -22,6 +22,15 @@ test-nvim: ## Run Neovim plugin tests (override plenary path with PLENARY_DIR=..
 nvim-link: build ## Symlink release binary into the plugin's bin/
 	mkdir -p nvim/bin && ln -sf $(CURDIR)/target/release/whence nvim/bin/whence
 
+.PHONY: vscode-deps
+vscode-deps: ## Install VS Code extension dev dependencies
+	cd vscode && npm ci
+
+.PHONY: test-vscode
+test-vscode: ## Run VS Code extension tests (needs cargo build and vscode-deps)
+	cargo build
+	cd vscode && npm run lint && npm test
+
 .PHONY: fmt
 fmt: ## Format Rust sources
 	cargo fmt --all

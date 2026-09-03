@@ -1,0 +1,53 @@
+{
+  "name": "whence",
+  "displayName": "Whence",
+  "description": "Where does this value come from? Trace a variable back through bindings, call sites and returns.",
+  "version": "0.1.0",
+  "publisher": "lattenwald",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lattenwald/whence"
+  },
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "whence.trace",
+        "title": "Trace Variable",
+        "category": "Whence"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "bundle": "node esbuild.mjs",
+    "vscode:prepublish": "npm run bundle -- --production",
+    "lint": "eslint .",
+    "pretest": "npm run compile && npm run bundle",
+    "test": "vscode-test"
+  },
+  "dependencies": {
+    "vscode-jsonrpc": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.19.43",
+    "@types/vscode": "^1.96.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.9.1",
+    "mocha": "^11.8.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.68.0"
+  }
+}
