@@ -64,8 +64,15 @@ export function activate(context: vscode.ExtensionContext): WhenceApi {
       },
     });
     engines.set(root, engine);
-    const init = await engine.initialize(root);
-    log.info(`engine ${init.version}, languages: ${init.languages.join(", ")}`);
+    try {
+      const init = await engine.initialize(root);
+      log.info(`engine ${init.version}, languages: ${init.languages.join(", ")}`);
+    } catch (e) {
+      // A handshake that errors leaves the process alive, so no exit drops it from the map.
+      engines.delete(root);
+      engine.kill();
+      throw e;
+    }
     return engine;
   }
 
@@ -167,8 +174,8 @@ export function activate(context: vscode.ExtensionContext): WhenceApi {
         await traceAt(item.node.loc.file, item.node.loc.line, item.node.loc.col).catch(report);
       }
     }),
-    vscode.commands.registerCommand("whence.preview", (item: Item) => reveal(item, false)),
-    vscode.commands.registerCommand("whence.open", (item?: Item) => reveal(item, true)),
+    vscode.commands.registerCommand("whence.preview", (item: Item) => reveal(item, false).catch(report)),
+    vscode.commands.registerCommand("whence.open", (item?: Item) => reveal(item, true).catch(report)),
     vscode.commands.registerCommand("whence.record", async () => {
       const at = fromEditor();
       if (!at) {

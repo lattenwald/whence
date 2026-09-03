@@ -66,16 +66,22 @@ export async function begin(opts: {
   if (active) {
     throw new Error(`a recording into ${active.dir} is already active`);
   }
-  await mkdir(opts.dir, { recursive: true });
-  if ((await readdir(opts.dir)).length > 0) {
-    throw new Error(`${opts.dir} is not empty; record into a fresh directory`);
-  }
   const rec: Recording = {
     ...opts,
     recorded: { definition: {}, references: {}, documentHighlight: {} },
     conflicts: [],
     original: host.handle,
   };
+  active = rec; // Claimed before the first await, or two overlapping calls both pass the check.
+  try {
+    await mkdir(opts.dir, { recursive: true });
+    if ((await readdir(opts.dir)).length > 0) {
+      throw new Error(`${opts.dir} is not empty; record into a fresh directory`);
+    }
+  } catch (e) {
+    active = null;
+    throw e;
+  }
   host.handle = async (method, params) => {
     const result = await rec.original(method, params);
     await capture(rec, method, params, result);

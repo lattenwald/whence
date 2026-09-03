@@ -175,3 +175,10 @@ Rulings from the M1 branch review; each landed with the spec section it changes.
 ### Task 5 — recorder
 
 - `vscode/test/record.test.ts`: the plan compares the replayed and live roots with a plain `assert.deepEqual`. Node ids do hash root-relative paths, but `loc.file` is absolute, so every node differed by its root (the fixture directory vs. the temporary recording directory). Done: both trees are compared with their own root prefix stripped.
+
+### Review of Tasks 4 and 5
+
+- `vscode/src/extension.ts`: an engine whose `initialize` fails while the process stays alive is removed from the per-root map and killed. The plan inserted it into the map before the handshake and only ever removed it on exit, so one failed handshake made every later trace in that root fail with `not initialized`.
+- `vscode/src/extension.ts`: `whence.preview` and `whence.open` route rejections through `report` like every other command; a click on a tree item whose file has since moved did nothing at all.
+- `vscode/src/record.ts`: `begin` claims `active` before its first `await`. The plan checked the flag, then awaited `mkdir`/`readdir`, so two overlapping recordings both passed the check, nested their host wrappers, and `finish` wrote the wrong one and left a wrapper installed for the rest of the session. `vscode/test/record.test.ts` now pins the guard that actually fires and checks the first recording's fixture and the host slot survive it.
+- `vscode/test/tree.test.ts`: the preview/open test asserted `activeTextEditor` after each command, which the headless test host resolves to the most recently changed input either way, so it could not fail. Done: it asserts the tab's `isPreview`, which is the observable difference. The engine-death test is renamed to what it does — stopping the engines and tracing again; killing the process is not reachable through `WhenceApi`.

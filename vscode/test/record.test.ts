@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -46,7 +46,11 @@ describe("record", () => {
     const a = mkdtempSync(path.join(os.tmpdir(), "whence-rec-"));
     const b = mkdtempSync(path.join(os.tmpdir(), "whence-rec-"));
     const first = recordAt(a, file, 6, 4);
-    await assert.rejects(recordAt(b, file, 6, 4), /already/);
+    await assert.rejects(recordAt(b, file, 6, 4), (e: Error) => e.message.includes(a));
     await first;
+    // The refused recording must not have taken the first one's fixture or host slot with it.
+    assert.deepEqual(readdirSync(b), []);
+    assert.ok(JSON.parse(readFileSync(path.join(a, "host.json"), "utf8")).definition);
+    assert.deepEqual(await recordAt(mkdtempSync(path.join(os.tmpdir(), "whence-rec-")), file, 6, 4), []);
   });
 });

@@ -41,19 +41,26 @@ describe("tree", () => {
     assert.deepEqual(tree.getParent(children[1]!), root);
   });
 
-  it("shows a live trace, previews without taking focus, and opens on demand", async () => {
+  it("shows a live trace, previews into a preview tab, and opens a permanent one", async () => {
     const { tree, traceAt } = await api();
     const result = await traceAt(file, 6, 4);
     assert.equal(tree.current?.tree, result);
     const [root] = tree.getChildren();
     const first = nodeItems(tree.getChildren(root))[0]!;
 
+    // Focus is unobservable in the headless test host; the preview/open difference is the tab.
+    const tabIsPreview = (): boolean | undefined =>
+      vscode.window.tabGroups.all
+        .flatMap((g) => g.tabs)
+        .find((t) => t.input instanceof vscode.TabInputText && t.input.uri.fsPath === first.loc.file)?.isPreview;
+
     await vscode.commands.executeCommand("whence.preview", { kind: "node", node: first, root: fixture });
     const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.fsPath === first.loc.file)!;
     assert.deepEqual([editor.selection.start.line, editor.selection.start.character], [first.loc.line, first.loc.col]);
+    assert.equal(tabIsPreview(), true);
 
     await vscode.commands.executeCommand("whence.open", { kind: "node", node: first, root: fixture });
-    assert.equal(vscode.window.activeTextEditor?.document.uri.fsPath, first.loc.file);
+    assert.equal(tabIsPreview(), false);
   });
 
   it("re-runs from a node and reuses the engine", async () => {
@@ -66,7 +73,7 @@ describe("tree", () => {
     assert.equal(tree.current?.tree.root.label, target.label);
   });
 
-  it("survives an engine death and respawns on the next trace", async () => {
+  it("respawns an engine after the running ones are stopped", async () => {
     const { traceAt, stopEngines } = await api();
     await traceAt(file, 6, 4);
     await stopEngines();
