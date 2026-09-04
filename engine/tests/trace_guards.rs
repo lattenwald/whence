@@ -6,6 +6,7 @@ use std::sync::OnceLock;
 
 use whence::{
     host::{Highlight, Host, HostError, Location, Range},
+    host_replay::ReplayHost,
     lang::Registry,
     pos::Pos,
     trace::{TraceRequest, trace},
@@ -88,4 +89,59 @@ fn a_definition_in_a_file_without_a_grammar_stops_that_node_only() {
 fn a_callee_defined_in_a_file_without_a_grammar_stops_that_node_only() {
     let out = trace_into_grammarless("g() ->\n    Y = mk(),\n    Y.\n");
     assert!(out.contains("no language for x.escript"), "{out}");
+}
+
+struct Counting {
+    inner: ReplayHost,
+    highlights: u32,
+}
+
+impl Host for Counting {
+    fn text(&mut self, file: &Path) -> Result<String, HostError> {
+        self.inner.text(file)
+    }
+
+    fn definition(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, HostError> {
+        self.inner.definition(file, pos)
+    }
+
+    fn references(
+        &mut self,
+        file: &Path,
+        pos: Pos,
+        include_decl: bool,
+    ) -> Result<Vec<Location>, HostError> {
+        self.inner.references(file, pos, include_decl)
+    }
+
+    fn document_highlight(&mut self, file: &Path, pos: Pos) -> Result<Vec<Highlight>, HostError> {
+        self.highlights += 1;
+        self.inner.document_highlight(file, pos)
+    }
+
+    fn implementation(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, HostError> {
+        self.inner.implementation(file, pos)
+    }
+
+    fn request_count(&self) -> u32 {
+        self.inner.request_count()
+    }
+}
+
+#[test]
+fn a_single_assignment_language_asks_for_no_highlights() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/erlang/local_chain");
+    let mut host = Counting {
+        inner: ReplayHost::load(&dir).unwrap(),
+        highlights: 0,
+    };
+    let reg = Registry::embedded().unwrap();
+    let req = TraceRequest {
+        file: dir.join("a.erl"),
+        root: dir,
+        pos: pos(6, 4),
+        limits: Limits::default(),
+    };
+    trace(&mut host, &reg, &req).unwrap();
+    assert_eq!(host.highlights, 0);
 }

@@ -49,6 +49,19 @@ pub struct CallSite<'t> {
     pub receiver: Option<N<'t>>,
 }
 
+#[derive(Clone, Copy)]
+pub enum Slot {
+    Arg(usize),
+    Receiver,
+}
+
+pub struct Assign<'t> {
+    pub node: N<'t>,
+    pub target: N<'t>,
+    pub value: Option<N<'t>>,
+    pub compound: bool,
+}
+
 pub enum Role<'t> {
     BoundBy {
         pattern: N<'t>,
@@ -191,6 +204,21 @@ impl<'l> Doc<'l> {
         while let Some(c) = cur {
             if caps.iter().any(|cap| self.has_cap(N(c), cap)) {
                 return Some(N(c));
+            }
+            cur = c.parent();
+        }
+        None
+    }
+
+    /// Stops at the enclosing body: an occurrence is not matched to a construct outside its function.
+    fn nearest_ancestor_with_or_self<'a>(&'a self, n: N<'a>, cap: &str) -> Option<N<'a>> {
+        let mut cur = Some(n.0);
+        while let Some(c) = cur {
+            if self.has_cap(N(c), cap) {
+                return Some(N(c));
+            }
+            if self.has_cap(N(c), vocab::FUNCTION_BODY) {
+                return None;
             }
             cur = c.parent();
         }
@@ -366,6 +394,60 @@ impl<'l> Doc<'l> {
             body,
             receiver,
         })
+    }
+
+    pub fn single_assignment(&self) -> bool {
+        self.lang.quirks.single_assignment
+    }
+
+    /// The `@assign` whose target contains `occ`, if any.
+    pub fn assign_at<'a>(&'a self, occ: N<'a>) -> Option<Assign<'a>> {
+        let target = self.nearest_ancestor_with_or_self(occ, vocab::ASSIGN_TARGET)?;
+        let node = N(target.0.parent()?);
+        if !self.has_cap(node, vocab::ASSIGN) {
+            return None;
+        }
+        Some(Assign {
+            node,
+            target,
+            value: self
+                .caps_child_of(vocab::ASSIGN_VALUE, node)
+                .first()
+                .copied(),
+            compound: self.has_cap(node, vocab::ASSIGN_COMPOUND),
+        })
+    }
+
+    /// The places a write to `target` reaches; the index of `x[i]` is read, not written.
+    pub fn place_chain<'a>(&'a self, target: N<'a>) -> Vec<N<'a>> {
+        let mut out = Vec::new();
+        let mut cur = self.through(target).unwrap_or(target);
+        loop {
+            out.push(cur);
+            let next = self
+                .field_access(cur)
+                .map(|(c, _)| c)
+                .or_else(|| self.caps_child_of(vocab::PLACE_BASE, cur).first().copied());
+            match next {
+                Some(n) => cur = self.through(n).unwrap_or(n),
+                None => return out,
+            }
+        }
+    }
+
+    pub fn escaped<'a>(&'a self, occ: N<'a>) -> Option<N<'a>> {
+        self.nearest_ancestor_with_or_self(occ, vocab::ESCAPE)
+    }
+
+    /// The innermost call that passes `occ` as its receiver or as argument `i`.
+    pub fn call_using<'a>(&'a self, occ: N<'a>) -> Option<(CallSite<'a>, Slot)> {
+        let call = self.nearest_ancestor_with_or_self(occ, vocab::CALL)?;
+        let call = self.call_site(call)?;
+        if call.receiver.is_some_and(|r| contains(r.0, occ.0)) {
+            return Some((call, Slot::Receiver));
+        }
+        let i = call.args.iter().position(|a| contains(a.0, occ.0))?;
+        Some((call, Slot::Arg(i)))
     }
 
     pub fn has_mutable_receiver(&self, f: &FnDecl) -> bool {

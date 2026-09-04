@@ -6,7 +6,7 @@ use std::time::Instant;
 use crate::host::{HostError, Location};
 use crate::lang::vocab;
 use crate::pos::Pos;
-use crate::syntax::{Doc, FnDecl, N, Role, Span};
+use crate::syntax::{Doc, FnDecl, N, Role, Slot, Span};
 use crate::trace::TraceError;
 use crate::trace::frame::{Ctx, ExprRef, Frame, FuncId, Proj};
 use crate::tree::{Loc, Node, NodeKind, StopReason, Via, node_id, path_id};
@@ -212,14 +212,34 @@ fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, Tr
         .into_iter()
         .map(|l| (l.file, l.range.start))
         .collect();
-    match defs.len() {
-        0 => return Ok(unresolved(ctx, site, "no definition from language server")),
-        1 => return definition(ctx, &defs[0].0, defs[0].1, site, depth),
-        _ => {}
+    if defs.is_empty() {
+        return Ok(unresolved(ctx, site, "no definition from language server"));
     }
-    sort_local(&mut defs, file, |p| (p.line, p.col));
-    let (dropped, collapsed) = candidates(ctx, site, &mut defs, "definitions");
+    let doc = ctx.doc(file)?;
+    let mut occ = if doc.single_assignment() {
+        Vec::new()
+    } else {
+        occurrences(ctx, &doc, file, site, &defs)?
+    };
+
+    if occ.is_empty() && defs.len() == 1 {
+        return definition(ctx, &defs[0].0, defs[0].1, site, depth);
+    }
+
     let mut children = Vec::new();
+    let (dropped, collapsed) = if occ.is_empty() {
+        sort_local(&mut defs, file, |p| (p.line, p.col));
+        candidates(ctx, site, &mut defs, "definitions")
+    } else {
+        occ.sort_by_key(|o| std::cmp::Reverse(o.occurrence().start));
+        let cut = candidates(ctx, site, &mut occ, "writes");
+        for o in occ {
+            children.push(expand_occurrence(ctx, file, o, depth)?);
+        }
+        children.extend(cut.1);
+        (cut.0, None)
+    };
+    // Past the fan-out cut when occurrences took it, so the binding stays visible.
     for (f, p) in &defs {
         let mut child = definition(ctx, f, *p, site, depth)?;
         child.via = Some(Via::Match);
@@ -234,6 +254,220 @@ fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, Tr
         children,
         dropped,
     ))
+}
+
+enum Occ {
+    Write { occurrence: Span },
+    Escape { occurrence: Span, detail: String },
+}
+
+impl Occ {
+    fn occurrence(&self) -> Span {
+        match self {
+            Occ::Write { occurrence } | Occ::Escape { occurrence, .. } => *occurrence,
+        }
+    }
+}
+
+/// Everything that may have written the variable between its binding and this use (spec §3.1).
+fn occurrences(
+    ctx: &mut Ctx,
+    doc: &Doc,
+    file: &Path,
+    site: &Site,
+    defs: &[(PathBuf, Pos)],
+) -> Result<Vec<Occ>, TraceError> {
+    if defs.iter().any(|(f, _)| f != file) {
+        return Ok(Vec::new());
+    }
+    let use_pos = site.pos();
+    let (Some(use_off), Some(func)) = (
+        doc.byte_offset(use_pos),
+        doc.ident_at(use_pos)
+            .and_then(|u| doc.enclosing_function(u))
+            .map(|f| f.node.0.id()),
+    ) else {
+        return Ok(Vec::new());
+    };
+    let Some(def_off) = defs.iter().filter_map(|(_, p)| doc.byte_offset(*p)).min() else {
+        return Ok(Vec::new());
+    };
+
+    let mut out = Vec::new();
+    for p in ctx.occurrences(file, use_pos)? {
+        if defs.iter().any(|(_, d)| *d == p) {
+            continue;
+        }
+        let Some(off) = doc.byte_offset(p) else {
+            continue;
+        };
+        if off <= def_off || off >= use_off {
+            continue;
+        }
+        let Some(o) = doc.ident_at(p) else {
+            continue;
+        };
+        if doc.enclosing_function(o).map(|f| f.node.0.id()) != Some(func) {
+            continue;
+        }
+        if let Some(occ) = classify(ctx, doc, file, o)? {
+            out.push(occ);
+        }
+    }
+    Ok(out)
+}
+
+fn classify(ctx: &mut Ctx, doc: &Doc, file: &Path, o: N) -> Result<Option<Occ>, TraceError> {
+    if let Some(a) = doc.assign_at(o) {
+        let place = place_written(doc, a.target, o);
+        // Reads that live inside the target: the `i` of `x[i]`, the key of `m[k]`.
+        if !doc
+            .place_chain(place)
+            .iter()
+            .any(|p| Span::of(*p) == Span::of(o))
+        {
+            return Ok(None);
+        }
+        if let Some(proj) = ctx.proj.last()
+            && Span::of(place) != Span::of(o)
+            && !sets_projection(doc, place, o, proj)
+        {
+            return Ok(None);
+        }
+        return Ok(Some(Occ::Write {
+            occurrence: Span::of(o),
+        }));
+    }
+    let using = doc.call_using(o);
+    if let Some(escape) = doc.escaped(o) {
+        let what = match &using {
+            Some((call, _)) => first_line_of(doc, call.node),
+            None => clip(doc.line_of(escape).trim()),
+        };
+        return Ok(Some(Occ::Escape {
+            occurrence: Span::of(o),
+            detail: format!("may be written by {what}"),
+        }));
+    }
+    let Some((call, slot)) = using else {
+        return Ok(None);
+    };
+    let callee = doc.callee_text(&call);
+    let defs = distinct(&ctx.definition(file, doc.pos_of(call.callee))?);
+    if defs.is_empty() {
+        return Ok(None);
+    }
+    if defs.iter().all(|d| !ctx.in_root(&d.file)) {
+        // A value passed to unknown code is no evidence of a write; a receiver is.
+        if !matches!(slot, Slot::Receiver) {
+            return Ok(None);
+        }
+        return Ok(Some(Occ::Escape {
+            occurrence: Span::of(o),
+            detail: format!("may be written by external method {callee}"),
+        }));
+    }
+    let mut mutable = false;
+    for d in &defs {
+        if !ctx.in_root(&d.file) {
+            continue;
+        }
+        let Some(cdoc) = ctx.doc_if_known(&d.file)? else {
+            continue;
+        };
+        let Some(decl) = cdoc
+            .declares_function(d.range.start)
+            .or_else(|| cdoc.declares_abstract(d.range.start))
+        else {
+            continue;
+        };
+        let shift = receiver_shift(&decl, call.receiver.is_some(), call.args.len());
+        mutable |= match (slot, shift) {
+            (Slot::Receiver, _) | (Slot::Arg(0), true) => cdoc.has_mutable_receiver(&decl),
+            (Slot::Arg(i), true) => cdoc.param_is_mutable(&decl, i - 1),
+            (Slot::Arg(i), false) => cdoc.param_is_mutable(&decl, i),
+        };
+    }
+    Ok(mutable.then(|| Occ::Escape {
+        occurrence: Span::of(o),
+        detail: format!("may be written by {callee}(…)"),
+    }))
+}
+
+/// The one target of a multi-target write that `o` belongs to: `a, b = b, a` writes `a` alone.
+fn place_written<'t>(doc: &'t Doc<'_>, target: N<'t>, o: N<'t>) -> N<'t> {
+    let target = doc.through(target).unwrap_or(target);
+    doc.positional(target)
+        .and_then(|es| {
+            es.into_iter()
+                .find(|e| e.0.start_byte() <= o.0.start_byte() && o.0.end_byte() <= e.0.end_byte())
+        })
+        .unwrap_or(target)
+}
+
+fn sets_projection(doc: &Doc, place: N, o: N, proj: &Proj) -> bool {
+    doc.field_access(place).is_some_and(|(container, name)| {
+        Span::of(container) == Span::of(o)
+            && match proj {
+                Proj::Field(f) => &name == f,
+                Proj::Index(i) => name.parse::<usize>() == Ok(*i),
+            }
+    })
+}
+
+fn expand_occurrence(ctx: &mut Ctx, file: &Path, occ: Occ, depth: u32) -> Result<Node, TraceError> {
+    let doc = ctx.doc(file)?;
+    let o = doc
+        .node(occ.occurrence())
+        .expect("the occurrence was found in this document");
+    let osite = Site::new(ctx, &doc, file, o);
+    if let Occ::Escape { detail, .. } = occ {
+        ctx.node_count += 1;
+        return Ok(unresolved(ctx, &osite, detail));
+    }
+    let a = doc.assign_at(o).expect("classified as a write");
+    let target = doc.through(a.target).unwrap_or(a.target);
+    let place = place_written(&doc, a.target, o);
+    let whole = Span::of(place) == Span::of(o);
+    let via = if whole && !a.compound {
+        Via::Rebind
+    } else {
+        Via::Mutation
+    };
+    let child = match a.value {
+        None => {
+            let asite = Site::new(ctx, &doc, file, a.node);
+            ctx.node_count += 1;
+            stop(ctx, &asite, StopReason::Literal, a.node.0.kind())
+        }
+        Some(v) => {
+            let (source, index) = match doc.destructure(target, o, v) {
+                Some(s) => (s, None),
+                None => (v, doc.pattern_index(target, o)),
+            };
+            // `o.f = v` sets the pending projection: the child is the value, the projection consumed.
+            let field_set = ctx.proj.last().is_some() && !whole;
+            let pending = if field_set { ctx.proj.pop() } else { None };
+            if let Some(i) = index {
+                ctx.proj.push(Proj::Index(i));
+            }
+            let child = expand(
+                ctx,
+                &Expr::Value(file.to_path_buf(), Span::of(source)),
+                depth + 1,
+            );
+            if index.is_some() {
+                ctx.proj.pop();
+            }
+            ctx.proj.extend(pending);
+            let mut child = child?;
+            if field_set {
+                child.via = Some(Via::FieldSet);
+            }
+            child
+        }
+    };
+    Ok(make(ctx, NodeKind::Binding, &osite, via, vec![child], 0))
 }
 
 fn definition(
@@ -367,12 +601,6 @@ fn narrow(doc: &Doc, pattern: Option<N>, ident: N, file: &Path, arg: &ExprRef) -
     doc.destructure(pattern, ident, value)
         .map(Span::of)
         .unwrap_or(arg.1)
-}
-
-#[derive(Clone, Copy)]
-enum Slot {
-    Arg(usize),
-    Receiver,
 }
 
 fn receiver_shift(func: &FnDecl, call_has_receiver: bool, argc: usize) -> bool {

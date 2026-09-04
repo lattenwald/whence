@@ -52,6 +52,9 @@ pub const ASSIGN_VALUE: &str = "assign.value";
 /// Co-captured on an `@assign` that reads the old value (`+=`, `++`).
 pub const ASSIGN_COMPOUND: &str = "assign.compound";
 
+/// The expression written through by an index or deref target (x in x[i], *x).
+pub const PLACE_BASE: &str = "place.base";
+
 /// An expression whose address or mutable reference is taken.
 pub const ESCAPE: &str = "escape";
 /// A parameter the callee may write through (`&mut T`, `*T`).

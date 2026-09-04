@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use crate::host::{Host, Location};
+use crate::host::{Host, HostError, Location};
 use crate::lang::Registry;
 use crate::pos::Pos;
 use crate::syntax::{Doc, Span};
@@ -65,6 +65,7 @@ pub struct Ctx<'a> {
     defs: HashMap<(PathBuf, Pos), Vec<Location>>,
     refs: HashMap<(PathBuf, Pos, bool), Vec<Location>>,
     impls: HashMap<(PathBuf, Pos), Vec<Location>>,
+    occ: HashMap<(PathBuf, Pos), Vec<Pos>>,
     pub frames: Vec<Frame>,
     pub proj: Vec<Proj>,
     /// Path keys of the nodes being expanded, root first; ids derive from the top.
@@ -93,6 +94,7 @@ impl<'a> Ctx<'a> {
             defs: HashMap::new(),
             refs: HashMap::new(),
             impls: HashMap::new(),
+            occ: HashMap::new(),
             frames: Vec::new(),
             proj: Vec::new(),
             path: Vec::new(),
@@ -143,6 +145,25 @@ impl<'a> Ctx<'a> {
         }
         let v = self.host.implementation(file, pos)?;
         self.impls.insert(key, v.clone());
+        Ok(v)
+    }
+
+    pub fn occurrences(&mut self, file: &Path, pos: Pos) -> Result<Vec<Pos>, TraceError> {
+        let key = (file.to_path_buf(), pos);
+        if let Some(v) = self.occ.get(&key) {
+            return Ok(v.clone());
+        }
+        let v: Vec<Pos> = match self.host.document_highlight(file, pos) {
+            Ok(hs) => hs.into_iter().map(|h| h.range.start).collect(),
+            Err(HostError::Unsupported(_)) => self
+                .references(file, pos, false)?
+                .into_iter()
+                .filter(|l| l.file == file)
+                .map(|l| l.range.start)
+                .collect(),
+            Err(e) => return Err(e.into()),
+        };
+        self.occ.insert(key, v.clone());
         Ok(v)
     }
 

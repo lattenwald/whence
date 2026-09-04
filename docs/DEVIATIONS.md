@@ -167,11 +167,21 @@ honest answer. Node ids are unchanged.
 
 ### The receiver shift applies to call sites found through references
 
-Plan: in the references loop of `param_like`, `Slot::Arg(i)` takes `call.args.get(i)`. Done: the
-loop applies the same shift `call_result` does — a call with no `@call.receiver` to a declaration
-with a receiver and one argument too many passes the receiver first — so a parameter is not
-matched to the receiver expression one place to its left (spec §3.4). The rule lives in one
-helper both call sites use.
+Plan: in the references loop of `param_like`, `Slot::Arg(i)` takes `call.args.get(i)`; the
+occurrence step's mutable-parameter rule likewise reads `param_is_mutable(i)`. Done: both apply
+the same shift `call_result` does — a call with no `@call.receiver` to a declaration with a
+receiver and one argument too many passes the receiver first — so an argument is not matched to
+the slot one place to its left (spec §3.4), and `T::m(&mut x)` is a write to `x`. The rule lives
+in one helper every call site uses.
+
+### A write is classified by its place chain, not by containment
+
+Plan: an occurrence is a write when it is "inside the `@assign.target` of an `@assign` node".
+Done: the target is taken through `@through`, narrowed to the element containing the occurrence
+when it is a positional construct, and the occurrence must lie on that place's chain of
+containers — `@field.container` or the new `@place.base` capture. Containment alone marks the `i`
+of `arr[i] = 3` and the key of `m[k] = v` as mutated, and they are only read; a wrong edge is
+worse than a missing one. Spec §3.1 rule 1 and §6 carry the rule and the capture.
 
 ### Implementations are expanded before the outside-root verdict
 

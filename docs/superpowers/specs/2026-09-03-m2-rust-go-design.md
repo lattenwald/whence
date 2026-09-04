@@ -50,15 +50,22 @@ occurrence step.
 
 Each kept occurrence `O` is classified in this order:
 
-1. **Write.** `O` is inside the `@assign.target` of an `@assign` node `A`.
-   Child: a `binding` node at `O`, `via: rebind` when the target is `O`
-   itself and `A` is not `@assign.compound`, else `via: mutation`. Its one
-   child is `A`'s `@assign.value`, narrowed through the target pattern like a
-   binding (Go `a, b = b, a`); an `@assign` without a value (`x++`) gets a
-   `stop: literal` child at `A`. With a pending field `f`: a target `O.f…`
-   sets the field, so the child is the value `via: field_set` and `f` is
-   consumed; a target `O.g…` for `g ≠ f` does not affect `f` and the
-   occurrence is dropped.
+1. **Write.** `O` is inside the `@assign.target` of an `@assign` node `A` and
+   the write reaches it. The target is taken through `@through` and, when it
+   is a positional `@construct` (Go's `expression_list`), narrowed to the one
+   element containing `O`: call that the *place*. The write reaches `O` when
+   the place's chain of containers — each step a `@field`'s `@field.container`
+   or a `@place.base` — contains `O`. The index of `x[i] = e` and the key of
+   `m[k] = v` are therefore reads, not writes.
+   Child: a `binding` node at `O`, `via: rebind` when the place is `O` itself
+   and `A` is not `@assign.compound`, else `via: mutation`. Its one child is
+   `A`'s `@assign.value`, narrowed through the target pattern like a binding
+   (Go `a, b = b, a`); an `@assign` without a value (`x++`) gets a `stop:
+   literal` child at `A`. With a pending projection `p`: a place `O.p…` sets
+   it, so the child is the value `via: field_set` and `p` is consumed (a
+   `Field` matches the field's name, an `Index(i)` a field named `i`); a place
+   that projects `O` elsewhere does not affect `p` and the occurrence is
+   dropped; a write to `O` itself is kept whatever `p` is.
 2. **Escape.** `O` is inside an `@escape` node → `stop: unresolved: may be
    written by <text of the enclosing statement or call>`, located at `O`.
 3. **Mutable receiver.** `O` is inside the `@call.receiver` of a call `C`.
@@ -176,6 +183,7 @@ Additions, all read by generic code:
 
 ```
 @assign  @assign.target  @assign.value  @assign.compound
+@place.base
 @escape
 @param.mutable
 @call.receiver
@@ -185,6 +193,8 @@ Additions, all read by generic code:
 
 - `@assign`: a write to an existing place. `.target`/`.value` as for
   `@binding`; `.compound` co-captured on the same node for `+=`, `++`, etc.
+- `@place.base`: the expression an index or deref target writes through (`x`
+  in `x[i] = e`, `*x = e`), so that the index is not mistaken for a write.
 - `@escape`: an expression whose address or mutable reference is taken
   (`&mut e`, `&e` in Go).
 - `@param.mutable`: a parameter declaration through which the callee may
@@ -222,6 +232,7 @@ grammar's `_expression` supertype where "any expression" is meant.
 | `for p in v` | `(for_expression pattern: (_) @binding.element value: (_) @binding.value) @binding` |
 | `a = b` | `(assignment_expression left: (_) @assign.target right: (_) @assign.value) @assign` |
 | `a += b` | `(compound_assignment_expr left: (_) @assign.target right: (_) @assign.value) @assign @assign.compound` |
+| place bases | `(index_expression . (_) @place.base)`; `(unary_expression "*" (_) @place.base)` |
 | call | `(call_expression function: [(identifier) (scoped_identifier) (generic_function)] @call.callee arguments: (arguments) @call.args) @call` |
 | method call | `(call_expression function: (field_expression value: (_) @call.receiver field: (_) @call.callee) arguments: (arguments) @call.args) @call` |
 | function | `(function_item name: (_) @function.name parameters: (_) @function.params body: (_) @function.body) @function` |
@@ -261,6 +272,7 @@ callee text is that name.
 | `for k, v := range xs` | `(range_clause left: (expression_list) @binding.element right: (_) @binding.value) @binding` |
 | `a, b = v` / `a += v` | `(assignment_statement left: (expression_list) @assign.target right: (expression_list) @assign.value) @assign`; `((assignment_statement operator: _ @op) @assign.compound (#not-eq? @op "="))` |
 | `x++` / `x--` | `((inc_statement (_) @assign.target) @assign @assign.compound)`; `((dec_statement (_) @assign.target) @assign @assign.compound)` |
+| place bases | `(index_expression operand: (_) @place.base)`; `(unary_expression operator: "*" operand: (_) @place.base)` |
 | call | `(call_expression function: (identifier) @call.callee arguments: (argument_list) @call.args) @call` |
 | method / package call | `(call_expression function: (selector_expression operand: (_) @call.receiver field: (_) @call.callee) arguments: (argument_list) @call.args) @call` (a package qualifier is captured as a receiver and ignored when the callee is not a method) |
 | function | `(function_declaration name: (_) @function.name parameters: (_) @function.params body: (_) @function.body) @function` |
