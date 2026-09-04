@@ -173,6 +173,10 @@ pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
         };
         return Ok(unresolved(ctx, &site, "expression not found in the source"));
     };
+    let node = match doc.through(node) {
+        Some(inner) if doc.has_cap(inner, vocab::IDENT) => inner,
+        _ => node,
+    };
     let is_ident = doc.has_cap(node, vocab::IDENT);
     let site = Site::new(ctx, &doc, &file, node);
 
