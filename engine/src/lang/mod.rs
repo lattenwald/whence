@@ -8,14 +8,11 @@ use anyhow::{Context, anyhow};
 use serde::Deserialize;
 use std::path::Path;
 
-// TODO(M2): parsed but never read. Decide per key whether it becomes a capture
-// (as `returns` did) or stays a flag, and delete what M2 does not use.
 #[derive(Debug, Clone, Default, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Quirks {
-    pub multi_assign: bool,
+    /// A variable is bound once; the write step of spec M2 §3.1 is skipped.
     pub single_assignment: bool,
-    pub mutable_ref_markers: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -90,6 +87,8 @@ mod tests {
             r.for_file(Path::new("/p/src/a.erl")).unwrap().name,
             "erlang"
         );
+        assert_eq!(r.for_file(Path::new("/p/src/a.rs")).unwrap().name, "rust");
+        assert_eq!(r.for_file(Path::new("/p/src/a.go")).unwrap().name, "go");
         assert!(r.for_file(Path::new("/p/README.md")).is_none());
     }
 
@@ -107,6 +106,12 @@ mod tests {
             for req in vocab::required() {
                 assert!(have.contains(req), "{name} lacks @{req}");
             }
+            assert!(
+                !have.contains(&vocab::RETURN_CONTAINER) || have.contains(&vocab::RETURN_VALUE),
+                "{name} has @{} without @{}",
+                vocab::RETURN_CONTAINER,
+                vocab::RETURN_VALUE
+            );
         }
     }
 }

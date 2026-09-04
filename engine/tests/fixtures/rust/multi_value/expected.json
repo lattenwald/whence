@@ -1,0 +1,74 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "547135443b8215e6",
+                "kind": "stop",
+                "label": "x + 1",
+                "loc": {
+                  "col": 12,
+                  "file": "src/main.rs",
+                  "line": 2
+                },
+                "snippet": "let b = x + 1;",
+                "stop": {
+                  "detail": "binary_expression",
+                  "reason": "unresolved"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "60a6dfe065d9ad00",
+            "kind": "binding",
+            "label": "b",
+            "loc": {
+              "col": 8,
+              "file": "src/main.rs",
+              "line": 2
+            },
+            "snippet": "let b = x + 1;",
+            "stop": null,
+            "truncated": 0,
+            "via": "field_set"
+          }
+        ],
+        "id": "3a1e17a78287dc1a",
+        "kind": "call_result",
+        "label": "pair",
+        "loc": {
+          "col": 17,
+          "file": "src/main.rs",
+          "line": 7
+        },
+        "snippet": "let (q, r) = pair(1);",
+        "stop": null,
+        "truncated": 0,
+        "via": "return"
+      }
+    ],
+    "id": "68e1d5b82dd572cc",
+    "kind": "binding",
+    "label": "r",
+    "loc": {
+      "col": 12,
+      "file": "src/main.rs",
+      "line": 7
+    },
+    "snippet": "let (q, r) = pair(1);",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 6,
+    "ms": 0,
+    "nodes": 4,
+    "truncated": 0
+  }
+}

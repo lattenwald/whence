@@ -1,0 +1,5 @@
+name = "go"
+extensions = ["go"]
+
+[quirks]
+single_assignment = false

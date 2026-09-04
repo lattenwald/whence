@@ -1,0 +1,94 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [],
+        "id": "a0e6aeaf86bd9351",
+        "kind": "stop",
+        "label": "s",
+        "loc": {
+          "col": 4,
+          "file": "main.go",
+          "line": 26
+        },
+        "snippet": "h(&s)",
+        "stop": {
+          "detail": "may be written by h(&s)",
+          "reason": "unresolved"
+        },
+        "truncated": 0,
+        "via": null
+      },
+      {
+        "children": [],
+        "id": "db237422d5323e95",
+        "kind": "stop",
+        "label": "s",
+        "loc": {
+          "col": 1,
+          "file": "main.go",
+          "line": 24
+        },
+        "snippet": "s.Bump(1)",
+        "stop": {
+          "detail": "may be written by Bump(…)",
+          "reason": "unresolved"
+        },
+        "truncated": 0,
+        "via": null
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "38689fc3389d7cd1",
+            "kind": "stop",
+            "label": "S{}",
+            "loc": {
+              "col": 6,
+              "file": "main.go",
+              "line": 23
+            },
+            "snippet": "s := S{}",
+            "stop": {
+              "detail": "literal_value",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "83413aee9b3978f1",
+        "kind": "binding",
+        "label": "s",
+        "loc": {
+          "col": 1,
+          "file": "main.go",
+          "line": 23
+        },
+        "snippet": "s := S{}",
+        "stop": null,
+        "truncated": 0,
+        "via": "match"
+      }
+    ],
+    "id": "095c32aabf844431",
+    "kind": "branch",
+    "label": "s",
+    "loc": {
+      "col": 6,
+      "file": "main.go",
+      "line": 27
+    },
+    "snippet": "show(s)",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 5,
+    "ms": 0,
+    "nodes": 5,
+    "truncated": 0
+  }
+}

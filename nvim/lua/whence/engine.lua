@@ -64,7 +64,7 @@ function M.start(opts)
   }
 
   local done, ierr, info = false, nil, nil
-  client.request("initialize", { root = opts.root, capabilities = { documentHighlight = true } }, function(e, r)
+  client.request("initialize", { root = opts.root, capabilities = { documentHighlight = true, implementation = true } }, function(e, r)
     ierr, info, done = e, r, true
   end)
   if not vim.wait(5000, function()

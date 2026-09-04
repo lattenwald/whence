@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use crate::host::{Host, Location};
+use crate::host::{Host, HostError, Location};
 use crate::lang::Registry;
 use crate::pos::Pos;
 use crate::syntax::{Doc, Span};
@@ -18,6 +18,8 @@ pub type ExprRef = (PathBuf, Span);
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FuncId {
     pub file: PathBuf,
+    /// `Doc::function_group` of the declaration: clauses share it, same-name functions do not.
+    pub group: usize,
     pub name: String,
     pub arity: usize,
 }
@@ -33,9 +35,26 @@ impl FuncId {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Proj {
+    Field(String),
+    Index(usize),
+}
+
+impl Proj {
+    pub fn describe(&self) -> String {
+        match self {
+            Proj::Field(f) => format!("field {f}"),
+            Proj::Index(i) => format!("element {i}"),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
 pub struct Frame {
     pub func_id: FuncId,
     pub args: Vec<ExprRef>,
+    pub receiver: Option<ExprRef>,
 }
 
 pub struct Ctx<'a> {
@@ -46,8 +65,10 @@ pub struct Ctx<'a> {
     /// Host answers are facts about the snapshot in `docs`, so they live exactly as long.
     defs: HashMap<(PathBuf, Pos), Vec<Location>>,
     refs: HashMap<(PathBuf, Pos, bool), Vec<Location>>,
+    impls: HashMap<(PathBuf, Pos), Vec<Location>>,
+    occ: HashMap<(PathBuf, Pos), Vec<Pos>>,
     pub frames: Vec<Frame>,
-    pub proj: Vec<String>,
+    pub proj: Vec<Proj>,
     /// Path keys of the nodes being expanded, root first; ids derive from the top.
     pub path: Vec<u64>,
     /// The expressions on the *current* expansion path, not everything seen (spec §5.4).
@@ -73,6 +94,8 @@ impl<'a> Ctx<'a> {
             docs: HashMap::new(),
             defs: HashMap::new(),
             refs: HashMap::new(),
+            impls: HashMap::new(),
+            occ: HashMap::new(),
             frames: Vec::new(),
             proj: Vec::new(),
             path: Vec::new(),
@@ -107,12 +130,44 @@ impl<'a> Ctx<'a> {
     }
 
     pub fn definition(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, TraceError> {
+        memo(&mut self.defs, (file.to_path_buf(), pos), || {
+            self.host.definition(file, pos)
+        })
+    }
+
+    pub fn implementation(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, TraceError> {
+        memo(&mut self.impls, (file.to_path_buf(), pos), || {
+            self.host.implementation(file, pos)
+        })
+    }
+
+    /// Every occurrence of one variable has the same definitions and occurrences as this one.
+    pub fn remember_symbol(&mut self, file: &Path, defs: &[Location], occurrences: &[Pos]) {
+        for p in occurrences {
+            let key = (file.to_path_buf(), *p);
+            self.defs
+                .entry(key.clone())
+                .or_insert_with(|| defs.to_vec());
+            self.occ.entry(key).or_insert_with(|| occurrences.to_vec());
+        }
+    }
+
+    pub fn occurrences(&mut self, file: &Path, pos: Pos) -> Result<Vec<Pos>, TraceError> {
         let key = (file.to_path_buf(), pos);
-        if let Some(v) = self.defs.get(&key) {
+        if let Some(v) = self.occ.get(&key) {
             return Ok(v.clone());
         }
-        let v = self.host.definition(file, pos)?;
-        self.defs.insert(key, v.clone());
+        let v: Vec<Pos> = match self.host.document_highlight(file, pos) {
+            Ok(hs) => hs.into_iter().map(|h| h.range.start).collect(),
+            Err(HostError::Unsupported(_)) => self
+                .references(file, pos, false)?
+                .into_iter()
+                .filter(|l| l.file == file)
+                .map(|l| l.range.start)
+                .collect(),
+            Err(e) => return Err(e.into()),
+        };
+        self.occ.insert(key, v.clone());
         Ok(v)
     }
 
@@ -122,13 +177,11 @@ impl<'a> Ctx<'a> {
         pos: Pos,
         include_decl: bool,
     ) -> Result<Vec<Location>, TraceError> {
-        let key = (file.to_path_buf(), pos, include_decl);
-        if let Some(v) = self.refs.get(&key) {
-            return Ok(v.clone());
-        }
-        let v = self.host.references(file, pos, include_decl)?;
-        self.refs.insert(key, v.clone());
-        Ok(v)
+        memo(
+            &mut self.refs,
+            (file.to_path_buf(), pos, include_decl),
+            || self.host.references(file, pos, include_decl),
+        )
     }
 
     pub fn parent(&self) -> u64 {
@@ -139,7 +192,7 @@ impl<'a> Ctx<'a> {
         let mut h = DefaultHasher::new();
         for f in &self.frames {
             f.func_id.hash(&mut h);
-            for (file, span) in &f.args {
+            for (file, span) in f.args.iter().chain(&f.receiver) {
                 self.rel(file).hash(&mut h);
                 span.start.hash(&mut h);
             }
@@ -156,4 +209,17 @@ impl<'a> Ctx<'a> {
     pub fn in_root(&self, file: &Path) -> bool {
         file.starts_with(self.root)
     }
+}
+
+fn memo<K: Hash + Eq + Clone, V: Clone>(
+    cache: &mut HashMap<K, V>,
+    key: K,
+    fetch: impl FnOnce() -> Result<V, HostError>,
+) -> Result<V, TraceError> {
+    if let Some(v) = cache.get(&key) {
+        return Ok(v.clone());
+    }
+    let v = fetch()?;
+    cache.insert(key, v.clone());
+    Ok(v)
 }

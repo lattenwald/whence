@@ -60,7 +60,7 @@ pass LSP results through untouched. Paths are absolute.
 ### Host → engine
 
 ```
-initialize      { root: string, capabilities: { documentHighlight: bool } }
+initialize      { root: string, capabilities: { documentHighlight: bool, implementation: bool } }
                 → { version: string, languages: [string] }
 whence/trace    { file, line, col, limits?: { depth?, fanout?, nodes?, time_ms?, split? } }
                 → Tree | error
@@ -83,7 +83,11 @@ host/definition         { file, line, col } → [Location]
 host/references         { file, line, col, includeDeclaration: bool } → [Location]
 host/documentHighlight  { file, line, col } → [{ range, kind: "read"|"write"|"text" }]
                           Optional; host declares support in initialize.
-                          Used for mutation tracking (Rust/Go).
+                          Lists a variable's occurrences for the write step
+                          (M2 §3.1); host/references is the fallback.
+host/implementation     { file, line, col } → [Location]
+                          Optional; host declares support in initialize.
+                          Implementations of an abstract method (M2 §3.3).
 ```
 
 `Location = { file, range: { start: {line, col}, end: {line, col} } }`.
@@ -108,7 +112,7 @@ Node = {
   "label": string,       // identifier or short expression text
   "loc": { "file", "line", "col" },
   "via": "match" | "rebind" | "mutation" | "arg" | "return" | "field_set"
-       | "field" | null,
+       | "field" | "element" | null,
   "snippet": string,     // the source line, trimmed
   "stop": { "reason": "external" | "entry_point" | "literal" | "unresolved" | "limit",
             "detail": string } | null,
@@ -135,12 +139,12 @@ language's captures (§6) for structure and the host for resolution:
 
 | Expression | Children |
 |---|---|
-| Variable use | `host/definition` on the variable → its binding site. Definitions are de-duplicated by (file, range); more than one distinct definition (one per `case` branch, say) → a `branch` node at the use whose children are every definition's node, `via: match`, since choosing one would be a guess and listing all is not (§5.5). *(M2 — not implemented in M1; the engine never sends `host/documentHighlight`:* if `documentHighlight` is available and returns `write` occurrences between the binding and the use, each write becomes a `binding` node with `via: rebind`/`mutation`, newest first, then the original binding.*)* |
-| Binding site (pattern `X = E`, `let x = E`, `x := E`, `a, b = f()`) | The RHS `E`; if the pattern destructures, the RHS sub-expression matching the sub-pattern that binds our identifier, when the RHS is a matching constructor/tuple; otherwise the whole RHS with `via: match`. |
+| Variable use | `host/definition` on the variable → its binding site. Definitions are de-duplicated by (file, range); more than one distinct definition (one per `case` branch, say) → a `branch` node at the use whose children are every definition's node, `via: match`, since choosing one would be a guess and listing all is not (§5.5). Unless the language is `single_assignment`, the variable's occurrences between binding and use are classified by syntax into `binding` nodes `via: rebind`/`mutation` and `unresolved: may be written by …` stops, newest first, ahead of the definition node(s): [M2 design §3.1](2026-09-03-m2-rust-go-design.md#31-variable-use). |
+| Binding site (pattern `X = E`, `let x = E`, `x := E`, `a, b = f()`) | The RHS `E`; if the pattern destructures, the RHS sub-expression matching the sub-pattern that binds our identifier, when the RHS is a matching constructor/tuple; a positional pattern against a non-constructor RHS (a call) traces the RHS with a pending *index* projection; otherwise the whole RHS with `via: match`. A loop pattern (`@binding.element`) traces the iterable `via: element`. A declaration without a value is a stop (M2 §3.2). |
 | Any value that is a branching expression (`case`/`if`/`try`/`begin`/parens), most often a binding's RHS | A `branch` node `via: match`, labelled with the first line of the expression, whose children are that expression's tails (nested branches expanded in turn), each `via: match`. Fan-out bound applies. |
 | Function parameter, frame stack **non-empty** | The call-site argument bound in the top frame (one child, no host call), narrowed by the parameter's pattern the same way a binding site is when both sit in one file. |
 | Function parameter, frame stack **empty** | `host/references` on the enclosing function → for each call site (a reference lying inside a `@call.callee`; the server has already tied it to this function, so no name or arity is compared), the argument at the parameter's index → `param` node, `via: arg`. A call site with no argument at that index is reported like a stray, with `detail: call has no argument <i>`. No references at all (or only the declaration) → `stop: entry_point`. References that are *not* call sites (an `-export` entry, a `fun f/1` value, a file with no grammar) and **no** call sites at all → `stop: unresolved: <N> reference(s) to <name>/<arity> are not call sites`, carrying one `stop: unresolved: reference is not a call site` child per in-root reference so the user can jump to it. When call sites exist alongside such references, M1 shows only the call sites (a missing edge, never a wrong one); listing the strays as extra siblings is tracked as a follow-up. Fan-out bound applies. |
-| Call `f(A, B)` | `host/definition` on the callee, de-duplicated by (file, range). All definitions outside `root` → `stop: external` with `detail` = callee text; some inside and some outside → `stop: unresolved: <N> definitions, some outside root`. All inside root → every definition is a callee whose clauses are collected, and for each return expression of those clauses (tail expressions, `return` statements, every clause body) a child of one `call_result` node `via: return`; tracing continues inside the callee with a pushed frame `{param_i → arg_i}`. Callee not found → `stop: unresolved`. |
+| Call `f(A, B)` | `host/definition` on the callee, de-duplicated by (file, range). All definitions outside `root` → `stop: external` with `detail` = callee text; some inside and some outside → `stop: unresolved: <N> definitions, some outside root`. All inside root → every definition is a callee whose clauses are collected, and for each return expression of those clauses (tail expressions, `return` statements, every clause body) a child of one `call_result` node `via: return`; tracing continues inside the callee with a pushed frame `{param_i → arg_i}`. Callee not found → `stop: unresolved`. A definition that is an abstract method (`@function.abstract`) is expanded through `host/implementation` into its in-root implementations (M2 §3.3). Methods carry their receiver in the frame beside the arguments (M2 §3.4). |
 | Field access `R#r.f`, `s.f`, `s.F` | A `field` node labelled `f of C` `via: field` whose one child is the trace of the container `C` (`via: field`) with `f` *pending*: every step of that trace (bindings, branches, callee returns, frame arguments, parameters) runs unchanged, and the pending field is applied where the trace reaches a `@construct`. A construction that sets `f` continues with that value, `via: field_set`; an update construct that does not set `f` continues with its `@construct.base`, `via: field`; a literal, an opaque, or a construction without `f` → `stop: unresolved: no field f …`. Nested accesses stack their pending fields. Nothing is matched by name: the container is resolved through the host like any variable, so a shadowing binding in a nested fun, a container built in a callee or another file, and one bound by destructuring all resolve or stop honestly (§5.5). |
 | Literal / constructor with no variable parts | `stop: literal`. |
 | Anything else (receive, closure capture, macro expansion, dynamic call, `apply`, reflection, method on unresolved receiver) | `stop: unresolved`, `detail` names the construct. |
@@ -196,7 +200,7 @@ languages/erlang/
   lang.toml       filetypes/extensions, declared quirks
 ```
 
-Vocabulary (v1; expected to grow in M2):
+Vocabulary (v1 below; M2 additions in the [M2 design §6](2026-09-03-m2-rust-go-design.md#6-vocabulary-parent-§6)):
 
 ```
 @binding  @binding.pattern  @binding.value
@@ -209,9 +213,10 @@ Vocabulary (v1; expected to grow in M2):
 ```
 
 Generic derivations (no per-language code): arguments are the named children
-of `@call.args`; argument index is position among them; parameters likewise
-from `@function.params`; callee identifier position is the end of
-`@call.callee`.
+of `@call.args`; argument index is position among them; parameters are the
+`@param` nodes owned by `@function.params` — `@param` is required, a language
+without it declares no parameters — and parameter index is position among
+them; callee identifier position is the end of `@call.callee`.
 
 Returns are data, not a flag: `@return` marks every place a value leaves a
 function (a body tail, a `return` operand), and `@return.container` /
@@ -221,10 +226,10 @@ a language with both marks both; the engine only ever asks "which `@return`
 nodes does this function own" (a nested `@opaque` or `@function` owns its
 own).
 
-`lang.toml` quirks the engine understands: `multi_assign = true|false`,
-`mutable_ref_markers = ["&mut"]`, `single_assignment = true|false`. A
-construct that cannot be expressed by queries plus these flags is a reason
-to extend the vocabulary, not to add language-specific code.
+`lang.toml` quirks the engine understands: `single_assignment = true|false`
+(skips the write step of M2 §3.1). A construct that cannot be expressed by
+queries plus this flag is a reason to extend the vocabulary, not to add
+language-specific code.
 
 nvim-treesitter-textobjects already ships `@assignment.lhs/rhs`,
 `@call.inner/outer`, `@parameter.inner`, `@return.inner` for all three

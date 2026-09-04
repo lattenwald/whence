@@ -1,0 +1,5 @@
+name = "rust"
+extensions = ["rs"]
+
+[quirks]
+single_assignment = false

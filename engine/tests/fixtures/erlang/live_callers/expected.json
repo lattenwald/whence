@@ -47,8 +47,8 @@
         },
         "snippet": "handler:limit_for(#{limit => 5}).",
         "stop": {
-          "detail": "constructed value map_expr",
-          "reason": "unresolved"
+          "detail": "map_expr",
+          "reason": "literal"
         },
         "truncated": 0,
         "via": null

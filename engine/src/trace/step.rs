@@ -3,12 +3,12 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use crate::host::Location;
+use crate::host::{HostError, Location};
 use crate::lang::vocab;
 use crate::pos::Pos;
-use crate::syntax::{Doc, FnDecl, N, Role, Span};
+use crate::syntax::{Doc, FnDecl, N, Role, Slot, Span, index_containing};
 use crate::trace::TraceError;
-use crate::trace::frame::{Ctx, ExprRef, Frame, FuncId};
+use crate::trace::frame::{Ctx, ExprRef, Frame, FuncId, Proj};
 use crate::tree::{Loc, Node, NodeKind, StopReason, Via, node_id, path_id};
 
 pub enum Expr {
@@ -173,6 +173,10 @@ pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
         };
         return Ok(unresolved(ctx, &site, "expression not found in the source"));
     };
+    let node = match doc.through(node) {
+        Some(inner) if doc.has_cap(inner, vocab::IDENT) => inner,
+        _ => node,
+    };
     let is_ident = doc.has_cap(node, vocab::IDENT);
     let site = Site::new(ctx, &doc, &file, node);
 
@@ -208,18 +212,39 @@ pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
 }
 
 fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, TraceError> {
-    let mut defs: Vec<(PathBuf, Pos)> = distinct(&ctx.definition(file, site.pos())?)
-        .into_iter()
-        .map(|l| (l.file, l.range.start))
+    let locs = distinct(&ctx.definition(file, site.pos())?);
+    let mut defs: Vec<(PathBuf, Pos)> = locs
+        .iter()
+        .map(|l| (l.file.clone(), l.range.start))
         .collect();
-    match defs.len() {
-        0 => return Ok(unresolved(ctx, site, "no definition from language server")),
-        1 => return definition(ctx, &defs[0].0, defs[0].1, site, depth),
-        _ => {}
+    if defs.is_empty() {
+        return Ok(unresolved(ctx, site, "no definition from language server"));
     }
-    sort_local(&mut defs, file, |p| (p.line, p.col));
-    let (dropped, collapsed) = candidates(ctx, site, &mut defs, "definitions");
+    let doc = ctx.doc(file)?;
+    let mut occ = if doc.single_assignment() {
+        Vec::new()
+    } else {
+        occurrences(ctx, &doc, file, site, &locs)?
+    };
+
+    if occ.is_empty() && defs.len() == 1 {
+        return definition(ctx, &defs[0].0, defs[0].1, site, depth);
+    }
+
     let mut children = Vec::new();
+    let (dropped, collapsed) = if occ.is_empty() {
+        sort_local(&mut defs, file, |p| (p.line, p.col));
+        candidates(ctx, site, &mut defs, "definitions")
+    } else {
+        occ.sort_by_key(|o| std::cmp::Reverse(o.occurrence().start));
+        let cut = candidates(ctx, site, &mut occ, "writes");
+        for o in occ {
+            children.push(expand_occurrence(ctx, file, o, depth)?);
+        }
+        children.extend(cut.1);
+        (cut.0, None)
+    };
+    // Past the fan-out cut when occurrences took it, so the binding stays visible.
     for (f, p) in &defs {
         let mut child = definition(ctx, f, *p, site, depth)?;
         child.via = Some(Via::Match);
@@ -234,6 +259,270 @@ fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, Tr
         children,
         dropped,
     ))
+}
+
+enum Occ {
+    Write {
+        occurrence: Span,
+        assign: Span,
+        /// The `@assign.target`, `@through` already applied.
+        target: Span,
+        value: Option<Span>,
+        /// The write lands on the occurrence itself, not on a field or element of it.
+        whole: bool,
+        via: Via,
+    },
+    Escape {
+        occurrence: Span,
+        detail: String,
+    },
+}
+
+impl Occ {
+    fn occurrence(&self) -> Span {
+        match self {
+            Occ::Write { occurrence, .. } | Occ::Escape { occurrence, .. } => *occurrence,
+        }
+    }
+}
+
+/// Everything that may have written the variable between its binding and this use (spec §3.1).
+fn occurrences(
+    ctx: &mut Ctx,
+    doc: &Doc,
+    file: &Path,
+    site: &Site,
+    defs: &[Location],
+) -> Result<Vec<Occ>, TraceError> {
+    if defs.iter().any(|d| d.file != file) {
+        return Ok(Vec::new());
+    }
+    let use_pos = site.pos();
+    let (Some(use_off), Some(func)) = (
+        doc.byte_offset(use_pos),
+        doc.ident_at(use_pos)
+            .and_then(|u| doc.enclosing_function_node(u))
+            .map(|f| f.0.id()),
+    ) else {
+        return Ok(Vec::new());
+    };
+    let Some(def_off) = defs
+        .iter()
+        .filter_map(|d| doc.byte_offset(d.range.start))
+        .min()
+    else {
+        return Ok(Vec::new());
+    };
+
+    let positions = ctx.occurrences(file, use_pos)?;
+    ctx.remember_symbol(file, defs, &positions);
+    let mut out = Vec::new();
+    for p in positions {
+        if defs.iter().any(|d| d.range.start == p) {
+            continue;
+        }
+        let Some(off) = doc.byte_offset(p) else {
+            continue;
+        };
+        if off <= def_off || off >= use_off {
+            continue;
+        }
+        let Some(o) = doc.ident_at(p) else {
+            continue;
+        };
+        if doc.enclosing_function_node(o).map(|f| f.0.id()) != Some(func) {
+            continue;
+        }
+        if let Some(occ) = classify(ctx, doc, file, o)? {
+            out.push(occ);
+        }
+    }
+    Ok(out)
+}
+
+fn classify(ctx: &mut Ctx, doc: &Doc, file: &Path, o: N) -> Result<Option<Occ>, TraceError> {
+    if let Some(a) = doc.assign_at(o) {
+        let target = doc.through(a.target).unwrap_or(a.target);
+        let place = place_written(doc, target, o);
+        // Reads that live inside the target: the `i` of `x[i]`, the key of `m[k]`.
+        if !doc
+            .place_chain(place)
+            .iter()
+            .any(|p| Span::of(*p) == Span::of(o))
+        {
+            return Ok(None);
+        }
+        let whole = Span::of(place) == Span::of(o);
+        if let Some(proj) = ctx.proj.last()
+            && !whole
+            && !sets_projection(doc, place, o, proj)
+        {
+            return Ok(None);
+        }
+        return Ok(Some(Occ::Write {
+            occurrence: Span::of(o),
+            assign: Span::of(a.node),
+            target: Span::of(target),
+            value: a.value.map(Span::of),
+            whole,
+            via: if whole && !a.compound {
+                Via::Rebind
+            } else {
+                Via::Mutation
+            },
+        }));
+    }
+    let using = doc.call_using(o);
+    if let Some(escape) = doc.escaped(o) {
+        let what = match &using {
+            Some((call, _)) => first_line_of(doc, call.node),
+            None => clip(doc.line_of(escape).trim()),
+        };
+        return Ok(Some(Occ::Escape {
+            occurrence: Span::of(o),
+            detail: format!("may be written by {what}"),
+        }));
+    }
+    let Some((call, slot)) = using else {
+        return Ok(None);
+    };
+    let callee = doc.callee_text(&call);
+    let defs = distinct(&ctx.definition(file, doc.pos_of(call.callee))?);
+    if defs.is_empty() {
+        return Ok(None);
+    }
+    if defs.iter().all(|d| !ctx.in_root(&d.file)) {
+        // A value passed to unknown code is no evidence of a write; a receiver is.
+        if !matches!(slot, Slot::Receiver) {
+            return Ok(None);
+        }
+        return Ok(Some(Occ::Escape {
+            occurrence: Span::of(o),
+            detail: format!("may be written by external method {callee}"),
+        }));
+    }
+    let mut mutable = false;
+    for d in &defs {
+        if !ctx.in_root(&d.file) {
+            continue;
+        }
+        let Some(cdoc) = ctx.doc_if_known(&d.file)? else {
+            continue;
+        };
+        let Some(decl) = cdoc
+            .declares_function(d.range.start)
+            .or_else(|| cdoc.declares_abstract(d.range.start))
+        else {
+            continue;
+        };
+        let shift = receiver_shift(&decl, call.receiver.is_some(), call.args.len());
+        mutable |= match (slot, shift) {
+            (Slot::Receiver, _) | (Slot::Arg(0), true) => cdoc.has_mutable_receiver(&decl),
+            (Slot::Arg(i), true) => cdoc.param_is_mutable(&decl, i - 1),
+            (Slot::Arg(i), false) => cdoc.param_is_mutable(&decl, i),
+        };
+    }
+    Ok(mutable.then(|| Occ::Escape {
+        occurrence: Span::of(o),
+        detail: format!("may be written by {callee}(…)"),
+    }))
+}
+
+/// The one target of a multi-target write that `o` belongs to: `a, b = b, a` writes `a` alone.
+fn place_written<'t>(doc: &'t Doc<'_>, target: N<'t>, o: N<'t>) -> N<'t> {
+    doc.positional(target)
+        .and_then(|es| index_containing(&es, o).map(|i| es[i]))
+        .unwrap_or(target)
+}
+
+fn sets_projection(doc: &Doc, place: N, o: N, proj: &Proj) -> bool {
+    doc.field_access(place).is_some_and(|(container, name)| {
+        Span::of(container) == Span::of(o)
+            && match proj {
+                Proj::Field(f) => &name == f,
+                Proj::Index(i) => name.parse::<usize>() == Ok(*i),
+            }
+    })
+}
+
+/// The part of `value` the pattern binds to `ident`, else `value` under its element index.
+fn expand_pattern<'t>(
+    ctx: &mut Ctx,
+    doc: &'t Doc<'_>,
+    file: &Path,
+    pattern: N<'t>,
+    ident: N<'t>,
+    value: N<'t>,
+    depth: u32,
+) -> Result<Node, TraceError> {
+    let (source, index) = match doc.destructure(pattern, ident, value) {
+        Some(s) => (s, None),
+        None => (value, doc.pattern_index(pattern, ident)),
+    };
+    if let Some(i) = index {
+        ctx.proj.push(Proj::Index(i));
+    }
+    let child = expand(
+        ctx,
+        &Expr::Value(file.to_path_buf(), Span::of(source)),
+        depth + 1,
+    );
+    if index.is_some() {
+        ctx.proj.pop();
+    }
+    child
+}
+
+fn expand_occurrence(ctx: &mut Ctx, file: &Path, occ: Occ, depth: u32) -> Result<Node, TraceError> {
+    let doc = ctx.doc(file)?;
+    let o = doc
+        .node(occ.occurrence())
+        .expect("the occurrence was found in this document");
+    let osite = Site::new(ctx, &doc, file, o);
+    let (assign, target, value, whole, via) = match occ {
+        Occ::Escape { detail, .. } => {
+            ctx.node_count += 1;
+            return Ok(unresolved(ctx, &osite, detail));
+        }
+        Occ::Write {
+            assign,
+            target,
+            value,
+            whole,
+            via,
+            ..
+        } => (assign, target, value, whole, via),
+    };
+    let found = "classify resolved these spans in this document";
+    let child = match value {
+        None => {
+            let a = doc.node(assign).expect(found);
+            let asite = Site::new(ctx, &doc, file, a);
+            ctx.node_count += 1;
+            stop(ctx, &asite, StopReason::Literal, a.0.kind())
+        }
+        Some(v) => {
+            // `o.f = v` sets the pending projection: the child is the value, the projection consumed.
+            let pending = if whole { None } else { ctx.proj.pop() };
+            let field_set = pending.is_some();
+            let child = expand_pattern(
+                ctx,
+                &doc,
+                file,
+                doc.node(target).expect(found),
+                o,
+                doc.node(v).expect(found),
+                depth,
+            );
+            ctx.proj.extend(pending);
+            let mut child = child?;
+            if field_set {
+                child.via = Some(Via::FieldSet);
+            }
+            child
+        }
+    };
+    Ok(make(ctx, NodeKind::Binding, &osite, via, vec![child], 0))
 }
 
 fn definition(
@@ -255,14 +544,19 @@ fn definition(
     let dsite = Site::new(ctx, &doc, def_file, ident);
 
     match doc.role_of(ident) {
+        Role::Declared { literal: true } => {
+            Ok(stop(ctx, &dsite, StopReason::Literal, "zero value"))
+        }
+        Role::Declared { literal: false } => {
+            Ok(unresolved(ctx, &dsite, "declared without a value"))
+        }
         Role::BoundBy { pattern, value }
         | Role::BranchPattern {
             pattern,
             subject: value,
         } => {
-            let source = doc.destructure(pattern, ident, value).unwrap_or(value);
-            let child = Expr::Value(def_file.to_path_buf(), Span::of(source));
-            let child = matched(expand(ctx, &child, depth + 1)?);
+            let child = expand_pattern(ctx, &doc, def_file, pattern, ident, value, depth)?;
+            let child = matched(child);
             Ok(make(
                 ctx,
                 NodeKind::Binding,
@@ -272,8 +566,24 @@ fn definition(
                 0,
             ))
         }
-        Role::Param { func, index } => {
-            param(ctx, &doc, def_file, &func, index, ident, &dsite, depth)
+        Role::ElementOf { value, .. } => {
+            let mut child = expand(
+                ctx,
+                &Expr::Value(def_file.to_path_buf(), Span::of(value)),
+                depth + 1,
+            )?;
+            child.via = Some(Via::Element);
+            Ok(make(
+                ctx,
+                NodeKind::Binding,
+                &dsite,
+                Via::Match,
+                vec![child],
+                0,
+            ))
+        }
+        Role::Param { func, slot } => {
+            param_like(ctx, &doc, def_file, &func, slot, ident, &dsite, depth)
         }
         Role::Opaque(n) => Ok(unresolved(
             ctx,
@@ -317,40 +627,56 @@ fn narrow(doc: &Doc, pattern: Option<N>, ident: N, file: &Path, arg: &ExprRef) -
         .unwrap_or(arg.1)
 }
 
+fn receiver_shift(func: &FnDecl, call_has_receiver: bool, argc: usize) -> bool {
+    func.receiver.is_some() && !call_has_receiver && argc == func.params.len() + 1
+}
+
+fn slot_pattern<'t>(func: &FnDecl<'t>, slot: Slot) -> Option<N<'t>> {
+    match slot {
+        Slot::Arg(i) => func.params.get(i).copied(),
+        Slot::Receiver => func.receiver,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
-fn param(
+fn param_like(
     ctx: &mut Ctx,
     doc: &Doc,
     file: &Path,
     func: &FnDecl,
-    index: usize,
+    slot: Slot,
     ident: N,
     site: &Site,
     depth: u32,
 ) -> Result<Node, TraceError> {
     let func_id = FuncId {
         file: file.to_path_buf(),
+        group: doc.function_group(func),
         name: func.name.clone(),
         arity: func.params.len(),
     };
 
     if let Some(frame) = ctx.frames.pop_if(|f| f.func_id == func_id) {
-        let arg = frame.args.get(index).cloned();
+        let arg = match slot {
+            Slot::Arg(i) => frame.args.get(i).cloned(),
+            Slot::Receiver => frame.receiver.clone(),
+        };
         // The argument is the caller's expression: expand it in the caller's frame.
         let child = match arg {
             Some(a) => {
-                let s = narrow(doc, func.params.get(index).copied(), ident, file, &a);
+                let s = narrow(doc, slot_pattern(func, slot), ident, file, &a);
                 expand(ctx, &Expr::Value(a.0, s), depth + 1)
             }
             None => {
                 ctx.node_count += 1;
+                let what = match slot {
+                    Slot::Arg(i) => format!("argument {i}"),
+                    Slot::Receiver => "receiver".to_string(),
+                };
                 Ok(unresolved(
                     ctx,
                     site,
-                    format!(
-                        "frame has no argument {index} for {}",
-                        func_id.describe(ctx)
-                    ),
+                    format!("frame has no {what} for {}", func_id.describe(ctx)),
                 ))
             }
         };
@@ -358,15 +684,7 @@ fn param(
         return Ok(make(ctx, NodeKind::Param, site, Via::Arg, vec![child?], 0));
     }
 
-    let Some(name) = doc
-        .caps_within(
-            vocab::FUNCTION_NAME,
-            func.node.0.start_byte(),
-            func.node.0.end_byte(),
-        )
-        .into_iter()
-        .next()
-    else {
+    let Some(name) = doc.name_node(func) else {
         return Ok(unresolved(ctx, site, "function declaration has no name"));
     };
     let refs = ctx.references(file, doc.pos_of(name), false)?;
@@ -393,14 +711,30 @@ fn param(
         // The server already tied the reference to this function; what is left is
         // structural: is it the callee of a call, and does that call pass this argument?
         match rdoc.call_with_callee_at(r.range.start) {
-            Some(call) => match call.args.get(index) {
-                Some(a) => sites.push((r.file.clone(), Span::of(*a))),
-                None => strays.push((
-                    r.file.clone(),
-                    r.range.start,
-                    format!("call has no argument {}", index + 1),
-                )),
-            },
+            Some(call) => {
+                let shift = usize::from(receiver_shift(
+                    func,
+                    call.receiver.is_some(),
+                    call.args.len(),
+                ));
+                let picked = match slot {
+                    Slot::Arg(i) => call.args.get(i + shift).copied(),
+                    Slot::Receiver => call
+                        .receiver
+                        .or_else(|| (shift == 1).then(|| call.args.first().copied()).flatten()),
+                };
+                match picked {
+                    Some(a) => sites.push((r.file.clone(), Span::of(a))),
+                    None => strays.push((
+                        r.file.clone(),
+                        r.range.start,
+                        match slot {
+                            Slot::Arg(i) => format!("call has no argument {}", i + 1),
+                            Slot::Receiver => "call has no receiver".to_string(),
+                        },
+                    )),
+                }
+            }
             None => strays.push((
                 r.file.clone(),
                 r.range.start,
@@ -445,7 +779,7 @@ fn param(
     let (dropped, collapsed) = candidates(ctx, site, &mut sites, "call sites");
     let mut children = Vec::new();
     for a in sites {
-        let s = narrow(doc, func.params.get(index).copied(), ident, file, &a);
+        let s = narrow(doc, slot_pattern(func, slot), ident, file, &a);
         children.push(expand(ctx, &Expr::Value(a.0, s), depth + 1)?);
     }
     children.extend(collapsed);
@@ -518,25 +852,26 @@ fn candidates<T>(
     (dropped, None)
 }
 
-fn value(
+fn value<'t>(
     ctx: &mut Ctx,
-    doc: &Doc,
+    doc: &'t Doc<'_>,
     file: &Path,
-    n: N,
+    n: N<'t>,
     site: &Site,
     depth: u32,
 ) -> Result<Node, TraceError> {
-    if let Some(field) = ctx.proj.last().cloned()
+    let n = doc.through(n).unwrap_or(n);
+    if let Some(proj) = ctx.proj.last().cloned()
         && doc.has_cap(n, vocab::CONSTRUCT)
     {
-        return project(ctx, doc, file, n, site, &field, depth);
+        return project(ctx, doc, file, n, site, &proj, depth);
     }
     if doc.is_literal(n) {
-        if let Some(field) = ctx.proj.last() {
+        if let Some(proj) = ctx.proj.last() {
             return Ok(unresolved(
                 ctx,
                 site,
-                format!("no field {field} in a literal"),
+                format!("no {} in a literal", proj.describe()),
             ));
         }
         return Ok(stop(ctx, site, StopReason::Literal, n.0.kind()));
@@ -553,7 +888,7 @@ fn value(
         } else {
             Expr::Value(file.to_path_buf(), Span::of(container))
         };
-        ctx.proj.push(field.clone());
+        ctx.proj.push(Proj::Field(field.clone()));
         let child = expand(ctx, &container_expr, depth + 1);
         ctx.proj.pop();
         let mut child = child?;
@@ -575,11 +910,13 @@ fn value(
             .iter()
             .map(|a| (file.to_path_buf(), Span::of(*a)))
             .collect();
+        let receiver = call.receiver.map(|r| (file.to_path_buf(), Span::of(r)));
         return call_result(
             ctx,
             doc.pos_of(call.callee),
             &callee,
             args,
+            receiver,
             file,
             site,
             depth,
@@ -595,11 +932,13 @@ fn value(
     Ok(unresolved(ctx, site, n.0.kind()))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn call_result(
     ctx: &mut Ctx,
     name_pos: Pos,
     callee: &str,
     args: Vec<ExprRef>,
+    receiver: Option<ExprRef>,
     file: &Path,
     site: &Site,
     depth: u32,
@@ -608,6 +947,50 @@ fn call_result(
     if defs.is_empty() {
         return Ok(unresolved(ctx, site, "callee not found"));
     }
+    // An abstract declaration is not a callee: its implementations are.
+    let mut expanded: Vec<Location> = Vec::new();
+    for d in &defs {
+        if !ctx.in_root(&d.file) {
+            expanded.push(d.clone());
+            continue;
+        }
+        let Some(doc) = ctx.doc_if_known(&d.file)? else {
+            expanded.push(d.clone());
+            continue;
+        };
+        let Some(abs) = doc.declares_abstract(d.range.start) else {
+            expanded.push(d.clone());
+            continue;
+        };
+        let Some(name) = doc.name_node(&abs) else {
+            return Ok(unresolved(ctx, site, "function declaration has no name"));
+        };
+        let decl_pos = doc.pos_of(name);
+        let mut here = match ctx.implementation(&d.file, decl_pos) {
+            Ok(impls) => distinct(&impls),
+            Err(TraceError::Host(HostError::Unsupported(_))) => {
+                return Ok(unresolved(
+                    ctx,
+                    site,
+                    format!("abstract method {}", abs.name),
+                ));
+            }
+            Err(e) => return Err(e),
+        };
+        if abs.body.is_some() {
+            here.push(d.clone());
+        }
+        if here.is_empty() {
+            return Ok(unresolved(
+                ctx,
+                site,
+                format!("no implementation of {}", abs.name),
+            ));
+        }
+        expanded.extend(here);
+    }
+    let defs = distinct(&expanded);
+
     let outside = defs.iter().filter(|l| !ctx.in_root(&l.file)).count();
     if outside == defs.len() {
         return Ok(stop(ctx, site, StopReason::External, callee));
@@ -621,7 +1004,7 @@ fn call_result(
     }
 
     // Distinct callees, not clauses: several definitions of one function collapse here.
-    let mut targets: Vec<FuncId> = Vec::new();
+    let mut targets: Vec<Frame> = Vec::new();
     for d in &defs {
         let Some(doc) = ctx.doc_if_known(&d.file)? else {
             return Ok(unresolved(ctx, site, no_language(ctx, &d.file)));
@@ -633,28 +1016,37 @@ fn call_result(
                 format!("definition of {callee} is not a function"),
             ));
         };
-        let t = FuncId {
+        let func_id = FuncId {
             file: d.file.clone(),
+            group: doc.function_group(&decl),
             name: decl.name.clone(),
             arity: decl.params.len(),
         };
-        if !targets.contains(&t) {
-            targets.push(t);
+        if targets.iter().any(|t| t.func_id == func_id) {
+            continue;
         }
+        let (mut args, mut receiver) = (args.clone(), receiver.clone());
+        if receiver_shift(&decl, receiver.is_some(), args.len()) {
+            receiver = Some(args.remove(0));
+        }
+        targets.push(Frame {
+            func_id,
+            args,
+            receiver,
+        });
     }
 
     let mut plan: Vec<(usize, Span)> = Vec::new();
     let mut recursive: Vec<usize> = Vec::new();
     for (i, t) in targets.iter().enumerate() {
-        if ctx.frames.iter().any(|f| &f.func_id == t && f.args == args) {
+        if ctx.frames.contains(t) {
             recursive.push(i);
             continue;
         }
-        let doc = ctx.doc(&t.file)?;
+        let doc = ctx.doc(&t.func_id.file)?;
         let mut returns: Vec<Span> = doc
-            .functions()
+            .clauses_of(t.func_id.group, &t.func_id.name, t.func_id.arity)
             .iter()
-            .filter(|c| c.name == t.name && c.params.len() == t.arity)
             .flat_map(|c| doc.returns_of(c))
             .map(Span::of)
             .collect();
@@ -662,7 +1054,7 @@ fn call_result(
         plan.extend(returns.into_iter().map(|s| (i, s)));
     }
     if plan.is_empty() && !recursive.is_empty() {
-        let t = &targets[recursive[0]];
+        let t = &targets[recursive[0]].func_id;
         return Ok(unresolved(
             ctx,
             site,
@@ -680,20 +1072,19 @@ fn call_result(
         recursive
     };
     let mut children = Vec::new();
-    for (i, s) in plan {
-        let t = &targets[i];
-        let frame = Frame {
-            func_id: t.clone(),
-            args: args.clone(),
-        };
-        let f = t.file.clone();
-        ctx.frames.push(frame);
-        let child = expand(ctx, &Expr::Value(f, s), depth + 1);
+    for group in plan.chunk_by(|a, b| a.0 == b.0) {
+        let t = &targets[group[0].0];
+        let f = t.func_id.file.clone();
+        ctx.frames.push(t.clone());
+        let expanded: Result<Vec<Node>, TraceError> = group
+            .iter()
+            .map(|(_, s)| expand(ctx, &Expr::Value(f.clone(), *s), depth + 1))
+            .collect();
         ctx.frames.pop();
-        children.push(child?);
+        children.extend(expanded?);
     }
     for (nth, i) in recursive.into_iter().enumerate() {
-        let t = &targets[i];
+        let t = &targets[i].func_id;
         let detail = format!("recursive call to {}/{}", t.name, t.arity);
         children.push(stop_nth(
             ctx,
@@ -717,16 +1108,24 @@ fn call_result(
     ))
 }
 
-fn project(
+fn project<'t>(
     ctx: &mut Ctx,
-    doc: &Doc,
+    doc: &'t Doc<'_>,
     file: &Path,
-    n: N,
+    n: N<'t>,
     site: &Site,
-    field: &str,
+    proj: &Proj,
     depth: u32,
 ) -> Result<Node, TraceError> {
-    if let Some(value) = doc.construct_field(n, field) {
+    let selected = match proj {
+        Proj::Field(f) => doc.construct_field(n, f).or_else(|| {
+            f.parse::<usize>()
+                .ok()
+                .and_then(|i| doc.construct_element(n, i))
+        }),
+        Proj::Index(i) => doc.construct_element(n, *i),
+    };
+    if let Some(value) = selected {
         let pending = ctx.proj.pop();
         let child = expand(
             ctx,
@@ -750,7 +1149,7 @@ fn project(
     Ok(unresolved(
         ctx,
         site,
-        format!("no field {field} in this {}", n.0.kind()),
+        format!("no {} in this {}", proj.describe(), n.0.kind()),
     ))
 }
 

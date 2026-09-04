@@ -1,0 +1,92 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [],
+        "id": "133d3a91e0878226",
+        "kind": "stop",
+        "label": "v",
+        "loc": {
+          "col": 9,
+          "file": "src/main.rs",
+          "line": 9
+        },
+        "snippet": "fill(v);",
+        "stop": {
+          "detail": "may be written by fill(…)",
+          "reason": "unresolved"
+        },
+        "truncated": 0,
+        "via": null
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "31f0276eec306cd2",
+                "kind": "stop",
+                "label": "vec![1]",
+                "loc": {
+                  "col": 17,
+                  "file": "src/main.rs",
+                  "line": 15
+                },
+                "snippet": "let mut xs = vec![1];",
+                "stop": {
+                  "detail": "macro_invocation",
+                  "reason": "unresolved"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "0d5f20859fa03abd",
+            "kind": "binding",
+            "label": "xs",
+            "loc": {
+              "col": 12,
+              "file": "src/main.rs",
+              "line": 15
+            },
+            "snippet": "let mut xs = vec![1];",
+            "stop": null,
+            "truncated": 0,
+            "via": "match"
+          }
+        ],
+        "id": "f513803c9eff00b4",
+        "kind": "param",
+        "label": "v",
+        "loc": {
+          "col": 7,
+          "file": "src/main.rs",
+          "line": 8
+        },
+        "snippet": "fn run(v: &mut Vec<i32>) -> usize {",
+        "stop": null,
+        "truncated": 0,
+        "via": "match"
+      }
+    ],
+    "id": "7a13b4d1ecc3b64a",
+    "kind": "branch",
+    "label": "v",
+    "loc": {
+      "col": 4,
+      "file": "src/main.rs",
+      "line": 11
+    },
+    "snippet": "v.capacity()",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 8,
+    "ms": 0,
+    "nodes": 5,
+    "truncated": 0
+  }
+}

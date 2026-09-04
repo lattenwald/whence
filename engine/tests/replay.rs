@@ -30,7 +30,7 @@ impl Default for Case {
 
 fn fixture(dir: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/erlang")
+        .join("tests/fixtures")
         .join(dir)
 }
 
@@ -102,7 +102,7 @@ fn check(c: Case) -> serde_json::Value {
 #[test]
 fn local_chain() {
     let v = check(Case {
-        dir: "local_chain",
+        dir: "erlang/local_chain",
         file: "a.erl",
         pos: (6, 4),
         ..Default::default()
@@ -123,7 +123,7 @@ fn local_chain() {
 #[test]
 fn param_callers() {
     let v = check(Case {
-        dir: "param_callers",
+        dir: "erlang/param_callers",
         file: "b.erl",
         pos: (3, 8),
         ..Default::default()
@@ -140,7 +140,7 @@ fn param_callers() {
 #[test]
 fn call_result() {
     let v = check(Case {
-        dir: "call_result",
+        dir: "erlang/call_result",
         file: "d.erl",
         pos: (5, 4),
         ..Default::default()
@@ -158,7 +158,7 @@ fn call_result() {
 #[test]
 fn call_result_frame() {
     let v = check(Case {
-        dir: "call_result",
+        dir: "erlang/call_result",
         file: "d.erl",
         pos: (9, 4),
         limits: Limits::default(),
@@ -176,7 +176,7 @@ fn call_result_frame() {
 #[test]
 fn external_call() {
     let v = check(Case {
-        dir: "external_and_entry",
+        dir: "erlang/external_and_entry",
         file: "e.erl",
         pos: (5, 4),
         ..Default::default()
@@ -189,7 +189,7 @@ fn external_call() {
 #[test]
 fn entry_point_param() {
     let v = check(Case {
-        dir: "external_and_entry",
+        dir: "erlang/external_and_entry",
         file: "e.erl",
         pos: (4, 18),
         limits: Limits::default(),
@@ -204,7 +204,7 @@ fn entry_point_param() {
 #[test]
 fn fanout_truncates() {
     let v = check(Case {
-        dir: "limits",
+        dir: "erlang/limits",
         file: "l.erl",
         pos: (3, 8),
         limits: Limits {
@@ -221,7 +221,7 @@ fn fanout_truncates() {
 #[test]
 fn recursion_stops() {
     let v = check(Case {
-        dir: "limits",
+        dir: "erlang/limits",
         file: "l.erl",
         pos: (5, 16),
         limits: Limits::default(),
@@ -236,7 +236,7 @@ fn recursion_stops() {
 #[test]
 fn depth_limit_stops() {
     let v = run(&Case {
-        dir: "local_chain",
+        dir: "erlang/local_chain",
         file: "a.erl",
         pos: (6, 4),
         limits: Limits {
@@ -252,7 +252,7 @@ fn depth_limit_stops() {
 #[test]
 fn node_limit_stops() {
     let v = run(&Case {
-        dir: "local_chain",
+        dir: "erlang/local_chain",
         file: "a.erl",
         pos: (6, 4),
         limits: Limits {
@@ -270,7 +270,7 @@ fn node_limit_stops() {
 #[test]
 fn a_diamond_is_not_recursion() {
     let v = check(Case {
-        dir: "diamond",
+        dir: "erlang/diamond",
         file: "n.erl",
         pos: (5, 4),
         ..Default::default()
@@ -300,7 +300,7 @@ fn collect_ids(n: &serde_json::Value) -> Vec<&str> {
 #[test]
 fn self_recursive_call_is_cut() {
     let v = check(Case {
-        dir: "recursion",
+        dir: "erlang/recursion",
         file: "r.erl",
         pos: (5, 4),
         limits: Limits::default(),
@@ -315,7 +315,7 @@ fn self_recursive_call_is_cut() {
 #[test]
 fn accumulator_recursion_keeps_the_base_case() {
     let v = check(Case {
-        dir: "recursion",
+        dir: "erlang/recursion",
         file: "r.erl",
         pos: (11, 4),
         limits: Limits::default(),
@@ -337,7 +337,7 @@ fn accumulator_recursion_keeps_the_base_case() {
 #[test]
 fn field_set_is_followed_to_the_construction() {
     let v = check(Case {
-        dir: "field_access",
+        dir: "erlang/field_access",
         file: "g.erl",
         pos: (8, 4),
         ..Default::default()
@@ -362,7 +362,7 @@ fn field_set_is_followed_to_the_construction() {
 #[test]
 fn a_shadowing_container_is_not_matched_by_name() {
     let v = check(Case {
-        dir: "field_projection",
+        dir: "erlang/field_projection",
         file: "p.erl",
         pos: (7, 18),
         expected: "expected_shadow.json",
@@ -378,7 +378,7 @@ fn a_shadowing_container_is_not_matched_by_name() {
 #[test]
 fn a_field_is_taken_from_a_callee_construction() {
     let v = check(Case {
-        dir: "field_projection",
+        dir: "erlang/field_projection",
         file: "p.erl",
         pos: (16, 4),
         expected: "expected_call.json",
@@ -402,7 +402,7 @@ fn a_field_is_taken_from_a_callee_construction() {
 #[test]
 fn an_update_that_sets_the_field_is_its_source() {
     let v = check(Case {
-        dir: "field_projection",
+        dir: "erlang/field_projection",
         file: "p.erl",
         pos: (17, 4),
         expected: "expected_update.json",
@@ -418,7 +418,7 @@ fn an_update_that_sets_the_field_is_its_source() {
 #[test]
 fn an_update_without_the_field_passes_to_its_base() {
     let v = check(Case {
-        dir: "field_projection",
+        dir: "erlang/field_projection",
         file: "p.erl",
         pos: (18, 4),
         expected: "expected_base.json",
@@ -434,7 +434,7 @@ fn an_update_without_the_field_passes_to_its_base() {
 #[test]
 fn every_construction_of_the_container_is_a_sibling() {
     let v = check(Case {
-        dir: "honesty_field_branches",
+        dir: "erlang/honesty_field_branches",
         file: "f.erl",
         pos: (11, 4),
         ..Default::default()
@@ -460,7 +460,7 @@ fn split_off_collapses_every_fork_to_one_stop() {
         ..Default::default()
     };
     let v = run(&Case {
-        dir: "honesty_field_branches",
+        dir: "erlang/honesty_field_branches",
         file: "f.erl",
         pos: (11, 4),
         limits: no_split,
@@ -476,7 +476,7 @@ fn split_off_collapses_every_fork_to_one_stop() {
     );
 
     let v = run(&Case {
-        dir: "diamond",
+        dir: "erlang/diamond",
         file: "n.erl",
         pos: (5, 4),
         limits: no_split,
@@ -494,7 +494,7 @@ fn split_off_collapses_every_fork_to_one_stop() {
 #[test]
 fn references_that_are_not_call_sites_are_not_an_entry_point() {
     let v = check(Case {
-        dir: "honesty_callback_ref",
+        dir: "erlang/honesty_callback_ref",
         file: "c.erl",
         pos: (5, 9),
         ..Default::default()
@@ -517,7 +517,7 @@ fn references_that_are_not_call_sites_are_not_an_entry_point() {
 #[test]
 fn several_definitions_are_all_shown() {
     let v = check(Case {
-        dir: "honesty_multi_def",
+        dir: "erlang/honesty_multi_def",
         file: "m.erl",
         pos: (9, 4),
         ..Default::default()
@@ -536,7 +536,7 @@ fn several_definitions_are_all_shown() {
 #[test]
 fn a_branching_right_hand_side_expands_to_its_tails() {
     let v = check(Case {
-        dir: "honesty_case_rhs",
+        dir: "erlang/honesty_case_rhs",
         file: "z.erl",
         pos: (8, 4),
         ..Default::default()
@@ -557,7 +557,7 @@ fn a_branching_right_hand_side_expands_to_its_tails() {
 #[test]
 fn a_destructuring_parameter_narrows_the_argument() {
     let v = check(Case {
-        dir: "honesty_param_destructure",
+        dir: "erlang/honesty_param_destructure",
         file: "p.erl",
         pos: (5, 29),
         ..Default::default()
@@ -572,7 +572,7 @@ fn a_destructuring_parameter_narrows_the_argument() {
 #[test]
 fn a_zero_time_budget_stops_at_once() {
     let v = run(&Case {
-        dir: "local_chain",
+        dir: "erlang/local_chain",
         file: "a.erl",
         pos: (6, 4),
         limits: Limits {
@@ -588,7 +588,7 @@ fn a_zero_time_budget_stops_at_once() {
 #[test]
 fn ids_do_not_depend_on_the_checkout_path() {
     let case = Case {
-        dir: "call_result",
+        dir: "erlang/call_result",
         file: "d.erl",
         pos: (5, 4),
         ..Default::default()
@@ -605,7 +605,7 @@ fn ids_do_not_depend_on_the_checkout_path() {
 
 #[test]
 fn cursor_off_an_identifier_is_an_error() {
-    let dir = fixture("local_chain");
+    let dir = fixture("erlang/local_chain");
     let mut host = ReplayHost::load(&dir).unwrap();
     let reg = Registry::embedded().unwrap();
     let req = TraceRequest {
@@ -625,7 +625,7 @@ fn cursor_off_an_identifier_is_an_error() {
 #[test]
 fn live_limit_recorded_from_elp() {
     let v = check(Case {
-        dir: "live_limit",
+        dir: "erlang/live_limit",
         file: "src/handler.erl",
         pos: (8, 24),
         ..Default::default()
@@ -640,7 +640,7 @@ fn live_limit_recorded_from_elp() {
 #[test]
 fn live_callers_recorded_from_elp() {
     let v = check(Case {
-        dir: "live_callers",
+        dir: "erlang/live_callers",
         file: "src/handler.erl",
         pos: (12, 25),
         ..Default::default()
@@ -652,9 +652,273 @@ fn live_callers_recorded_from_elp() {
 }
 
 #[test]
+fn rust_rebind() {
+    let v = check(Case {
+        dir: "rust/rebind",
+        file: "src/main.rs",
+        pos: (9, 9),
+        ..Default::default()
+    });
+    assert_eq!(v["root"]["kind"], "branch");
+    let kids = v["root"]["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 3);
+    // Newest write first, then the binding the definition points at.
+    assert_eq!(kids[0]["via"], "mutation");
+    assert_eq!(kids[1]["via"], "rebind");
+    assert_eq!(kids[1]["children"][0]["label"], "v + 1");
+    assert_eq!(kids[2]["via"], "match");
+    assert_eq!(kids[2]["children"][0]["label"], "a");
+}
+
+#[test]
+fn rust_escape() {
+    let v = check(Case {
+        dir: "rust/escape",
+        file: "src/main.rs",
+        pos: (29, 10),
+        ..Default::default()
+    });
+    let kids = v["root"]["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 4);
+    let details: Vec<&str> = kids[..3]
+        .iter()
+        .map(|k| k["stop"]["detail"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        details,
+        [
+            "may be written by external method len",
+            "may be written by bump(…)",
+            "may be written by mutate(&mut s)",
+        ]
+    );
+    // `s.peek()` takes `&self`: reading through a method is not a write.
+    assert!(!serde_json::to_string(&v).unwrap().contains("peek"));
+    assert_eq!(kids[3]["via"], "match");
+}
+
+#[test]
+fn rust_mut_param() {
+    let v = check(Case {
+        dir: "rust/mut_param",
+        file: "src/main.rs",
+        pos: (11, 4),
+        ..Default::default()
+    });
+    let kids = v["root"]["children"].as_array().unwrap();
+    // `fill` takes `&mut Vec<i32>`; `count` takes `&Vec<i32>` and is not a write.
+    assert_eq!(kids.len(), 2);
+    assert_eq!(kids[0]["stop"]["detail"], "may be written by fill(…)");
+    assert_eq!(kids[1]["kind"], "param");
+    assert_eq!(kids[1]["children"][0]["label"], "xs");
+}
+
+#[test]
+fn rust_abstract_method() {
+    let v = check(Case {
+        dir: "rust/abstract",
+        file: "src/main.rs",
+        pos: (34, 4),
+        ..Default::default()
+    });
+    let call = &v["root"]["children"][0];
+    assert_eq!(
+        (&call["kind"], &call["label"]),
+        (&"call_result".into(), &"abs".into())
+    );
+    let kids = call["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 2);
+    for k in kids {
+        assert_eq!(k["stop"]["reason"], "literal");
+    }
+}
+
+#[test]
+fn rust_trait_default_is_a_callee_beside_its_overrides() {
+    let v = check(Case {
+        dir: "rust/abstract",
+        file: "src/main.rs",
+        pos: (34, 8),
+        expected: "expected_default.json",
+        ..Default::default()
+    });
+    let call = &v["root"]["children"][0];
+    assert_eq!(call["label"], "dflt");
+    // Both implementations and the trait's own body.
+    assert_eq!(call["children"].as_array().unwrap().len(), 3);
+}
+
+#[test]
+fn rust_multi_value() {
+    let v = check(Case {
+        dir: "rust/multi_value",
+        file: "src/main.rs",
+        pos: (8, 16),
+        ..Default::default()
+    });
+    let call = &v["root"]["children"][0];
+    assert_eq!(call["kind"], "call_result");
+    // `r` is element 1 of the pattern, so element 1 of the returned tuple.
+    let set = &call["children"][0];
+    assert_eq!(
+        (&set["via"], &set["label"]),
+        (&"field_set".into(), &"b".into())
+    );
+    assert_eq!(call["children"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn rust_loop_var() {
+    let v = check(Case {
+        dir: "rust/loop_var",
+        file: "src/main.rs",
+        pos: (7, 13),
+        ..Default::default()
+    });
+    assert_eq!(v["root"]["kind"], "binding");
+    let it = &v["root"]["children"][0];
+    assert_eq!(
+        (&it["via"], &it["label"]),
+        (&"element".into(), &"items".into())
+    );
+}
+
+#[test]
+fn rust_same_name_methods_do_not_merge() {
+    let v = check(Case {
+        dir: "rust/same_name",
+        file: "src/main.rs",
+        pos: (22, 9),
+        ..Default::default()
+    });
+    let call = &v["root"]["children"][0];
+    assert_eq!(call["label"], "get");
+    let kids = call["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 1);
+    assert_eq!(kids[0]["label"], "1");
+}
+
+#[test]
+fn rust_field_write() {
+    let v = check(Case {
+        dir: "rust/field_write",
+        file: "src/main.rs",
+        pos: (14, 9),
+        ..Default::default()
+    });
+    let p = &v["root"]["children"][0]["children"][0];
+    assert_eq!(p["kind"], "branch");
+    let kids = p["children"].as_array().unwrap();
+    // `p.y = 3` writes another field and is dropped; the construction stays.
+    assert_eq!(kids.len(), 2);
+    assert_eq!(kids[0]["via"], "mutation");
+    assert_eq!(kids[0]["children"][0]["via"], "field_set");
+    assert_eq!(kids[0]["children"][0]["label"], "9");
+    assert_eq!(kids[1]["children"][0]["label"], "1");
+    assert!(!serde_json::to_string(&v).unwrap().contains("\"3\""));
+}
+
+#[test]
+fn go_rebind() {
+    let v = check(Case {
+        dir: "go/rebind",
+        file: "main.go",
+        pos: (11, 6),
+        ..Default::default()
+    });
+    let kids = v["root"]["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 3);
+    assert_eq!(kids[0]["via"], "mutation");
+    // `v++` reads the old value and names no new one.
+    assert_eq!(kids[0]["children"][0]["stop"]["reason"], "literal");
+    assert_eq!(kids[1]["via"], "rebind");
+    assert_eq!(kids[2]["children"][0]["label"], "a");
+}
+
+#[test]
+fn go_multi_value() {
+    let v = check(Case {
+        dir: "go/multi_value",
+        file: "main.go",
+        pos: (14, 10),
+        ..Default::default()
+    });
+    let call = &v["root"]["children"][0];
+    assert_eq!(call["kind"], "call_result");
+    let set = &call["children"][0];
+    assert_eq!(
+        (&set["via"], &set["label"]),
+        (&"field_set".into(), &"b".into())
+    );
+    assert_eq!(call["children"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn go_receiver() {
+    let v = check(Case {
+        dir: "go/receiver",
+        file: "main.go",
+        pos: (27, 6),
+        ..Default::default()
+    });
+    let kids = v["root"]["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 3);
+    assert_eq!(kids[0]["stop"]["detail"], "may be written by h(&s)");
+    assert_eq!(kids[1]["stop"]["detail"], "may be written by Bump(…)");
+    // `Get` takes a value receiver, so its writes stay inside it.
+    assert!(!serde_json::to_string(&v).unwrap().contains("Get"));
+    assert_eq!(kids[2]["kind"], "binding");
+}
+
+#[test]
+fn go_interface() {
+    let v = check(Case {
+        dir: "go/interface",
+        file: "main.go",
+        pos: (20, 8),
+        ..Default::default()
+    });
+    let call = &v["root"]["children"][0];
+    assert_eq!(call["label"], "Abs");
+    let kids = call["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 2);
+    for k in kids {
+        assert_eq!(k["stop"]["reason"], "literal");
+    }
+}
+
+#[test]
+fn go_zero_value() {
+    let v = check(Case {
+        dir: "go/zero_value",
+        file: "main.go",
+        pos: (8, 6),
+        ..Default::default()
+    });
+    assert_eq!(v["root"]["stop"]["reason"], "literal");
+    assert_eq!(v["root"]["stop"]["detail"], "zero value");
+}
+
+#[test]
+fn go_range() {
+    let v = check(Case {
+        dir: "go/range",
+        file: "main.go",
+        pos: (9, 7),
+        ..Default::default()
+    });
+    assert_eq!(v["root"]["kind"], "binding");
+    let it = &v["root"]["children"][0];
+    assert_eq!(
+        (&it["via"], &it["label"]),
+        (&"element".into(), &"xs".into())
+    );
+}
+
+#[test]
 fn a_call_through_a_variable_is_not_entered() {
     let v = check(Case {
-        dir: "dynamic_call",
+        dir: "erlang/dynamic_call",
         file: "d.erl",
         pos: (4, 4),
         ..Default::default()

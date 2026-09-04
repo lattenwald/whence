@@ -15,6 +15,8 @@ struct Recorded {
     references: HashMap<String, Vec<Location>>,
     #[serde(default, rename = "documentHighlight")]
     document_highlight: HashMap<String, Vec<Highlight>>,
+    #[serde(default)]
+    implementation: HashMap<String, Vec<Location>>,
 }
 
 pub struct ReplayHost {
@@ -34,6 +36,7 @@ impl ReplayHost {
             .definition
             .values_mut()
             .chain(recorded.references.values_mut())
+            .chain(recorded.implementation.values_mut())
         {
             for l in locs {
                 if let Ok(rest) = l.file.strip_prefix("$HOME") {
@@ -102,6 +105,13 @@ impl Host for ReplayHost {
             .ok_or_else(|| unrecorded("host/documentHighlight"))
     }
 
+    fn implementation(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, HostError> {
+        self.count += 1;
+        let hit = self.recorded.implementation.get(&self.key(file, pos));
+        hit.cloned()
+            .ok_or_else(|| unrecorded("host/implementation"))
+    }
+
     fn request_count(&self) -> u32 {
         self.count
     }
@@ -119,14 +129,15 @@ mod tests {
             r#"{
           "definition": { "a.erl:0:8": [ {"file":"a.erl","range":{"start":{"line":0,"col":2},"end":{"line":0,"col":3}}} ] },
           "references": { "a.erl:0:2|nodecl": [ {"file":"/outside/b.erl","range":{"start":{"line":9,"col":0},"end":{"line":9,"col":1}}} ] },
-          "documentHighlight": { "a.erl:0:8": [ {"range":{"start":{"line":0,"col":8},"end":{"line":0,"col":9}},"kind":"read"} ] } }"#,
+          "documentHighlight": { "a.erl:0:8": [ {"range":{"start":{"line":0,"col":8},"end":{"line":0,"col":9}},"kind":"read"} ] },
+          "implementation": { "a.erl:0:2": [ {"file":"a.erl","range":{"start":{"line":0,"col":0},"end":{"line":0,"col":1}}} ] } }"#,
         )
         .unwrap();
         d
     }
 
     #[test]
-    fn answers_recorded_definition_with_absolute_paths() {
+    fn answers_recorded_locations_with_absolute_paths() {
         let d = fixture();
         let mut h = ReplayHost::load(d.path()).unwrap();
         let locs = h
@@ -134,7 +145,12 @@ mod tests {
             .unwrap();
         assert_eq!(locs.len(), 1);
         assert_eq!(locs[0].file, d.path().join("a.erl"));
-        assert_eq!(h.request_count(), 1);
+        let impls = h
+            .implementation(&d.path().join("a.erl"), Pos { line: 0, col: 2 })
+            .unwrap();
+        assert_eq!(impls.len(), 1);
+        assert_eq!(impls[0].file, d.path().join("a.erl"));
+        assert_eq!(h.request_count(), 2);
     }
 
     #[test]

@@ -1,0 +1,76 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "8de83529b8ae9ba1",
+            "kind": "stop",
+            "label": "10",
+            "loc": {
+              "col": 8,
+              "file": "main.go",
+              "line": 11
+            },
+            "snippet": "return 10",
+            "stop": {
+              "detail": "int_literal",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": null
+          },
+          {
+            "children": [],
+            "id": "ba18e6337101f597",
+            "kind": "stop",
+            "label": "20",
+            "loc": {
+              "col": 8,
+              "file": "main.go",
+              "line": 15
+            },
+            "snippet": "return 20",
+            "stop": {
+              "detail": "int_literal",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "57471f260685d5cd",
+        "kind": "call_result",
+        "label": "Abs",
+        "loc": {
+          "col": 6,
+          "file": "main.go",
+          "line": 19
+        },
+        "snippet": "v := i.Abs()",
+        "stop": null,
+        "truncated": 0,
+        "via": "return"
+      }
+    ],
+    "id": "a085d0ca3b33c70f",
+    "kind": "binding",
+    "label": "v",
+    "loc": {
+      "col": 1,
+      "file": "main.go",
+      "line": 19
+    },
+    "snippet": "v := i.Abs()",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 5,
+    "ms": 0,
+    "nodes": 4,
+    "truncated": 0
+  }
+}

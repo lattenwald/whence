@@ -1,0 +1,112 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [],
+        "id": "46366f2f2dbbff92",
+        "kind": "stop",
+        "label": "s",
+        "loc": {
+          "col": 4,
+          "file": "src/main.rs",
+          "line": 28
+        },
+        "snippet": "s.len();",
+        "stop": {
+          "detail": "may be written by external method len",
+          "reason": "unresolved"
+        },
+        "truncated": 0,
+        "via": null
+      },
+      {
+        "children": [],
+        "id": "46d01c159f67f3ff",
+        "kind": "stop",
+        "label": "s",
+        "loc": {
+          "col": 4,
+          "file": "src/main.rs",
+          "line": 26
+        },
+        "snippet": "s.bump(1);",
+        "stop": {
+          "detail": "may be written by bump(…)",
+          "reason": "unresolved"
+        },
+        "truncated": 0,
+        "via": null
+      },
+      {
+        "children": [],
+        "id": "203742b111968b18",
+        "kind": "stop",
+        "label": "s",
+        "loc": {
+          "col": 16,
+          "file": "src/main.rs",
+          "line": 25
+        },
+        "snippet": "mutate(&mut s);",
+        "stop": {
+          "detail": "may be written by mutate(&mut s)",
+          "reason": "unresolved"
+        },
+        "truncated": 0,
+        "via": null
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "70935e9023abfee0",
+            "kind": "stop",
+            "label": "String::from(\"a\")",
+            "loc": {
+              "col": 16,
+              "file": "src/main.rs",
+              "line": 24
+            },
+            "snippet": "let mut s = String::from(\"a\");",
+            "stop": {
+              "detail": "String::from",
+              "reason": "external"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "dc00ec5bd2a78eb8",
+        "kind": "binding",
+        "label": "s",
+        "loc": {
+          "col": 12,
+          "file": "src/main.rs",
+          "line": 24
+        },
+        "snippet": "let mut s = String::from(\"a\");",
+        "stop": null,
+        "truncated": 0,
+        "via": "match"
+      }
+    ],
+    "id": "7f9d63dab2a4af0c",
+    "kind": "branch",
+    "label": "s",
+    "loc": {
+      "col": 10,
+      "file": "src/main.rs",
+      "line": 29
+    },
+    "snippet": "show(&s);",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 7,
+    "ms": 0,
+    "nodes": 6,
+    "truncated": 0
+  }
+}

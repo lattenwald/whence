@@ -1,0 +1,74 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "2e0d7c27168e36ee",
+                "kind": "stop",
+                "label": "x + 1",
+                "loc": {
+                  "col": 6,
+                  "file": "main.go",
+                  "line": 4
+                },
+                "snippet": "b := x + 1",
+                "stop": {
+                  "detail": "binary_expression",
+                  "reason": "unresolved"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "c290a46a94fa52b8",
+            "kind": "binding",
+            "label": "b",
+            "loc": {
+              "col": 1,
+              "file": "main.go",
+              "line": 4
+            },
+            "snippet": "b := x + 1",
+            "stop": null,
+            "truncated": 0,
+            "via": "field_set"
+          }
+        ],
+        "id": "fce036bc72073674",
+        "kind": "call_result",
+        "label": "g",
+        "loc": {
+          "col": 9,
+          "file": "main.go",
+          "line": 13
+        },
+        "snippet": "q, r := g(1)",
+        "stop": null,
+        "truncated": 0,
+        "via": "return"
+      }
+    ],
+    "id": "5ed5649602e6b941",
+    "kind": "binding",
+    "label": "r",
+    "loc": {
+      "col": 4,
+      "file": "main.go",
+      "line": 13
+    },
+    "snippet": "q, r := g(1)",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 6,
+    "ms": 0,
+    "nodes": 4,
+    "truncated": 0
+  }
+}

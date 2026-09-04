@@ -19,6 +19,7 @@ pub const RETURN_VALUE: &str = "return.value";
 pub const RETURN_CONTAINER: &str = "return.container";
 pub const LITERAL: &str = "literal";
 
+pub const BRANCH: &str = "branch";
 pub const BRANCH_PATTERN: &str = "branch.pattern";
 pub const BRANCH_SUBJECT: &str = "branch.subject";
 
@@ -44,7 +45,38 @@ pub const CONSTRUCT_BASE: &str = "construct.base";
 
 pub const IDENT: &str = "ident";
 
+/// A write to an existing place: `x = e`, `x += e`, `x++`.
+pub const ASSIGN: &str = "assign";
+pub const ASSIGN_TARGET: &str = "assign.target";
+pub const ASSIGN_VALUE: &str = "assign.value";
+/// Co-captured on an `@assign` that reads the old value (`+=`, `++`).
+pub const ASSIGN_COMPOUND: &str = "assign.compound";
+
+/// The expression written through by an index or deref target (x in x[i], *x).
+pub const PLACE_BASE: &str = "place.base";
+
+/// An expression whose address or mutable reference is taken.
+pub const ESCAPE: &str = "escape";
+/// One parameter name: a function's positional parameters are these nodes.
+pub const PARAM: &str = "param";
+/// A parameter the callee may write through (`&mut T`, `*T`).
+pub const PARAM_MUTABLE: &str = "param.mutable";
+
+pub const CALL_RECEIVER: &str = "call.receiver";
+pub const FUNCTION_RECEIVER: &str = "function.receiver";
+/// Co-captured on a receiver whose writes reach the caller (`&mut self`, `(s *T)`).
+pub const FUNCTION_RECEIVER_MUTABLE: &str = "function.receiver.mutable";
+/// A function declared without a body, or a trait default: implementations are asked for.
+pub const FUNCTION_ABSTRACT: &str = "function.abstract";
+/// Groups the clauses of one function; absent where a function is one node.
+pub const FUNCTION_GROUP: &str = "function.group";
+
+/// The pattern of a loop binding; `@binding.value` is the iterable.
+pub const BINDING_ELEMENT: &str = "binding.element";
+
 /// Captures every language must define; the rest are used only where present.
+/// `RETURN_VALUE` is not: it is read only inside a `RETURN_CONTAINER`, which a
+/// language whose branches are statements does not have.
 pub fn required() -> &'static [&'static str] {
     &[
         BINDING,
@@ -57,8 +89,8 @@ pub fn required() -> &'static [&'static str] {
         FUNCTION_NAME,
         FUNCTION_PARAMS,
         FUNCTION_BODY,
+        PARAM,
         RETURN,
-        RETURN_VALUE,
         LITERAL,
         IDENT,
     ]

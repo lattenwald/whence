@@ -143,6 +143,102 @@ Rulings from the M1 branch review; each landed with the spec section it changes.
   `capabilities.documentHighlight = false` — the engine never sends the request in M1, so
   declaring support was misleading.
 
+## M2 — Rust and Go
+
+- Plan: [2026-09-03-m2-rust-go.md](superpowers/plans/2026-09-03-m2-rust-go.md)
+
+### Erlang `@function.group` node
+
+Plan: Erlang marks `(fun_decl) @function.group`, and `Doc::clauses_of(group)` returns every
+clause sharing that group. Done: tree-sitter-erlang 0.20 gives each clause its own `fun_decl`,
+so that capture separated the clauses it was meant to join and broke frame matching; Erlang
+marks `(source_file) @function.group` and `clauses_of(group, name, arity)` keeps the name and
+arity filter that the group alone cannot supply. A language whose functions are one node still
+groups each on itself, so name and arity never merge distinct functions there.
+
+### A constant Erlang map is now a literal
+
+Plan: the Erlang goldens stay byte-identical through Task 2. Done: `live_callers` records
+`#{limit => 5}` as `stop: literal` instead of `unresolved: constructed value map_expr`. The
+keyed-construct rule of spec §6 — skip `@construct.field.name`, check each entry's
+`@construct.field.value` — cannot tell an Erlang `map_field` from a Rust `field_initializer`,
+so making a struct of constants a literal makes a map of constants one too, which is the more
+honest answer. Node ids are unchanged.
+
+### The receiver shift applies to call sites found through references
+
+Plan: in the references loop of `param_like`, `Slot::Arg(i)` takes `call.args.get(i)`; the
+occurrence step's mutable-parameter rule likewise reads `param_is_mutable(i)`. Done: both apply
+the same shift `call_result` does — a call with no `@call.receiver` to a declaration with a
+receiver and one argument too many passes the receiver first — so an argument is not matched to
+the slot one place to its left (spec §3.4), and `T::m(&mut x)` is a write to `x`. The rule lives
+in one helper every call site uses.
+
+### A write is classified by its place chain, not by containment
+
+Plan: an occurrence is a write when it is "inside the `@assign.target` of an `@assign` node".
+Done: the target is taken through `@through`, narrowed to the element containing the occurrence
+when it is a positional construct, and the occurrence must lie on that place's chain of
+containers — `@field.container` or the new `@place.base` capture. Containment alone marks the `i`
+of `arr[i] = 3` and the key of `m[k] = v` as mutated, and they are only read; a wrong edge is
+worse than a missing one. Spec §3.1 rule 1 and §6 carry the rule and the capture.
+
+### Two rules the Rust query exposed
+
+Plan: Task 6 touches no engine source but `engine/src/lang/mod.rs`. Done: two rules in
+`engine/src/syntax.rs` that only Rust's shapes can reach. `role_of` numbers a `Role::Param` by its
+position in `FnDecl::params` rather than among the named children of `@function.params` — Rust puts
+`self_parameter` inside `(parameters)`, so the receiver, which `FnDecl` excludes, shifted every
+later parameter onto the wrong argument. `expand_return` pushes a leaf through `@through`, as §2
+requires of every classified value — a `return e` block tail is `@return` twice, once as the tail
+and once as the operand, and without it the tree grew a second leaf for the same value. Neither
+changes anything for Erlang.
+
+### Implementations are expanded before the outside-root verdict
+
+Plan: `call_result` expands an abstract callee inside the loop that builds targets, "then run the
+existing outside-root / not-a-function / `FuncId` logic over `here`" — a loop that only runs after
+the `external` / "some outside root" checks over the definitions. Done: the expansion is a pass
+over the definitions *before* those checks, and they see the implementations. Spec §3.3 requires an
+implementation outside the root to count toward `external`; inside the target loop it could not,
+because the verdict was already taken on the abstract declaration alone.
+
+### `@return.value` is required only where a language has return containers
+
+Plan: Task 7 touches no engine source but `engine/src/lang/mod.rs`. Done: `required()` in
+`engine/src/lang/vocab.rs` loses `@return.value`, and the registry test requires it of a language
+that defines `@return.container`. Go's branches are statements, so it has no container to expand
+and nothing honest to put on that capture; leaving it required would have forced a pattern that
+matches nothing. Spec §6 carries the rule.
+
+### Parameters are named nodes, not the children of the parameter list
+
+Plan: Task 7 adds no capture; a function's parameters are the named children of
+`@function.params` (Task 3). Done: the vocabulary gains `@param`, one parameter name, and
+`FnDecl.params` are those nodes where a language captures them. Go's `func f(a, b int)` is one
+`parameter_declaration` with two names, so `b` was parameter 0 and every argument after it
+landed on the wrong name; Rust's `(parameter pattern: (_) @param)` additionally makes a
+destructuring parameter the pattern it binds. `param_is_mutable` walks from the name to
+`@function.params`, since the mark sits on the declaration.
+
+### A Rust fixture crate declares its own workspace
+
+Plan: `exclude = ["engine/tests/fixtures"]` in the root `[workspace]` is what keeps the fixture
+crates out of it, so rust-analyzer roots each on its own. Done: exclusion alone leaves `cargo`
+refusing every fixture manifest with "current package believes it's in a workspace when it's
+not" — the package sits under the member `engine/` — so each fixture `Cargo.toml` also carries
+an empty `[workspace]` table, which is the fix cargo itself names. Without it rust-analyzer
+loads no workspace and answers nothing.
+
+### Fixtures are recorded by a script, not by hand in an editor
+
+Plan: Task 8 records each case by opening the fixture in Neovim, waiting for the server to
+index, and running `:WhenceRecord <tmpdir>` at the cursor. Done: `scripts/record-fixture.lua`
+does the same headless — it starts the server rooted at the fixture, polls
+`textDocument/definition` until the server answers at the target, and runs the plugin's
+recorder. The recording is then reproducible and reviewable, and a fixture can be re-recorded
+after a query change without a hand session.
+
 ## M3 — VS Code extension
 
 - Plan: [2026-09-03-m3-vscode.md](superpowers/plans/2026-09-03-m3-vscode.md)

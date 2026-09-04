@@ -1,0 +1,142 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "92d7f1615c0992b6",
+            "kind": "stop",
+            "label": "2",
+            "loc": {
+              "col": 9,
+              "file": "src/main.rs",
+              "line": 8
+            },
+            "snippet": "v += 2;",
+            "stop": {
+              "detail": "integer_literal",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "8238087425fd40df",
+        "kind": "binding",
+        "label": "v",
+        "loc": {
+          "col": 4,
+          "file": "src/main.rs",
+          "line": 8
+        },
+        "snippet": "v += 2;",
+        "stop": null,
+        "truncated": 0,
+        "via": "mutation"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "3cb3f7efa7f2dc51",
+            "kind": "stop",
+            "label": "v + 1",
+            "loc": {
+              "col": 8,
+              "file": "src/main.rs",
+              "line": 7
+            },
+            "snippet": "v = v + 1;",
+            "stop": {
+              "detail": "binary_expression",
+              "reason": "unresolved"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "33deeaf393f6a5cb",
+        "kind": "binding",
+        "label": "v",
+        "loc": {
+          "col": 4,
+          "file": "src/main.rs",
+          "line": 7
+        },
+        "snippet": "v = v + 1;",
+        "stop": null,
+        "truncated": 0,
+        "via": "rebind"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "6fe17693816959fc",
+                "kind": "stop",
+                "label": "1",
+                "loc": {
+                  "col": 12,
+                  "file": "src/main.rs",
+                  "line": 5
+                },
+                "snippet": "let a = 1;",
+                "stop": {
+                  "detail": "integer_literal",
+                  "reason": "literal"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "0630c4a05dfb610c",
+            "kind": "binding",
+            "label": "a",
+            "loc": {
+              "col": 8,
+              "file": "src/main.rs",
+              "line": 5
+            },
+            "snippet": "let a = 1;",
+            "stop": null,
+            "truncated": 0,
+            "via": "match"
+          }
+        ],
+        "id": "e0796746fb36d921",
+        "kind": "binding",
+        "label": "v",
+        "loc": {
+          "col": 12,
+          "file": "src/main.rs",
+          "line": 6
+        },
+        "snippet": "let mut v = a;",
+        "stop": null,
+        "truncated": 0,
+        "via": "match"
+      }
+    ],
+    "id": "5cf043a62e9b8bef",
+    "kind": "branch",
+    "label": "v",
+    "loc": {
+      "col": 9,
+      "file": "src/main.rs",
+      "line": 9
+    },
+    "snippet": "show(v);",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 5,
+    "ms": 0,
+    "nodes": 8,
+    "truncated": 0
+  }
+}

@@ -1,0 +1,1 @@
+{"definition":{"main.go:8:6":[{"file":"main.go","range":{"start":{"line":7,"col":5},"end":{"line":7,"col":6}}}]},"implementation":{},"documentHighlight":{"main.go:8:6":[{"range":{"start":{"line":7,"col":5},"end":{"line":7,"col":6}},"kind":"write"},{"range":{"start":{"line":8,"col":6},"end":{"line":8,"col":7}},"kind":"read"}]},"references":{}}

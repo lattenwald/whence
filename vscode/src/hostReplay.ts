@@ -8,6 +8,7 @@ export type Sections = {
   definition?: Record<string, Location[]>;
   references?: Record<string, Location[]>;
   documentHighlight?: Record<string, unknown>;
+  implementation?: Record<string, Location[]>;
 };
 
 /** Which `host.json` section answers a method; the recorder writes the same layout. */
@@ -15,6 +16,7 @@ export const SECTION: Record<string, keyof Sections> = {
   "host/definition": "definition",
   "host/references": "references",
   "host/documentHighlight": "documentHighlight",
+  "host/implementation": "implementation",
 };
 
 /** Root-relative path with `/` separators, or null when `file` is not under `root`. */
@@ -54,7 +56,7 @@ function absolutise(dir: string, file: string): string {
 
 export async function loadFixture(dir: string): Promise<Sections> {
   const sections = JSON.parse(await readFile(path.join(dir, "host.json"), "utf8")) as Sections;
-  for (const section of [sections.definition, sections.references]) {
+  for (const section of [sections.definition, sections.references, sections.implementation]) {
     for (const locations of Object.values(section ?? {})) {
       for (const loc of locations) {
         loc.file = absolutise(dir, loc.file);

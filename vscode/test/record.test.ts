@@ -27,6 +27,9 @@ describe("record", () => {
     assert.deepEqual(conflicts, []);
     const live = tree.current!.tree;
 
+    const sections = Object.keys(JSON.parse(readFileSync(path.join(out, "host.json"), "utf8"))).sort();
+    assert.deepEqual(sections, ["definition", "documentHighlight", "implementation", "references"]);
+
     const meta = JSON.parse(readFileSync(path.join(out, "whence-record.json"), "utf8"));
     assert.deepEqual([meta.root, meta.file, meta.line, meta.col], [fixture, "a.erl", 6, 4]);
 

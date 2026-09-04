@@ -9,33 +9,37 @@ use crate::host::{Highlight, Host, HostError, Location};
 use crate::pos::Pos;
 use crate::protocol::{E_INVALID_REQUEST, Id, Message, Response, RpcError, write_message};
 
+/// The optional host requests, as declared in `initialize`.
+#[derive(Clone, Copy, Debug, Default, serde::Deserialize)]
+#[serde(default)]
+pub struct Caps {
+    #[serde(rename = "documentHighlight")]
+    pub highlight: bool,
+    pub implementation: bool,
+}
+
 /// `inbox` is fed by the server's stdin reader thread; `writer` is the shared stdout.
 pub struct RpcHost<'a, W: Write> {
     writer: W,
     inbox: &'a mut Receiver<Message>,
-    supports_highlight: bool,
+    caps: Caps,
     next_id: i64,
     count: u32,
 }
 
 impl<'a, W: Write> RpcHost<'a, W> {
     #[cfg(test)]
-    pub fn new(writer: W, inbox: &'a mut Receiver<Message>, supports_highlight: bool) -> Self {
-        Self::resume(writer, inbox, supports_highlight, 1)
+    pub fn new(writer: W, inbox: &'a mut Receiver<Message>, caps: Caps) -> Self {
+        Self::resume(writer, inbox, caps, 1)
     }
 
     /// Continues an earlier host's id sequence, so a late response to a previous
     /// trace is never mistaken for a reply to this one.
-    pub fn resume(
-        writer: W,
-        inbox: &'a mut Receiver<Message>,
-        supports_highlight: bool,
-        next_id: i64,
-    ) -> Self {
+    pub fn resume(writer: W, inbox: &'a mut Receiver<Message>, caps: Caps, next_id: i64) -> Self {
         Self {
             writer,
             inbox,
-            supports_highlight,
+            caps,
             next_id,
             count: 0,
         }
@@ -153,11 +157,21 @@ impl<W: Write> Host for RpcHost<'_, W> {
     }
 
     fn document_highlight(&mut self, file: &Path, pos: Pos) -> Result<Vec<Highlight>, HostError> {
-        if !self.supports_highlight {
+        if !self.caps.highlight {
             return Err(HostError::Unsupported("documentHighlight"));
         }
         self.call_list(
             "host/documentHighlight",
+            json!({"file": file, "line": pos.line, "col": pos.col}),
+        )
+    }
+
+    fn implementation(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, HostError> {
+        if !self.caps.implementation {
+            return Err(HostError::Unsupported("implementation"));
+        }
+        self.call_list(
+            "host/implementation",
             json!({"file": file, "line": pos.line, "col": pos.col}),
         )
     }
@@ -173,11 +187,16 @@ mod tests {
     use crate::protocol::*;
     use std::sync::mpsc;
 
+    const ALL: Caps = Caps {
+        highlight: true,
+        implementation: true,
+    };
+
     #[test]
     fn definition_sends_request_and_reads_matching_response() {
         let (tx, mut rx) = mpsc::channel();
         let mut out = Vec::new();
-        let mut h = RpcHost::new(&mut out, &mut rx, false);
+        let mut h = RpcHost::new(&mut out, &mut rx, Caps::default());
         tx.send(Message::Response(Response {
             id: Id::Num(1),
             error: None,
@@ -200,7 +219,7 @@ mod tests {
         for answer in [None, Some(Value::Null)] {
             let (tx, mut rx) = mpsc::channel();
             let mut out = Vec::new();
-            let mut h = RpcHost::new(&mut out, &mut rx, true);
+            let mut h = RpcHost::new(&mut out, &mut rx, ALL);
             tx.send(Message::Response(Response {
                 id: Id::Num(1),
                 error: None,
@@ -216,21 +235,31 @@ mod tests {
     }
 
     #[test]
-    fn highlight_unsupported_when_host_lacks_capability() {
-        let (_tx, mut rx) = mpsc::channel::<Message>();
-        let mut out = Vec::new();
-        let mut h = RpcHost::new(&mut out, &mut rx, false);
-        assert!(matches!(
-            h.document_highlight(std::path::Path::new("/x"), Pos { line: 0, col: 0 }),
-            Err(HostError::Unsupported(_))
-        ));
+    fn optional_requests_unsupported_when_host_lacks_capability() {
+        type Call = fn(&mut RpcHost<'_, &mut Vec<u8>>) -> Result<(), HostError>;
+        let calls: [Call; 2] = [
+            |h| {
+                h.document_highlight(std::path::Path::new("/x"), Pos { line: 0, col: 0 })
+                    .map(|_| ())
+            },
+            |h| {
+                h.implementation(std::path::Path::new("/x"), Pos { line: 0, col: 0 })
+                    .map(|_| ())
+            },
+        ];
+        for call in calls {
+            let (_tx, mut rx) = mpsc::channel::<Message>();
+            let mut out = Vec::new();
+            let mut h = RpcHost::new(&mut out, &mut rx, Caps::default());
+            assert!(matches!(call(&mut h), Err(HostError::Unsupported(_))));
+        }
     }
 
     #[test]
     fn error_response_becomes_rpc_error() {
         let (tx, mut rx) = mpsc::channel();
         let mut out = Vec::new();
-        let mut h = RpcHost::new(&mut out, &mut rx, true);
+        let mut h = RpcHost::new(&mut out, &mut rx, ALL);
         tx.send(Message::Response(Response {
             id: Id::Num(1),
             result: None,
@@ -247,7 +276,7 @@ mod tests {
     fn stale_messages_are_dropped_and_host_requests_answered_busy() {
         let (tx, mut rx) = mpsc::channel();
         let mut out = Vec::new();
-        let mut h = RpcHost::new(&mut out, &mut rx, false);
+        let mut h = RpcHost::new(&mut out, &mut rx, Caps::default());
         tx.send(Message::Response(Response {
             id: Id::Num(99),
             result: Some(serde_json::json!([])),
@@ -282,7 +311,7 @@ mod tests {
         let (tx, mut rx) = mpsc::channel::<Message>();
         drop(tx);
         let mut out = Vec::new();
-        let mut h = RpcHost::new(&mut out, &mut rx, false);
+        let mut h = RpcHost::new(&mut out, &mut rx, Caps::default());
         let err = h.text(std::path::Path::new("/x")).unwrap_err();
         assert!(matches!(err, HostError::Io(e) if e.kind() == io::ErrorKind::BrokenPipe));
     }

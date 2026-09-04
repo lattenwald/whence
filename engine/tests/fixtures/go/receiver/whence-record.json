@@ -1,0 +1,10 @@
+{
+  "file": "main.go",
+  "root": ".",
+  "line": 27,
+  "col": 6,
+  "recorded_at": "2026-09-04T11:26:00Z",
+  "engine_version": "0.2.0",
+  "conflicts": [],
+  "recorded_with": "gopls v0.23.0, Neovim 0.12.5, headless scripts/record-fixture.lua"
+}

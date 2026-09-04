@@ -1,0 +1,26 @@
+{
+  "root": {
+    "children": [],
+    "id": "a4b0acb29fdd6d36",
+    "kind": "stop",
+    "label": "z",
+    "loc": {
+      "col": 5,
+      "file": "main.go",
+      "line": 7
+    },
+    "snippet": "var z int",
+    "stop": {
+      "detail": "zero value",
+      "reason": "literal"
+    },
+    "truncated": 0,
+    "via": null
+  },
+  "stats": {
+    "host_requests": 3,
+    "ms": 0,
+    "nodes": 1,
+    "truncated": 0
+  }
+}

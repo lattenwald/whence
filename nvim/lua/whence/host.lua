@@ -213,6 +213,9 @@ local ANSWER = {
     })
   end,
   ["host/documentHighlight"] = highlights,
+  ["host/implementation"] = function(params)
+    return locations("textDocument/implementation", params)
+  end,
 }
 
 function M.handle(method, params)
