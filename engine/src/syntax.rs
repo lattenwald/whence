@@ -92,11 +92,8 @@ pub enum Role<'t> {
         pattern: N<'t>,
         value: N<'t>,
     },
-    /// A binding with no value. `literal` when the language marks the declaration
-    /// `@literal` (Go's zero value); otherwise the variable is assigned later.
-    Declared {
-        literal: bool,
-    },
+    /// A binding with no value: the variable is assigned later.
+    Declared,
     /// A loop pattern: the value is the iterable, not the element.
     ElementOf {
         value: N<'t>,
@@ -490,9 +487,7 @@ impl<'l> Doc<'l> {
                 return match (value, element) {
                     (Some(value), true) => Role::ElementOf { value },
                     (Some(value), false) => Role::BoundBy { pattern, value },
-                    (None, _) => Role::Declared {
-                        literal: self.has_cap(binding, vocab::LITERAL),
-                    },
+                    (None, _) => Role::Declared,
                 };
             }
             if self.has_cap(n, vocab::FUNCTION_RECEIVER)

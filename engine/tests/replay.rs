@@ -895,8 +895,9 @@ fn go_zero_value() {
         pos: (8, 6),
         ..Default::default()
     });
-    assert_eq!(v["root"]["stop"]["reason"], "literal");
-    assert_eq!(v["root"]["stop"]["detail"], "zero value");
+    let zero = &v["root"]["children"][0];
+    assert_eq!(zero["label"], "int");
+    assert_eq!(zero["stop"]["reason"], "literal");
 }
 
 #[test]

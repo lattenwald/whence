@@ -536,12 +536,7 @@ fn definition(
     let dsite = Site::new(ctx, &doc, def_file, ident);
 
     match doc.role_of(ident) {
-        Role::Declared { literal: true } => {
-            Ok(stop(ctx, &dsite, StopReason::Literal, "zero value"))
-        }
-        Role::Declared { literal: false } => {
-            Ok(unresolved(ctx, &dsite, "declared without a value"))
-        }
+        Role::Declared => Ok(unresolved(ctx, &dsite, "declared without a value")),
         Role::BoundBy { pattern, value }
         | Role::BranchPattern {
             pattern,

@@ -1,8 +1,27 @@
 {
   "root": {
-    "children": [],
-    "id": "a4b0acb29fdd6d36",
-    "kind": "stop",
+    "children": [
+      {
+        "children": [],
+        "id": "2e04a36944eaa9b4",
+        "kind": "stop",
+        "label": "int",
+        "loc": {
+          "col": 7,
+          "file": "main.go",
+          "line": 7
+        },
+        "snippet": "var z int",
+        "stop": {
+          "detail": "type_identifier",
+          "reason": "literal"
+        },
+        "truncated": 0,
+        "via": null
+      }
+    ],
+    "id": "c5b4943c7cb7cc0f",
+    "kind": "binding",
     "label": "z",
     "loc": {
       "col": 5,
@@ -10,17 +29,14 @@
       "line": 7
     },
     "snippet": "var z int",
-    "stop": {
-      "detail": "zero value",
-      "reason": "literal"
-    },
+    "stop": null,
     "truncated": 0,
-    "via": null
+    "via": "match"
   },
   "stats": {
     "host_requests": 3,
     "ms": 0,
-    "nodes": 1,
+    "nodes": 2,
     "truncated": 0
   }
 }

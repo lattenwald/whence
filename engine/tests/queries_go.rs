@@ -30,8 +30,8 @@ fn receivers_params_abstract_and_zero_values() {
     assert!(has(&c, vocab::PARAM_MUTABLE, "p *int"));
     assert!(!has(&c, vocab::PARAM_MUTABLE, "d int"));
     assert!(has(&c, vocab::FUNCTION_ABSTRACT, "Abs() int"));
-    assert!(has(&c, vocab::LITERAL, "z int"));
-    assert!(!has(&c, vocab::LITERAL, "w int = v"));
+    // `var z int` marks its type, `var w int = v` does not: one literal `int` in the sample
+    assert_eq!(c[vocab::LITERAL].iter().filter(|s| *s == "int").count(), 1);
 }
 
 #[test]

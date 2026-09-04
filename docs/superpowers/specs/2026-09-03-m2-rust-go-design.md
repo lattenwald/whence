@@ -95,9 +95,11 @@ only `&x` and pointer/`&mut` parameters are.
 
 ### 3.2 Binding site
 
-`Role::BoundBy { pattern, value }` gains a `value: None` form for
-declarations without an initialiser. Rust `let x;` → `stop: unresolved:
-declared without a value`. Go `var x T` → `stop: literal: zero value`.
+`Role::BoundBy { pattern, value }` is joined by `Role::Declared` for a
+declaration without a value. Rust `let x;` → `stop: unresolved: declared
+without a value`. Go `var x T` binds instead: the query captures the type as
+the `@binding.value`, marked `@literal`, so the generic literal stop reports
+the type node — no zero-value rule in the engine.
 
 Destructuring drops the requirement that pattern and value share a node
 kind: Rust `tuple_pattern` vs `tuple_expression` and `struct_pattern` vs
@@ -300,7 +302,7 @@ callee text is that name.
 |---|---|
 | identifiers | `(identifier) @ident` |
 | `a, b := v` | `(short_var_declaration left: (expression_list) @binding.pattern right: (expression_list) @binding.value) @binding` |
-| `var x T = v` / `var x T` | `(var_spec name: (identifier) @binding.pattern value: (expression_list) @binding.value) @binding`; `((var_spec name: (identifier) @binding.pattern !value) @binding @literal)` (the zero value, §3.2) |
+| `var x T = v` / `var x T` | `(var_spec name: (identifier) @binding.pattern value: (expression_list) @binding.value) @binding`; `(var_spec name: (identifier) @binding.pattern type: (_) @binding.value @literal !value) @binding` (the zero value is the type, §3.2) |
 | `for k, v := range xs` | `(range_clause left: (expression_list) @binding.pattern right: (_) @binding.value) @binding @binding.element` |
 | `a, b = v` / `a += v` | `(assignment_statement left: (expression_list) @assign.target right: (expression_list) @assign.value) @assign`; `((assignment_statement operator: _ @op) @assign.compound (#not-eq? @op "="))` |
 | `x++` / `x--` | `((inc_statement (_) @assign.target) @assign @assign.compound)`; `((dec_statement (_) @assign.target) @assign @assign.compound)` |

@@ -173,7 +173,11 @@ fn go_short_var_decl_index_and_zero_value() {
     assert_eq!(d.pattern_index(pattern, r), Some(1));
 
     let z = d.ident_at(at(text, "z int", 0)).unwrap();
-    assert!(matches!(d.role_of(z), Role::Declared { literal: true }));
+    let Role::BoundBy { value, .. } = d.role_of(z) else {
+        panic!("`var z int` binds the zero value of its type")
+    };
+    assert_eq!(d.text_of(value), "int");
+    assert!(d.is_literal(value));
 
     let w = d.ident_at(at(text, "w int = v", 0)).unwrap();
     let Role::BoundBy { value, .. } = d.role_of(w) else {

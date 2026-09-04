@@ -3,8 +3,8 @@
 (short_var_declaration
   left: (expression_list) @binding.pattern
   right: (expression_list) @binding.value) @binding
-;; `var x T` is the zero value; `var x T = v` binds
-((var_spec name: (identifier) @binding.pattern !value) @binding @literal)
+;; `var x T` binds the zero value of the type; `var x T = v` binds the value
+(var_spec name: (identifier) @binding.pattern type: (_) @binding.value @literal !value) @binding
 (var_spec
   name: (identifier) @binding.pattern
   value: (expression_list) @binding.value) @binding
