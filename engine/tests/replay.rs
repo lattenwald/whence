@@ -652,6 +652,25 @@ fn live_callers_recorded_from_elp() {
 }
 
 #[test]
+fn rust_rebind() {
+    let v = check(Case {
+        dir: "rust/rebind",
+        file: "src/main.rs",
+        pos: (9, 9),
+        ..Default::default()
+    });
+    assert_eq!(v["root"]["kind"], "branch");
+    let kids = v["root"]["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 3);
+    // Newest write first, then the binding the definition points at.
+    assert_eq!(kids[0]["via"], "mutation");
+    assert_eq!(kids[1]["via"], "rebind");
+    assert_eq!(kids[1]["children"][0]["label"], "v + 1");
+    assert_eq!(kids[2]["via"], "match");
+    assert_eq!(kids[2]["children"][0]["label"], "a");
+}
+
+#[test]
 fn a_call_through_a_variable_is_not_entered() {
     let v = check(Case {
         dir: "erlang/dynamic_call",

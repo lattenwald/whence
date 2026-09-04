@@ -221,6 +221,15 @@ landed on the wrong name; Rust's `(parameter pattern: (_) @param)` additionally 
 destructuring parameter the pattern it binds. `param_is_mutable` walks from the name to
 `@function.params`, since the mark sits on the declaration.
 
+### A Rust fixture crate declares its own workspace
+
+Plan: `exclude = ["engine/tests/fixtures"]` in the root `[workspace]` is what keeps the fixture
+crates out of it, so rust-analyzer roots each on its own. Done: exclusion alone leaves `cargo`
+refusing every fixture manifest with "current package believes it's in a workspace when it's
+not" — the package sits under the member `engine/` — so each fixture `Cargo.toml` also carries
+an empty `[workspace]` table, which is the fix cargo itself names. Without it rust-analyzer
+loads no workspace and answers nothing.
+
 ### Fixtures are recorded by a script, not by hand in an editor
 
 Plan: Task 8 records each case by opening the fixture in Neovim, waiting for the server to
