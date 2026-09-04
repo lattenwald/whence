@@ -43,6 +43,22 @@ hooks: ## Install the repo's git hooks
 fmt: ## Format Rust sources
 	cargo fmt --all
 
+.PHONY: bump
+bump: ## Set the release version everywhere: make bump VERSION=x.y.z
+	@case "$(VERSION)" in \
+	  *[!0-9.]*|"") echo "usage: make bump VERSION=x.y.z" >&2; exit 1;; \
+	  [0-9]*.[0-9]*.[0-9]*) ;; \
+	  *) echo "usage: make bump VERSION=x.y.z" >&2; exit 1;; \
+	esac
+	sed -i '/^\[package\]/,/^\[/ s/^version = ".*"/version = "$(VERSION)"/' engine/Cargo.toml
+	sed -i 's/^return ".*"/return "$(VERSION)"/' nvim/lua/whence/version.lua
+	sed -i 's/^  "version": .*/  "version": "$(VERSION)",/' vscode/package.json
+	sed -i -e 's/^  "version": .*/  "version": "$(VERSION)",/' \
+	       -e '/^    "": {/,/^    },/ s/^      "version": .*/      "version": "$(VERSION)",/' \
+	       vscode/package-lock.json
+	cargo update --workspace --offline
+	@$(MAKE) --no-print-directory release-check
+
 .PHONY: release-check
 release-check: ## Check engine, plugin, extension and tag ($$GITHUB_REF_NAME) versions agree
 	@engine=$$(sed -n '/^\[package\]/,/^\[[^p]/ s/^version = "\(.*\)"/\1/p' engine/Cargo.toml | head -1); \

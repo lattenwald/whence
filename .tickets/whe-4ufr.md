@@ -1,6 +1,6 @@
 ---
 id: whe-4ufr
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-09-04T15:42:03Z
