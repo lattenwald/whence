@@ -69,6 +69,7 @@
 (unary_expression operator: "&" operand: (_) @escape)
 
 (parenthesized_expression (_) @through.inner) @through
+(unary_expression operator: "&" operand: (_) @through.inner) @through
 
 [(int_literal) (float_literal) (imaginary_literal) (rune_literal)
  (interpreted_string_literal) (raw_string_literal)

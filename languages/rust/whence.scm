@@ -74,6 +74,7 @@
 (parenthesized_expression (_expression) @through.inner) @through
 (try_expression (_expression) @through.inner) @through
 (await_expression (_expression) @through.inner) @through
+(reference_expression value: (_expression) @through.inner) @through
 (return_expression (_expression) @through.inner) @through
 
 [(integer_literal) (float_literal) (string_literal) (raw_string_literal)

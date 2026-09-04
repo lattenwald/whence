@@ -1,6 +1,6 @@
 ---
 id: whe-9jq9
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-09-04T11:27:10Z

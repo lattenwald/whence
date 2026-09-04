@@ -22,22 +22,38 @@
       {
         "children": [
           {
-            "children": [],
-            "id": "eb95c8feec294d72",
-            "kind": "stop",
-            "label": "&mut xs",
+            "children": [
+              {
+                "children": [],
+                "id": "31f0276eec306cd2",
+                "kind": "stop",
+                "label": "vec![1]",
+                "loc": {
+                  "col": 17,
+                  "file": "src/main.rs",
+                  "line": 15
+                },
+                "snippet": "let mut xs = vec![1];",
+                "stop": {
+                  "detail": "macro_invocation",
+                  "reason": "unresolved"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "0d5f20859fa03abd",
+            "kind": "binding",
+            "label": "xs",
             "loc": {
-              "col": 16,
+              "col": 12,
               "file": "src/main.rs",
-              "line": 16
+              "line": 15
             },
-            "snippet": "let n = run(&mut xs);",
-            "stop": {
-              "detail": "reference_expression",
-              "reason": "unresolved"
-            },
+            "snippet": "let mut xs = vec![1];",
+            "stop": null,
             "truncated": 0,
-            "via": null
+            "via": "match"
           }
         ],
         "id": "f513803c9eff00b4",
@@ -68,9 +84,9 @@
     "via": "match"
   },
   "stats": {
-    "host_requests": 6,
+    "host_requests": 8,
     "ms": 0,
-    "nodes": 4,
+    "nodes": 5,
     "truncated": 0
   }
 }
