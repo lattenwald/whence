@@ -748,6 +748,76 @@ fn rust_trait_default_is_a_callee_beside_its_overrides() {
 }
 
 #[test]
+fn rust_multi_value() {
+    let v = check(Case {
+        dir: "rust/multi_value",
+        file: "src/main.rs",
+        pos: (8, 16),
+        ..Default::default()
+    });
+    let call = &v["root"]["children"][0];
+    assert_eq!(call["kind"], "call_result");
+    // `r` is element 1 of the pattern, so element 1 of the returned tuple.
+    let set = &call["children"][0];
+    assert_eq!(
+        (&set["via"], &set["label"]),
+        (&"field_set".into(), &"b".into())
+    );
+    assert_eq!(call["children"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn rust_loop_var() {
+    let v = check(Case {
+        dir: "rust/loop_var",
+        file: "src/main.rs",
+        pos: (7, 13),
+        ..Default::default()
+    });
+    assert_eq!(v["root"]["kind"], "binding");
+    let it = &v["root"]["children"][0];
+    assert_eq!(
+        (&it["via"], &it["label"]),
+        (&"element".into(), &"items".into())
+    );
+}
+
+#[test]
+fn rust_same_name_methods_do_not_merge() {
+    let v = check(Case {
+        dir: "rust/same_name",
+        file: "src/main.rs",
+        pos: (22, 9),
+        ..Default::default()
+    });
+    let call = &v["root"]["children"][0];
+    assert_eq!(call["label"], "get");
+    let kids = call["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 1);
+    assert_eq!(kids[0]["label"], "1");
+}
+
+#[test]
+fn rust_field_write() {
+    let v = check(Case {
+        dir: "rust/field_write",
+        file: "src/main.rs",
+        pos: (14, 9),
+        ..Default::default()
+    });
+    let p = &v["root"]["children"][0]["children"][0];
+    assert_eq!(p["kind"], "branch");
+    let kids = p["children"].as_array().unwrap();
+    // `p.y = 3` writes another field and is dropped; the construction stays.
+    assert_eq!(kids.len(), 2);
+    assert_eq!(kids[0]["via"], "mutation");
+    assert_eq!(kids[0]["children"][0]["via"], "field_set");
+    assert_eq!(kids[0]["children"][0]["label"], "9");
+    assert_eq!(kids[1]["children"][0]["label"], "1");
+    assert!(!serde_json::to_string(&v).unwrap().contains("\"3\""));
+}
+
+#[test]
 fn a_call_through_a_variable_is_not_entered() {
     let v = check(Case {
         dir: "erlang/dynamic_call",

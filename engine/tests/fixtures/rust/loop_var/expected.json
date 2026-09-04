@@ -1,0 +1,58 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "1e623842dcfdd80d",
+            "kind": "stop",
+            "label": "vec![1, 2, 3]",
+            "loc": {
+              "col": 16,
+              "file": "src/main.rs",
+              "line": 5
+            },
+            "snippet": "let items = vec![1, 2, 3];",
+            "stop": {
+              "detail": "macro_invocation",
+              "reason": "unresolved"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "6dc6c6da3b69c57e",
+        "kind": "binding",
+        "label": "items",
+        "loc": {
+          "col": 8,
+          "file": "src/main.rs",
+          "line": 5
+        },
+        "snippet": "let items = vec![1, 2, 3];",
+        "stop": null,
+        "truncated": 0,
+        "via": "element"
+      }
+    ],
+    "id": "f267050067c441c1",
+    "kind": "binding",
+    "label": "x",
+    "loc": {
+      "col": 8,
+      "file": "src/main.rs",
+      "line": 6
+    },
+    "snippet": "for x in items {",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 5,
+    "ms": 0,
+    "nodes": 3,
+    "truncated": 0
+  }
+}

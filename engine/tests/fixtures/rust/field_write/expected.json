@@ -1,0 +1,124 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "children": [],
+                    "id": "c1927605ac592073",
+                    "kind": "stop",
+                    "label": "9",
+                    "loc": {
+                      "col": 10,
+                      "file": "src/main.rs",
+                      "line": 11
+                    },
+                    "snippet": "p.x = 9;",
+                    "stop": {
+                      "detail": "integer_literal",
+                      "reason": "literal"
+                    },
+                    "truncated": 0,
+                    "via": "field_set"
+                  }
+                ],
+                "id": "bca3e03a7325791f",
+                "kind": "binding",
+                "label": "p",
+                "loc": {
+                  "col": 4,
+                  "file": "src/main.rs",
+                  "line": 11
+                },
+                "snippet": "p.x = 9;",
+                "stop": null,
+                "truncated": 0,
+                "via": "mutation"
+              },
+              {
+                "children": [
+                  {
+                    "children": [],
+                    "id": "1ffa871d1a88bfed",
+                    "kind": "stop",
+                    "label": "1",
+                    "loc": {
+                      "col": 23,
+                      "file": "src/main.rs",
+                      "line": 10
+                    },
+                    "snippet": "let mut p = P { x: 1, y: 2 };",
+                    "stop": {
+                      "detail": "integer_literal",
+                      "reason": "literal"
+                    },
+                    "truncated": 0,
+                    "via": "field_set"
+                  }
+                ],
+                "id": "86b712fe1a40d437",
+                "kind": "binding",
+                "label": "p",
+                "loc": {
+                  "col": 12,
+                  "file": "src/main.rs",
+                  "line": 10
+                },
+                "snippet": "let mut p = P { x: 1, y: 2 };",
+                "stop": null,
+                "truncated": 0,
+                "via": "match"
+              }
+            ],
+            "id": "5b256d85e9f18034",
+            "kind": "branch",
+            "label": "p",
+            "loc": {
+              "col": 12,
+              "file": "src/main.rs",
+              "line": 13
+            },
+            "snippet": "let v = p.x;",
+            "stop": null,
+            "truncated": 0,
+            "via": "field"
+          }
+        ],
+        "id": "8cdc32c1a05719b9",
+        "kind": "field",
+        "label": "x of p",
+        "loc": {
+          "col": 12,
+          "file": "src/main.rs",
+          "line": 13
+        },
+        "snippet": "let v = p.x;",
+        "stop": null,
+        "truncated": 0,
+        "via": "field"
+      }
+    ],
+    "id": "0562265927eced75",
+    "kind": "binding",
+    "label": "v",
+    "loc": {
+      "col": 8,
+      "file": "src/main.rs",
+      "line": 13
+    },
+    "snippet": "let v = p.x;",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 5,
+    "ms": 0,
+    "nodes": 7,
+    "truncated": 0
+  }
+}

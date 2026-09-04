@@ -1,0 +1,58 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "106749284ded0051",
+            "kind": "stop",
+            "label": "1",
+            "loc": {
+              "col": 8,
+              "file": "src/main.rs",
+              "line": 5
+            },
+            "snippet": "1",
+            "stop": {
+              "detail": "integer_literal",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "a2732bc8140f61b4",
+        "kind": "call_result",
+        "label": "get",
+        "loc": {
+          "col": 12,
+          "file": "src/main.rs",
+          "line": 21
+        },
+        "snippet": "let v = a.get();",
+        "stop": null,
+        "truncated": 0,
+        "via": "return"
+      }
+    ],
+    "id": "5010e76ec3b8a09f",
+    "kind": "binding",
+    "label": "v",
+    "loc": {
+      "col": 8,
+      "file": "src/main.rs",
+      "line": 21
+    },
+    "snippet": "let v = a.get();",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 4,
+    "ms": 0,
+    "nodes": 3,
+    "truncated": 0
+  }
+}
