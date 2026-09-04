@@ -14,9 +14,10 @@ local servers = {
     name = "rust-analyzer",
     cmd = { "rust-analyzer" },
     filetype = "rust",
+    ext = "rs",
     cmd_env = { RUSTUP_TOOLCHAIN = os.getenv("WHENCE_RUST_TOOLCHAIN") or "stable" },
   },
-  go = { name = "gopls", cmd = { "gopls" }, filetype = "go" },
+  go = { name = "gopls", cmd = { "gopls" }, filetype = "go", ext = "go" },
 }
 local s = servers[lang]
 vim.cmd.cd(project)
@@ -25,6 +26,13 @@ vim.bo.filetype = s.filetype
 local client_id =
   vim.lsp.start({ name = s.name, cmd = s.cmd, cmd_env = s.cmd_env, root_dir = project }, { bufnr = 0 })
 assert(client_id, "lsp did not start")
+-- An editor's LSP config attaches to every buffer the host opens; stand in for it.
+vim.api.nvim_create_autocmd("BufReadPost", {
+  pattern = "*." .. s.ext,
+  callback = function(ev)
+    vim.lsp.buf_attach_client(ev.buf, client_id)
+  end,
+})
 
 assert(vim.wait(20000, function() return #vim.lsp.get_clients({ bufnr = 0 }) > 0 end), "no client attached")
 vim.api.nvim_win_set_cursor(0, { line, col - 1 })
