@@ -145,6 +145,8 @@ Rulings from the M1 branch review; each landed with the spec section it changes.
 
 ## M2 — Rust and Go
 
+- Plan: [2026-09-03-m2-rust-go.md](superpowers/plans/2026-09-03-m2-rust-go.md)
+
 ### Erlang `@function.group` node
 
 Plan: Erlang marks `(fun_decl) @function.group`, and `Doc::clauses_of(group)` returns every
