@@ -19,6 +19,7 @@ pub const RETURN_VALUE: &str = "return.value";
 pub const RETURN_CONTAINER: &str = "return.container";
 pub const LITERAL: &str = "literal";
 
+pub const BRANCH: &str = "branch";
 pub const BRANCH_PATTERN: &str = "branch.pattern";
 pub const BRANCH_SUBJECT: &str = "branch.subject";
 

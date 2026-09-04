@@ -156,6 +156,15 @@ marks `(source_file) @function.group` and `clauses_of(group, name, arity)` keeps
 arity filter that the group alone cannot supply. A language whose functions are one node still
 groups each on itself, so name and arity never merge distinct functions there.
 
+### A constant Erlang map is now a literal
+
+Plan: the Erlang goldens stay byte-identical through Task 2. Done: `live_callers` records
+`#{limit => 5}` as `stop: literal` instead of `unresolved: constructed value map_expr`. The
+keyed-construct rule of spec §6 — skip `@construct.field.name`, check each entry's
+`@construct.field.value` — cannot tell an Erlang `map_field` from a Rust `field_initializer`,
+so making a struct of constants a literal makes a map of constants one too, which is the more
+honest answer. Node ids are unchanged.
+
 ## M3 — VS Code extension
 
 - Plan: [2026-09-03-m3-vscode.md](superpowers/plans/2026-09-03-m3-vscode.md)

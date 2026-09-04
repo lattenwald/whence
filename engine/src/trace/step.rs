@@ -8,7 +8,7 @@ use crate::lang::vocab;
 use crate::pos::Pos;
 use crate::syntax::{Doc, FnDecl, N, Role, Span};
 use crate::trace::TraceError;
-use crate::trace::frame::{Ctx, ExprRef, Frame, FuncId};
+use crate::trace::frame::{Ctx, ExprRef, Frame, FuncId, Proj};
 use crate::tree::{Loc, Node, NodeKind, StopReason, Via, node_id, path_id};
 
 pub enum Expr {
@@ -255,14 +255,49 @@ fn definition(
     let dsite = Site::new(ctx, &doc, def_file, ident);
 
     match doc.role_of(ident) {
+        Role::Declared { literal: true } => {
+            Ok(stop(ctx, &dsite, StopReason::Literal, "zero value"))
+        }
+        Role::Declared { literal: false } => {
+            Ok(unresolved(ctx, &dsite, "declared without a value"))
+        }
         Role::BoundBy { pattern, value }
         | Role::BranchPattern {
             pattern,
             subject: value,
         } => {
-            let source = doc.destructure(pattern, ident, value).unwrap_or(value);
-            let child = Expr::Value(def_file.to_path_buf(), Span::of(source));
-            let child = matched(expand(ctx, &child, depth + 1)?);
+            let (source, index) = match doc.destructure(pattern, ident, value) {
+                Some(s) => (s, None),
+                None => (value, doc.pattern_index(pattern, ident)),
+            };
+            if let Some(i) = index {
+                ctx.proj.push(Proj::Index(i));
+            }
+            let child = expand(
+                ctx,
+                &Expr::Value(def_file.to_path_buf(), Span::of(source)),
+                depth + 1,
+            );
+            if index.is_some() {
+                ctx.proj.pop();
+            }
+            let child = matched(child?);
+            Ok(make(
+                ctx,
+                NodeKind::Binding,
+                &dsite,
+                Via::Match,
+                vec![child],
+                0,
+            ))
+        }
+        Role::ElementOf { value, .. } => {
+            let mut child = expand(
+                ctx,
+                &Expr::Value(def_file.to_path_buf(), Span::of(value)),
+                depth + 1,
+            )?;
+            child.via = Some(Via::Element);
             Ok(make(
                 ctx,
                 NodeKind::Binding,
@@ -519,25 +554,26 @@ fn candidates<T>(
     (dropped, None)
 }
 
-fn value(
+fn value<'t>(
     ctx: &mut Ctx,
-    doc: &Doc,
+    doc: &'t Doc<'_>,
     file: &Path,
-    n: N,
+    n: N<'t>,
     site: &Site,
     depth: u32,
 ) -> Result<Node, TraceError> {
-    if let Some(field) = ctx.proj.last().cloned()
+    let n = doc.through(n).unwrap_or(n);
+    if let Some(proj) = ctx.proj.last().cloned()
         && doc.has_cap(n, vocab::CONSTRUCT)
     {
-        return project(ctx, doc, file, n, site, &field, depth);
+        return project(ctx, doc, file, n, site, &proj, depth);
     }
     if doc.is_literal(n) {
-        if let Some(field) = ctx.proj.last() {
+        if let Some(proj) = ctx.proj.last() {
             return Ok(unresolved(
                 ctx,
                 site,
-                format!("no field {field} in a literal"),
+                format!("no {} in a literal", proj.describe()),
             ));
         }
         return Ok(stop(ctx, site, StopReason::Literal, n.0.kind()));
@@ -554,7 +590,7 @@ fn value(
         } else {
             Expr::Value(file.to_path_buf(), Span::of(container))
         };
-        ctx.proj.push(field.clone());
+        ctx.proj.push(Proj::Field(field.clone()));
         let child = expand(ctx, &container_expr, depth + 1);
         ctx.proj.pop();
         let mut child = child?;
@@ -718,16 +754,24 @@ fn call_result(
     ))
 }
 
-fn project(
+fn project<'t>(
     ctx: &mut Ctx,
-    doc: &Doc,
+    doc: &'t Doc<'_>,
     file: &Path,
-    n: N,
+    n: N<'t>,
     site: &Site,
-    field: &str,
+    proj: &Proj,
     depth: u32,
 ) -> Result<Node, TraceError> {
-    if let Some(value) = doc.construct_field(n, field) {
+    let selected = match proj {
+        Proj::Field(f) => doc.construct_field(n, f).or_else(|| {
+            f.parse::<usize>()
+                .ok()
+                .and_then(|i| doc.construct_element(n, i))
+        }),
+        Proj::Index(i) => doc.construct_element(n, *i),
+    };
+    if let Some(value) = selected {
         let pending = ctx.proj.pop();
         let child = expand(
             ctx,
@@ -751,7 +795,7 @@ fn project(
     Ok(unresolved(
         ctx,
         site,
-        format!("no field {field} in this {}", n.0.kind()),
+        format!("no {} in this {}", proj.describe(), n.0.kind()),
     ))
 }
 

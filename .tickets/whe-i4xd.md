@@ -1,6 +1,6 @@
 ---
 id: whe-i4xd
-status: open
+status: closed
 deps: [whe-q0z2]
 links: []
 created: 2026-09-03T14:05:32Z

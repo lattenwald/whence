@@ -22,6 +22,7 @@ pub enum Via {
     Return,
     FieldSet,
     Field,
+    Element,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]

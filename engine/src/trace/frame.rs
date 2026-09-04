@@ -35,6 +35,21 @@ impl FuncId {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Proj {
+    Field(String),
+    Index(usize),
+}
+
+impl Proj {
+    pub fn describe(&self) -> String {
+        match self {
+            Proj::Field(f) => format!("field {f}"),
+            Proj::Index(i) => format!("element {i}"),
+        }
+    }
+}
+
 pub struct Frame {
     pub func_id: FuncId,
     pub args: Vec<ExprRef>,
@@ -49,7 +64,7 @@ pub struct Ctx<'a> {
     defs: HashMap<(PathBuf, Pos), Vec<Location>>,
     refs: HashMap<(PathBuf, Pos, bool), Vec<Location>>,
     pub frames: Vec<Frame>,
-    pub proj: Vec<String>,
+    pub proj: Vec<Proj>,
     /// Path keys of the nodes being expanded, root first; ids derive from the top.
     pub path: Vec<u64>,
     /// The expressions on the *current* expansion path, not everything seen (spec §5.4).

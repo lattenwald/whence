@@ -48,9 +48,28 @@ pub struct CallSite<'t> {
 }
 
 pub enum Role<'t> {
-    BoundBy { pattern: N<'t>, value: N<'t> },
-    Param { func: FnDecl<'t>, index: usize },
-    BranchPattern { pattern: N<'t>, subject: N<'t> },
+    BoundBy {
+        pattern: N<'t>,
+        value: N<'t>,
+    },
+    /// A binding with no value. `literal` when the language marks the declaration
+    /// `@literal` (Go's zero value); otherwise the variable is assigned later.
+    Declared {
+        literal: bool,
+    },
+    /// A loop pattern: the value is the iterable, not the element.
+    ElementOf {
+        pattern: N<'t>,
+        value: N<'t>,
+    },
+    Param {
+        func: FnDecl<'t>,
+        index: usize,
+    },
+    BranchPattern {
+        pattern: N<'t>,
+        subject: N<'t>,
+    },
     Opaque(N<'t>),
     Use,
 }
@@ -302,17 +321,23 @@ impl<'l> Doc<'l> {
         let mut cur = Some(ident.0);
         while let Some(c) = cur {
             let n = N(c);
-            if self.has_cap(n, vocab::BINDING_PATTERN)
+            if (self.has_cap(n, vocab::BINDING_PATTERN) || self.has_cap(n, vocab::BINDING_ELEMENT))
                 && let Some(binding) = c.parent()
                 && self.has_cap(N(binding), vocab::BINDING)
                 && let Some(binding) = self.node(Span::of(N(binding)))
-                && let Some(value) = self
-                    .caps_child_of(vocab::BINDING_VALUE, binding)
-                    .into_iter()
-                    .next()
                 && let Some(pattern) = self.node(Span::of(n))
             {
-                return Role::BoundBy { pattern, value };
+                let value = self
+                    .caps_child_of(vocab::BINDING_VALUE, binding)
+                    .into_iter()
+                    .next();
+                return match (value, self.has_cap(n, vocab::BINDING_ELEMENT)) {
+                    (Some(value), true) => Role::ElementOf { pattern, value },
+                    (Some(value), false) => Role::BoundBy { pattern, value },
+                    (None, _) => Role::Declared {
+                        literal: self.has_cap(binding, vocab::LITERAL),
+                    },
+                };
             }
             if self.has_cap(n, vocab::FUNCTION_PARAMS)
                 && let Some(func) = self.enclosing_function(n)
@@ -323,12 +348,7 @@ impl<'l> Doc<'l> {
             // A branch clause need not have a subject: receive and try reuse it.
             if self.has_cap(n, vocab::BRANCH_PATTERN)
                 && let Some(branch) = c.parent()
-                && let Some(case) = branch.parent()
-                && let Some(case) = self.node(Span::of(N(case)))
-                && let Some(subject) = self
-                    .caps_child_of(vocab::BRANCH_SUBJECT, case)
-                    .into_iter()
-                    .next()
+                && let Some(subject) = self.branch_subject(N(branch))
                 && let Some(pattern) = self.node(Span::of(n))
             {
                 return Role::BranchPattern { pattern, subject };
@@ -344,6 +364,30 @@ impl<'l> Doc<'l> {
             cur = c.parent();
         }
         Role::Use
+    }
+
+    /// Climbs, because some grammars put a block between the clause and the subject.
+    fn branch_subject(&self, branch: N) -> Option<N<'_>> {
+        let mut cur = self.node(Span::of(branch))?.0.parent();
+        while let Some(c) = cur {
+            if let Some(subject) = self
+                .caps_child_of(vocab::BRANCH_SUBJECT, N(c))
+                .into_iter()
+                .next()
+            {
+                return Some(subject);
+            }
+            // A clause container of its own answers for its clauses, not for ours.
+            if self.has_cap(N(c), vocab::BRANCH)
+                || self.has_cap(N(c), vocab::RETURN_CONTAINER)
+                || self.has_cap(N(c), vocab::FUNCTION_BODY)
+                || self.has_cap(N(c), vocab::OPAQUE)
+            {
+                return None;
+            }
+            cur = c.parent();
+        }
+        None
     }
 
     pub fn call_at(&self, n: N) -> Option<CallSite<'_>> {
@@ -485,14 +529,31 @@ impl<'l> Doc<'l> {
         None
     }
 
-    pub fn is_literal(&self, n: N) -> bool {
+    pub fn is_literal<'a>(&'a self, n: N<'a>) -> bool {
+        let n = self.through(n).unwrap_or(n);
         if self.has_cap(n, vocab::LITERAL) {
             return true;
         }
         if !self.has_cap(n, vocab::CONSTRUCT) {
             return false;
         }
-        named_children(n).iter().all(|c| self.is_literal(*c))
+        named_children(n).iter().all(|c| {
+            if self.has_cap(*c, vocab::CONSTRUCT_FIELD_NAME) {
+                return true;
+            }
+            match self
+                .caps_within(
+                    vocab::CONSTRUCT_FIELD_VALUE,
+                    c.0.start_byte(),
+                    c.0.end_byte(),
+                )
+                .first()
+                .copied()
+            {
+                Some(v) => self.is_literal(v),
+                None => self.is_literal(*c),
+            }
+        })
     }
 
     pub fn is_opaque(&self, n: N) -> bool {
@@ -544,14 +605,56 @@ impl<'l> Doc<'l> {
         None
     }
 
-    pub fn destructure(&self, pattern: N, ident: N, value: N) -> Option<N<'_>> {
+    /// Elements of a positional construct; `None` when it is keyed or a cons.
+    pub fn positional<'a>(&'a self, construct: N<'a>) -> Option<Vec<N<'a>>> {
+        let n = self.through(construct).unwrap_or(construct);
+        if !self.has_cap(n, vocab::CONSTRUCT) || self.has_cap(n, vocab::CONSTRUCT_CONS) {
+            return None;
+        }
+        let (s, e) = (n.0.start_byte(), n.0.end_byte());
+        let keyed = self
+            .caps_within(vocab::CONSTRUCT_FIELD_NAME, s, e)
+            .iter()
+            .any(|f| {
+                f.0.parent()
+                    .and_then(|x| x.parent())
+                    .map(|p| (p.start_byte(), p.end_byte()))
+                    == Some((s, e))
+            });
+        if keyed {
+            return None;
+        }
+        Some(
+            named_children(n)
+                .into_iter()
+                .filter(|c| !self.has_cap(*c, vocab::CONSTRUCT_BASE))
+                .map(|c| self.through(c).unwrap_or(c))
+                .collect(),
+        )
+    }
+
+    pub fn construct_element<'a>(&'a self, construct: N<'a>, i: usize) -> Option<N<'a>> {
+        self.positional(construct)?.get(i).copied()
+    }
+
+    /// The identifier's position inside a positional pattern, when the pattern has several elements.
+    pub fn pattern_index(&self, pattern: N, ident: N) -> Option<usize> {
+        let elems = self.positional(pattern)?;
+        if elems.len() < 2 {
+            return None;
+        }
+        elems.iter().position(|e| contains(e.0, ident.0))
+    }
+
+    pub fn destructure<'a>(&'a self, pattern: N<'a>, ident: N<'a>, value: N<'a>) -> Option<N<'a>> {
         if pattern.0.start_byte() == ident.0.start_byte()
             && pattern.0.end_byte() == ident.0.end_byte()
         {
             return self.node(Span::of(value));
         }
-        if pattern.0.kind_id() != value.0.kind_id()
-            || !self.has_cap(pattern, vocab::CONSTRUCT)
+        // Unwrapped only past the whole-pattern case: there the wrapper is the value.
+        let value = self.through(value).unwrap_or(value);
+        if !self.has_cap(pattern, vocab::CONSTRUCT)
             || !self.has_cap(value, vocab::CONSTRUCT)
             || self.has_cap(pattern, vocab::CONSTRUCT_CONS)
             || self.has_cap(value, vocab::CONSTRUCT_CONS)
@@ -572,11 +675,11 @@ impl<'l> Doc<'l> {
             .collect();
 
         if direct.is_empty() {
-            let (pc, vc) = (named_children(pattern), named_children(value));
+            let (pc, vc) = (self.positional(pattern)?, self.positional(value)?);
             if pc.len() != vc.len() {
                 return None;
             }
-            let index = index_of_child_containing(pattern.0, ident.0)?;
+            let index = pc.iter().position(|e| contains(e.0, ident.0))?;
             return self.destructure(*pc.get(index)?, ident, *vc.get(index)?);
         }
 
