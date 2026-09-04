@@ -46,7 +46,7 @@
   type: [(pointer_type) (slice_type) (map_type) (channel_type)]) @param.mutable
 ;; `c ...int` is one name for many arguments: no position of its own
 (variadic_parameter_declaration) @opaque
-(method_elem name: (_) @function.name parameters: (_) @function.params) @function.abstract
+(method_elem name: (_) @function.name parameters: (_) @function.params) @function @function.abstract
 
 (return_statement (expression_list) @return)
 ;; a bare `return` in a named-results function yields the results, not an expression

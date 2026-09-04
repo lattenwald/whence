@@ -32,7 +32,7 @@
 (parameter type: (reference_type (mutable_specifier))) @param.mutable
 (function_signature_item
   name: (_) @function.name
-  parameters: (_) @function.params) @function.abstract
+  parameters: (_) @function.params) @function @function.abstract
 ;; a trait default: implementations are asked for alongside the body
 (trait_item body: (declaration_list (function_item) @function.abstract))
 

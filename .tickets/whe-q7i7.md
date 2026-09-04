@@ -1,6 +1,6 @@
 ---
 id: whe-q7i7
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-09-04T10:18:48Z

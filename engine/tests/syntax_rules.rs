@@ -231,12 +231,29 @@ fn a_comment_is_never_a_captured_node() {
 }
 
 #[test]
+fn a_parameter_of_a_bodiless_declaration_is_a_parameter() {
+    let text = "trait T { fn m(&self, a: i32) -> i32; }\n";
+    let d = doc("rust", "/t.rs", text);
+    let a = d.ident_at(at(text, "a: i32", 0)).unwrap();
+    let Role::Param {
+        func,
+        slot: Slot::Arg(0),
+    } = d.role_of(a)
+    else {
+        panic!("a parameter of an abstract declaration is still a parameter")
+    };
+    assert_eq!(func.name, "m");
+    assert!(d.is_abstract(&func));
+}
+
+#[test]
 fn a_function_nested_in_a_default_body_is_not_abstract() {
     let text = "trait T { fn m(&self) -> i32 { fn inner() -> i32 { 1 } inner() } }\n";
     let d = doc("rust", "/t.rs", text);
     let p = at(text, "inner", 0);
-    assert!(d.declares_abstract(p).is_none());
-    assert_eq!(d.declares_function(p).unwrap().name, "inner");
+    let inner = d.declares_function(p).unwrap();
+    assert_eq!(inner.name, "inner");
+    assert!(!d.is_abstract(&inner));
 }
 
 #[test]

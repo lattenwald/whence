@@ -409,10 +409,7 @@ fn classify(ctx: &mut Ctx, doc: &Doc, file: &Path, o: N) -> Result<Option<Occ>, 
         let Some(cdoc) = ctx.doc_if_known(&d.file)? else {
             continue;
         };
-        let Some(decl) = cdoc
-            .declares_function(d.range.start)
-            .or_else(|| cdoc.declares_abstract(d.range.start))
-        else {
+        let Some(decl) = cdoc.declares_function(d.range.start) else {
             continue;
         };
         let shift = receiver_shift(&decl, call.receiver.is_some(), call.args.len());
@@ -932,6 +929,68 @@ fn value<'t>(
     Ok(unresolved(ctx, site, n.0.kind()))
 }
 
+enum Halt {
+    Stop(String),
+    Err(TraceError),
+}
+
+impl From<TraceError> for Halt {
+    fn from(e: TraceError) -> Halt {
+        Halt::Err(e)
+    }
+}
+
+/// An abstract declaration is not a callee: its implementations are, and an implementation
+/// may be abstract in turn (an interface embedding the method), so this runs to a fixpoint.
+fn implementations_of(
+    ctx: &mut Ctx,
+    defs: &[Location],
+    seen: &mut Vec<Location>,
+) -> Result<Vec<Location>, Halt> {
+    let mut out: Vec<Location> = Vec::new();
+    for d in defs {
+        if seen.iter().any(|s| s.file == d.file && s.range == d.range) {
+            continue;
+        }
+        seen.push(d.clone());
+        if !ctx.in_root(&d.file) {
+            out.push(d.clone());
+            continue;
+        }
+        let Some(doc) = ctx.doc_if_known(&d.file)? else {
+            out.push(d.clone());
+            continue;
+        };
+        let Some(abs) = doc
+            .declares_function(d.range.start)
+            .filter(|f| doc.is_abstract(f))
+        else {
+            out.push(d.clone());
+            continue;
+        };
+        let Some(name) = doc.name_node(&abs) else {
+            return Err(Halt::Stop("function declaration has no name".into()));
+        };
+        let decl_pos = doc.pos_of(name);
+        let impls = match ctx.implementation(&d.file, decl_pos) {
+            Ok(impls) => distinct(&impls),
+            Err(TraceError::Host(HostError::Unsupported(_))) => {
+                return Err(Halt::Stop(format!("abstract method {}", abs.name)));
+            }
+            Err(e) => return Err(Halt::Err(e)),
+        };
+        let mut here = implementations_of(ctx, &impls, seen)?;
+        if abs.body.is_some() {
+            here.push(d.clone());
+        }
+        if here.is_empty() {
+            return Err(Halt::Stop(format!("no implementation of {}", abs.name)));
+        }
+        out.extend(here);
+    }
+    Ok(distinct(&out))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn call_result(
     ctx: &mut Ctx,
@@ -947,49 +1006,11 @@ fn call_result(
     if defs.is_empty() {
         return Ok(unresolved(ctx, site, "callee not found"));
     }
-    // An abstract declaration is not a callee: its implementations are.
-    let mut expanded: Vec<Location> = Vec::new();
-    for d in &defs {
-        if !ctx.in_root(&d.file) {
-            expanded.push(d.clone());
-            continue;
-        }
-        let Some(doc) = ctx.doc_if_known(&d.file)? else {
-            expanded.push(d.clone());
-            continue;
-        };
-        let Some(abs) = doc.declares_abstract(d.range.start) else {
-            expanded.push(d.clone());
-            continue;
-        };
-        let Some(name) = doc.name_node(&abs) else {
-            return Ok(unresolved(ctx, site, "function declaration has no name"));
-        };
-        let decl_pos = doc.pos_of(name);
-        let mut here = match ctx.implementation(&d.file, decl_pos) {
-            Ok(impls) => distinct(&impls),
-            Err(TraceError::Host(HostError::Unsupported(_))) => {
-                return Ok(unresolved(
-                    ctx,
-                    site,
-                    format!("abstract method {}", abs.name),
-                ));
-            }
-            Err(e) => return Err(e),
-        };
-        if abs.body.is_some() {
-            here.push(d.clone());
-        }
-        if here.is_empty() {
-            return Ok(unresolved(
-                ctx,
-                site,
-                format!("no implementation of {}", abs.name),
-            ));
-        }
-        expanded.extend(here);
-    }
-    let defs = distinct(&expanded);
+    let defs = match implementations_of(ctx, &defs, &mut Vec::new()) {
+        Ok(defs) => defs,
+        Err(Halt::Stop(detail)) => return Ok(unresolved(ctx, site, detail)),
+        Err(Halt::Err(e)) => return Err(e),
+    };
 
     let outside = defs.iter().filter(|l| !ctx.in_root(&l.file)).count();
     if outside == defs.len() {

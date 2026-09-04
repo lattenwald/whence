@@ -66,7 +66,8 @@ pub const CALL_RECEIVER: &str = "call.receiver";
 pub const FUNCTION_RECEIVER: &str = "function.receiver";
 /// Co-captured on a receiver whose writes reach the caller (`&mut self`, `(s *T)`).
 pub const FUNCTION_RECEIVER_MUTABLE: &str = "function.receiver.mutable";
-/// A function declared without a body, or a trait default: implementations are asked for.
+/// Co-captured on a `@function` declared without a body, or on a trait default:
+/// implementations are asked for.
 pub const FUNCTION_ABSTRACT: &str = "function.abstract";
 /// Groups the clauses of one function; absent where a function is one node.
 pub const FUNCTION_GROUP: &str = "function.group";

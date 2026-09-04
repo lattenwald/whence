@@ -115,11 +115,14 @@ identifier's position and traces the whole value; see §3.5.
 `call_result` accepts a definition that is `@function.abstract`. For each
 such definition it sends `host/implementation` at the declaration's name and
 treats every returned location like a definition: outside root counts toward
-`external`, inside root must declare a function. A declaration that is both
-`@function` (has a body: a trait default) and `@function.abstract` is one
-more callee alongside its implementations. No implementations and no body
-→ `stop: unresolved: no implementation of <name>`. A host without the
-`implementation` capability → `stop: unresolved: abstract method <name>`.
+`external`, inside root must declare a function. An implementation may itself
+be abstract — gopls lists the interfaces that embed a method among its
+implementations — so the expansion repeats to a fixpoint, cut where a
+declaration already asked about comes back. An abstract declaration that has
+a body (a trait default) is one more callee alongside its implementations. No
+implementations and no body → `stop: unresolved: no implementation of
+<name>`. A host without the `implementation` capability → `stop: unresolved:
+abstract method <name>`.
 
 ### 3.4 Methods
 
@@ -214,8 +217,11 @@ Additions, all read by generic code:
 - `@function.receiver`: the receiver parameter of a method declaration;
   `.mutable` co-captured when writes through it reach the caller (`&mut
   self`, `(s *T)`); a by-value `mut self` is not mutable in this sense.
-- `@function.abstract`: a function declaration without a body, or a trait
-  default; carries `@function.name` and `@function.params` like `@function`.
+- `@function.abstract`: co-captured on a `@function` that has no body, or on a
+  trait default. A bodiless declaration is a function like any other — its
+  parameters have roles, its name is looked up the same way — and the marker
+  says only that implementations are asked for; `@function.body` is required
+  of every `@function` that does not carry it.
 - `@function.group`: the node grouping the clauses of one function.
 - `@binding.element`: the pattern of a loop binding; `@binding.value` is the
   iterable.
@@ -254,7 +260,7 @@ grammar's `_expression` supertype where "any expression" is meant.
 | receiver | `(self_parameter) @function.receiver`; `(self_parameter "&" (mutable_specifier)) @function.receiver.mutable` |
 | parameter | `(parameter pattern: (_) @param)` (`self_parameter` carries no pattern and stays the receiver) |
 | mutable param | `(parameter type: (reference_type (mutable_specifier))) @param.mutable` |
-| trait method, no body | `(function_signature_item name: (_) @function.name parameters: (_) @function.params) @function.abstract` |
+| trait method, no body | `(function_signature_item name: (_) @function.name parameters: (_) @function.params) @function @function.abstract` |
 | trait default | `(trait_item body: (declaration_list (function_item) @function.abstract))` |
 | body tail | `(function_item body: (block (_expression) @return .))` |
 | `return e` | `(return_expression (_expression) @return)` |
@@ -297,7 +303,7 @@ callee text is that name.
 | parameter | `(parameter_declaration name: (identifier) @param)` (one declaration may name several) |
 | mutable param | `(parameter_declaration type: [(pointer_type) (slice_type) (map_type) (channel_type)]) @param.mutable` (not the variadic declaration: it is `@opaque` and names no `@param`) |
 | variadic param | `(variadic_parameter_declaration) @opaque` — `c ...int` is one name for any number of arguments, so it holds no argument position |
-| interface method | `(method_elem name: (_) @function.name parameters: (_) @function.params) @function.abstract` |
+| interface method | `(method_elem name: (_) @function.name parameters: (_) @function.params) @function @function.abstract` |
 | `return a, b` | `(return_statement (expression_list) @return)`; bare `return` → `((return_statement) @return (#eq? @return "return"))` |
 | expression lists | `(expression_list) @construct`; `(expression_list . (_) @through.inner .) @through` |
 | escapes | `(unary_expression operator: "&" operand: (_) @escape @through.inner) @through` (one pattern: the referent both escapes and is what the reference is) |

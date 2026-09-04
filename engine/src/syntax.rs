@@ -316,15 +316,8 @@ impl<'l> Doc<'l> {
         self.enclosing_function(self.function_name_at(p)?)
     }
 
-    /// The bodiless (or default-bodied) declaration at `p`, if the position is on its name.
-    pub fn declares_abstract(&self, p: Pos) -> Option<FnDecl<'_>> {
-        let name = self.function_name_at(p)?;
-        let decl = self.climb(
-            name.0.parent(),
-            &[vocab::FUNCTION_ABSTRACT],
-            &[vocab::FUNCTION],
-        )?;
-        self.fn_decl(decl)
+    pub fn is_abstract(&self, f: &FnDecl) -> bool {
+        self.has_cap(f.node, vocab::FUNCTION_ABSTRACT)
     }
 
     pub fn name_node<'a>(&'a self, f: &FnDecl<'a>) -> Option<N<'a>> {
@@ -377,12 +370,7 @@ impl<'l> Doc<'l> {
         }
         let node = self.node(Span::of(func))?;
         let receiver = self
-            .caps_owned_by(
-                vocab::FUNCTION_RECEIVER,
-                &[vocab::FUNCTION, vocab::FUNCTION_ABSTRACT],
-                &[],
-                node,
-            )
+            .caps_owned_by(vocab::FUNCTION_RECEIVER, &[vocab::FUNCTION], &[], node)
             .first()
             .copied();
         // a parameter of function type nests a parameter list of its own, marked @opaque
