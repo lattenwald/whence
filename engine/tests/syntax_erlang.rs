@@ -1,4 +1,4 @@
-use whence::syntax::{Doc, N, Role, Slot};
+use whence::syntax::{Doc, N, Proj, Role, Slot};
 
 mod common;
 use common::{at, at_skip};
@@ -101,7 +101,10 @@ fn destructure_tuple_and_record() {
         panic!()
     };
     let (cont, field) = d.field_access(value).unwrap();
-    assert_eq!((d.text_of(cont), field.as_str()), ("Req0", "peer"));
+    assert_eq!(
+        (d.text_of(cont), field),
+        ("Req0", Proj::Field("peer".into()))
+    );
     // construct_field on R = #req{...}
     let r = d.ident_at(at(text, "R = #req", 0)).unwrap();
     let Role::BoundBy { value, .. } = d.role_of(r) else {
@@ -209,11 +212,14 @@ fn nested_field_access_reports_the_outer_field() {
     let outer = d.returns_of(&f)[0];
     let (cont, field) = d.field_access(outer).unwrap();
     assert_eq!(
-        (d.text_of(cont), field.as_str()),
-        ("State#state.conn", "sock")
+        (d.text_of(cont), field),
+        ("State#state.conn", Proj::Field("sock".into()))
     );
     let (inner, field) = d.field_access(cont).unwrap();
-    assert_eq!((d.text_of(inner), field.as_str()), ("State", "conn"));
+    assert_eq!(
+        (d.text_of(inner), field),
+        ("State", Proj::Field("conn".into()))
+    );
 }
 
 #[test]

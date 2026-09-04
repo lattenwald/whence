@@ -55,6 +55,31 @@ pub enum Slot {
     Receiver,
 }
 
+/// A name, or a position: `t.0`, whose `@field.name` carries `@field.index`.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Proj {
+    Field(String),
+    Index(usize),
+}
+
+impl Proj {
+    pub fn describe(&self) -> String {
+        match self {
+            Proj::Field(f) => format!("field {f}"),
+            Proj::Index(i) => format!("element {i}"),
+        }
+    }
+}
+
+impl std::fmt::Display for Proj {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Proj::Field(n) => n.fmt(f),
+            Proj::Index(i) => i.fmt(f),
+        }
+    }
+}
+
 pub struct Assign<'t> {
     pub node: N<'t>,
     pub target: N<'t>,
@@ -687,7 +712,7 @@ impl<'l> Doc<'l> {
         self.has_cap(n, vocab::OPAQUE)
     }
 
-    pub fn field_access<'a>(&'a self, n: N<'a>) -> Option<(N<'a>, String)> {
+    pub fn field_access<'a>(&'a self, n: N<'a>) -> Option<(N<'a>, Proj)> {
         if !self.has_cap(n, vocab::FIELD) {
             return None;
         }
@@ -699,7 +724,16 @@ impl<'l> Doc<'l> {
             .caps_owned_by(vocab::FIELD_NAME, &[vocab::FIELD], &[], n)
             .first()
             .copied()?;
-        Some((container, self.text_of(name).to_string()))
+        let text = self.text_of(name);
+        let index = self
+            .has_cap(name, vocab::FIELD_INDEX)
+            .then(|| text.parse().ok())
+            .flatten();
+        let field = match index {
+            Some(i) => Proj::Index(i),
+            None => Proj::Field(text.to_string()),
+        };
+        Some((container, field))
     }
 
     pub fn construct_base<'a>(&'a self, construct: N<'a>) -> Option<N<'a>> {

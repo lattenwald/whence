@@ -6,9 +6,9 @@ use std::time::Instant;
 use crate::host::{HostError, Location};
 use crate::lang::vocab;
 use crate::pos::Pos;
-use crate::syntax::{Doc, FnDecl, N, Role, Slot, Span, index_containing};
+use crate::syntax::{Doc, FnDecl, N, Proj, Role, Slot, Span, index_containing};
 use crate::trace::TraceError;
-use crate::trace::frame::{Ctx, ExprRef, Frame, FuncId, Proj};
+use crate::trace::frame::{Ctx, ExprRef, Frame, FuncId};
 use crate::tree::{Loc, Node, NodeKind, StopReason, Via, node_id, path_id};
 
 pub enum Expr {
@@ -433,13 +433,8 @@ fn place_written<'t>(doc: &'t Doc<'_>, target: N<'t>, o: N<'t>) -> N<'t> {
 }
 
 fn sets_projection(doc: &Doc, place: N, o: N, proj: &Proj) -> bool {
-    doc.field_access(place).is_some_and(|(container, name)| {
-        Span::of(container) == Span::of(o)
-            && match proj {
-                Proj::Field(f) => &name == f,
-                Proj::Index(i) => name.parse::<usize>() == Ok(*i),
-            }
-    })
+    doc.field_access(place)
+        .is_some_and(|(container, field)| Span::of(container) == Span::of(o) && &field == proj)
 }
 
 /// The part of `value` the pattern binds to `ident`, else `value` under its element index.
@@ -885,7 +880,7 @@ fn value<'t>(
         } else {
             Expr::Value(file.to_path_buf(), Span::of(container))
         };
-        ctx.proj.push(Proj::Field(field.clone()));
+        ctx.proj.push(field.clone());
         let child = expand(ctx, &container_expr, depth + 1);
         ctx.proj.pop();
         let mut child = child?;
@@ -1139,11 +1134,7 @@ fn project<'t>(
     depth: u32,
 ) -> Result<Node, TraceError> {
     let selected = match proj {
-        Proj::Field(f) => doc.construct_field(n, f).or_else(|| {
-            f.parse::<usize>()
-                .ok()
-                .and_then(|i| doc.construct_element(n, i))
-        }),
+        Proj::Field(f) => doc.construct_field(n, f),
         Proj::Index(i) => doc.construct_element(n, *i),
     };
     if let Some(value) = selected {

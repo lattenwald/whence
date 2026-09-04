@@ -1,4 +1,4 @@
-use whence::syntax::{Doc, Role, Slot};
+use whence::syntax::{Doc, Proj, Role, Slot};
 
 mod common;
 use common::{at, at_skip, parse as doc};
@@ -228,6 +228,22 @@ fn a_comment_is_never_a_captured_node() {
         panic!()
     };
     assert_eq!(d.text_of(d.through(value).unwrap()), "1");
+}
+
+#[test]
+fn a_tuple_field_is_an_index_and_a_named_field_is_not() {
+    let text = "fn f(t: (i32, i32), s: S) -> i32 { let a = t.0; let b = s.x0; a + b }\n";
+    let d = doc("rust", "/f.rs", text);
+    let tuple = d.ident_at(at(text, "a = t.0", 0)).unwrap();
+    let named = d.ident_at(at(text, "b = s.x0", 0)).unwrap();
+    let field = |ident| {
+        let Role::BoundBy { value, .. } = d.role_of(ident) else {
+            panic!("a let binding binds its value")
+        };
+        d.field_access(value).unwrap().1
+    };
+    assert_eq!(field(tuple), Proj::Index(0));
+    assert_eq!(field(named), Proj::Field("x0".into()));
 }
 
 #[test]

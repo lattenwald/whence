@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use crate::host::{Host, HostError, Location};
 use crate::lang::Registry;
 use crate::pos::Pos;
-use crate::syntax::{Doc, Span};
+use crate::syntax::{Doc, Proj, Span};
 use crate::trace::TraceError;
 use crate::tree::Limits;
 
@@ -32,21 +32,6 @@ impl FuncId {
             self.name,
             self.arity
         )
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Proj {
-    Field(String),
-    Index(usize),
-}
-
-impl Proj {
-    pub fn describe(&self) -> String {
-        match self {
-            Proj::Field(f) => format!("field {f}"),
-            Proj::Index(i) => format!("element {i}"),
-        }
     }
 }
 

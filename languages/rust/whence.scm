@@ -54,6 +54,8 @@
 
 ;; only when not a call's callee: the engine checks @call.callee first
 (field_expression value: (_) @field.container field: (_) @field.name) @field
+;; `t.0` addresses a position, not a name
+(field_expression field: (integer_literal) @field.index)
 
 (struct_expression body: (field_initializer_list) @through.inner) @through
 (field_initializer_list) @construct

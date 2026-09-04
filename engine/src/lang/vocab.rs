@@ -34,6 +34,8 @@ pub const THROUGH_INNER: &str = "through.inner";
 pub const FIELD: &str = "field";
 pub const FIELD_CONTAINER: &str = "field.container";
 pub const FIELD_NAME: &str = "field.name";
+/// Co-captured on a `@field.name` that is a position, not a name (`t.0`).
+pub const FIELD_INDEX: &str = "field.index";
 
 pub const CONSTRUCT: &str = "construct";
 pub const CONSTRUCT_FIELD_NAME: &str = "construct.field.name";

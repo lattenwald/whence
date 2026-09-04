@@ -63,7 +63,8 @@ Each kept occurrence `O` is classified in this order:
    (Go `a, b = b, a`); an `@assign` without a value (`x++`) gets a `stop:
    literal` child at `A`. With a pending projection `p`: a place `O.p…` sets
    it, so the child is the value `via: field_set` and `p` is consumed (a
-   `Field` matches the field's name, an `Index(i)` a field named `i`); a place
+   `Field` matches a named field, an `Index(i)` a `@field.index` reading
+   `i`); a place
    that projects `O` elsewhere does not affect `p` and the occurrence is
    dropped; a write to `O` itself is kept whatever `p` is.
 2. **Escape.** `O` is inside an `@escape` node → `stop: unresolved: may be
@@ -145,10 +146,12 @@ the parameter node, which is then the pattern the name sits in.
 ### 3.5 Projection
 
 `ctx.proj: Vec<String>` becomes `Vec<Proj>` with `Proj::Field(String)` and
-`Proj::Index(usize)`. On a keyed `@construct`, `Field(f)` selects the entry
-named `f` as today. On a positional `@construct`, `Index(i)` selects the
-`i`-th element, and `Field(s)` where `s` parses as an integer does the same
-(Rust `t.0`). A one-element positional construct is transparent (Go's
+`Proj::Index(usize)`. A field access pushes whichever its `@field.name` says:
+`Index` when the name carries `@field.index` (Rust `t.0`), else `Field`. On a
+keyed `@construct`, `Field(f)` selects the entry named `f` as today; on a
+positional `@construct`, `Index(i)` selects the `i`-th element. The engine
+never reads a field name as a number: only the query decides that a field
+addresses a position. A one-element positional construct is transparent (Go's
 `expression_list` around a single call). Anything else → `stop:
 unresolved: no element <i> in this <kind>` / `no field <f> …` as today.
 
@@ -198,6 +201,7 @@ Additions, all read by generic code:
 @call.receiver
 @function.receiver  @function.receiver.mutable  @function.abstract  @function.group
 @binding.element
+@field.index
 ```
 
 - `@assign`: a write to an existing place. `.target`/`.value` as for
@@ -223,6 +227,9 @@ Additions, all read by generic code:
   says only that implementations are asked for; `@function.body` is required
   of every `@function` that does not carry it.
 - `@function.group`: the node grouping the clauses of one function.
+- `@field.index`: co-captured on a `@field.name` that addresses a position
+  rather than a name (Rust `t.0`); the projection is `Index` and the engine
+  never parses a field name as a number.
 - `@binding.element`: co-captured on a `@binding` whose `@binding.value` is an
   iterable rather than the bound value. A loop binding carries
   `@binding.pattern`/`@binding.value` like any other; the marker says only
@@ -269,7 +276,7 @@ grammar's `_expression` supertype where "any expression" is meant.
 | containers | `[(block) (if_expression) (match_expression) (unsafe_block)] @return.container`; `(block (_expression) @return.value .)`; `(if_expression consequence: (_) @return.value)`; `(else_clause (_) @return.value)`; `(match_arm value: (_) @return.value)`; `(unsafe_block (block) @return.value)` |
 | match | `(match_expression value: (_) @branch.subject)`; `(match_arm pattern: (_) @branch.pattern) @branch` |
 | escapes | `(reference_expression (mutable_specifier) value: (_) @escape)` |
-| field access | `(field_expression value: (_) @field.container field: (_) @field.name) @field` (only when not a call's callee: the callee pattern above claims the `field_expression` first; the engine checks `@call.callee` before `@field`) |
+| field access | `(field_expression value: (_) @field.container field: (_) @field.name) @field`; `(field_expression field: (integer_literal) @field.index)` (only when not a call's callee: the callee pattern above claims the `field_expression` first; the engine checks `@call.callee` before `@field`) |
 | struct literal | `(struct_expression body: (field_initializer_list) @through.inner) @through`; `(field_initializer_list) @construct`; `(field_initializer field: (_) @construct.field.name value: (_) @construct.field.value)`; `(shorthand_field_initializer (identifier) @construct.field.name @construct.field.value)`; `(base_field_initializer (_expression) @through.inner) @through @construct.base` (the capture sits on the construct's own child, which is transparent) |
 | tuples, arrays | `[(tuple_expression) (array_expression) (tuple_pattern) (slice_pattern)] @construct`; `(tuple_pattern (remaining_field_pattern)) @construct.cons`; `(slice_pattern (remaining_field_pattern)) @construct.cons`. `tuple_struct_pattern` is not a construct: its `type:` child would count as an element, so `Some(z) = e` traces the whole `e`. |
 | struct pattern | `(struct_pattern) @construct`; `(field_pattern name: (_) @construct.field.name pattern: (_) @construct.field.value)`; `(field_pattern name: (shorthand_field_identifier) @construct.field.name @construct.field.value)` |
@@ -339,7 +346,7 @@ patterns, which is what the named children of `@function.params` were.
 
 - `engine/src/lang/vocab.rs`: the constants above.
 - `engine/src/lang/mod.rs`: `Quirks { single_assignment }` only; `Language.quirks` read by the step function.
-- `engine/src/syntax.rs`: `FnDecl.receiver`, `CallSite.receiver`, `Role::Param { func, slot: Slot }` (`Slot::Receiver` or `Slot::Arg(i)`), `Role::ElementOf`, `BoundBy.value: Option`; `assign_at(occurrence) -> Option<Assign { node, target, value: Option<N>, compound: bool }>`; `escapes(occurrence) -> bool`; `is_abstract(FnDecl)`; `function_group(FnDecl) -> usize`; `through` applied in `value`-facing helpers; `destructure` without the kind check and with the positional/keyed rule; `construct_element(construct, i)`.
+- `engine/src/syntax.rs`: `FnDecl.receiver`, `CallSite.receiver`, `Role::Param { func, slot: Slot }` (`Slot::Receiver` or `Slot::Arg(i)`), `Role::ElementOf`, `BoundBy.value: Option`; `assign_at(occurrence) -> Option<Assign { node, target, value: Option<N>, compound: bool }>`; `escapes(occurrence) -> bool`; `is_abstract(FnDecl)`; `function_group(FnDecl) -> usize`; `Proj` and `field_access -> (container, Proj)`; `through` applied in `value`-facing helpers; `destructure` without the kind check and with the positional/keyed rule; `construct_element(construct, i)`.
 - `engine/src/trace/frame.rs`: `FuncId.group`, `Frame.receiver`, `Ctx.proj: Vec<Proj>`, `Ctx.highlights`/`Ctx.implementation` caches beside `defs`/`refs`, `Ctx.occurrences(file, pos)` implementing the highlight-or-references choice.
 - `engine/src/trace/step.rs`: `ident` gains the occurrence step (§3.1) and builds the `branch`; `definition` handles the new roles; `call_result` handles `@function.abstract`, receivers and groups; `project` handles `Proj::Index`.
 - `engine/src/host.rs`, `host_rpc.rs`, `host_replay.rs`, `server.rs`: `implementation` request and capability; replay section.
