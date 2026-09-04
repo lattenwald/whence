@@ -74,7 +74,6 @@ pub enum Role<'t> {
     },
     /// A loop pattern: the value is the iterable, not the element.
     ElementOf {
-        pattern: N<'t>,
         value: N<'t>,
     },
     Param {
@@ -330,18 +329,6 @@ impl<'l> Doc<'l> {
         .next()
     }
 
-    pub fn binding_parts<'a>(&'a self, binding: N<'a>) -> Option<(N<'a>, N<'a>)> {
-        let pattern = self
-            .caps_child_of(vocab::BINDING_PATTERN, binding)
-            .first()
-            .copied()?;
-        let value = self
-            .caps_child_of(vocab::BINDING_VALUE, binding)
-            .first()
-            .copied()?;
-        Some((pattern, value))
-    }
-
     pub fn enclosing_function(&self, n: N) -> Option<FnDecl<'_>> {
         self.fn_decl(self.enclosing_function_node(n)?)
     }
@@ -464,8 +451,7 @@ impl<'l> Doc<'l> {
         let mut cur = Some(ident.0);
         while let Some(c) = cur {
             let n = N(c);
-            let element = self.has_cap(n, vocab::BINDING_ELEMENT);
-            if (self.has_cap(n, vocab::BINDING_PATTERN) || element)
+            if self.has_cap(n, vocab::BINDING_PATTERN)
                 && let Some(binding) = c.parent()
                 && self.has_cap(N(binding), vocab::BINDING)
                 && let Some(binding) = self.node(Span::of(N(binding)))
@@ -475,8 +461,9 @@ impl<'l> Doc<'l> {
                     .caps_child_of(vocab::BINDING_VALUE, binding)
                     .into_iter()
                     .next();
+                let element = self.has_cap(binding, vocab::BINDING_ELEMENT);
                 return match (value, element) {
-                    (Some(value), true) => Role::ElementOf { pattern, value },
+                    (Some(value), true) => Role::ElementOf { value },
                     (Some(value), false) => Role::BoundBy { pattern, value },
                     (None, _) => Role::Declared {
                         literal: self.has_cap(binding, vocab::LITERAL),

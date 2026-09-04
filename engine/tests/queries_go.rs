@@ -45,6 +45,7 @@ fn writes_escapes_and_returns() {
     assert!(has(&c, vocab::ESCAPE, "v"));
     assert!(has(&c, vocab::RETURN, "fn(v)"));
     assert!(has(&c, vocab::RETURN, "return"));
-    assert!(has(&c, vocab::BINDING_ELEMENT, "k, e"));
+    assert!(has(&c, vocab::BINDING_PATTERN, "k, e"));
+    assert!(has(&c, vocab::BINDING_ELEMENT, "k, e := range xs"));
     assert!(c[vocab::OPAQUE].iter().any(|s| s.starts_with("func(")));
 }

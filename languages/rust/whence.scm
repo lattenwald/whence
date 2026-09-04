@@ -3,7 +3,7 @@
 ;; the optional value yields a declaration without one
 (let_declaration pattern: (_) @binding.pattern value: (_)? @binding.value) @binding
 (let_condition pattern: (_) @binding.pattern value: (_) @binding.value) @binding
-(for_expression pattern: (_) @binding.element value: (_) @binding.value) @binding
+(for_expression pattern: (_) @binding.pattern value: (_) @binding.value) @binding @binding.element
 
 (assignment_expression left: (_) @assign.target right: (_) @assign.value) @assign
 (compound_assignment_expr

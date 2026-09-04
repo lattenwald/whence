@@ -49,6 +49,11 @@ fn writes_escapes_and_wrappers() {
     assert!(has(&c, vocab::CONSTRUCT_BASE, "..base()"));
     assert!(has(&c, vocab::CONSTRUCT_CONS, "(a, .., zz)"));
     assert!(!has(&c, vocab::CONSTRUCT_CONS, "(q, r)"));
-    assert!(has(&c, vocab::BINDING_ELEMENT, "i"));
+    assert!(has(&c, vocab::BINDING_PATTERN, "i"));
+    assert!(
+        c[vocab::BINDING_ELEMENT]
+            .iter()
+            .any(|s| s.starts_with("for i in 0..3"))
+    );
     assert!(has(&c, vocab::OPAQUE, "vec![]"));
 }

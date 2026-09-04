@@ -1,6 +1,6 @@
 ---
 id: whe-edi6
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-09-04T14:49:46Z

@@ -72,7 +72,7 @@ pub const FUNCTION_ABSTRACT: &str = "function.abstract";
 /// Groups the clauses of one function; absent where a function is one node.
 pub const FUNCTION_GROUP: &str = "function.group";
 
-/// The pattern of a loop binding; `@binding.value` is the iterable.
+/// Co-captured on a `@binding` whose `@binding.value` is an iterable, not the bound value.
 pub const BINDING_ELEMENT: &str = "binding.element";
 
 /// Captures every language must define; the rest are used only where present.

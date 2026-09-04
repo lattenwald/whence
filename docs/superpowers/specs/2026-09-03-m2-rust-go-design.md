@@ -107,7 +107,7 @@ of one or more elements against a value that is not a matching
 construct (a call, an index expression) pushes `Proj::Index(i)` for the
 identifier's position and traces the whole value; see §3.5.
 
-`Role::ElementOf { pattern, value }` (from `@binding.element`) yields a
+`Role::ElementOf { value }` (a `@binding` marked `@binding.element`) yields a
 `binding` node whose child is the iterable `via: element`. No destructuring.
 
 ### 3.3 Call to an abstract method
@@ -223,8 +223,10 @@ Additions, all read by generic code:
   says only that implementations are asked for; `@function.body` is required
   of every `@function` that does not carry it.
 - `@function.group`: the node grouping the clauses of one function.
-- `@binding.element`: the pattern of a loop binding; `@binding.value` is the
-  iterable.
+- `@binding.element`: co-captured on a `@binding` whose `@binding.value` is an
+  iterable rather than the bound value. A loop binding carries
+  `@binding.pattern`/`@binding.value` like any other; the marker says only
+  that the value must not be destructured against the pattern.
 
 Semantics change for two existing captures: `@through` is applied wherever a
 value is classified (§2) and repeated to a fixpoint, and `@construct` positional matching no longer
@@ -250,7 +252,7 @@ grammar's `_expression` supertype where "any expression" is meant.
 | identifiers | `[(identifier) (self) (shorthand_field_identifier)] @ident` |
 | `let p = v` / `let x;` | `(let_declaration pattern: (_) @binding.pattern value: (_)? @binding.value) @binding` (the optional value yields `BoundBy { value: None }`) |
 | `if let` / `while let` | `(let_condition pattern: (_) @binding.pattern value: (_) @binding.value) @binding` |
-| `for p in v` | `(for_expression pattern: (_) @binding.element value: (_) @binding.value) @binding` |
+| `for p in v` | `(for_expression pattern: (_) @binding.pattern value: (_) @binding.value) @binding @binding.element` |
 | `a = b` | `(assignment_expression left: (_) @assign.target right: (_) @assign.value) @assign` |
 | `a += b` | `(compound_assignment_expr left: (_) @assign.target right: (_) @assign.value) @assign @assign.compound` |
 | place bases | `(index_expression . (_) @place.base)`; `(unary_expression "*" (_) @place.base)` |
@@ -292,7 +294,7 @@ callee text is that name.
 | identifiers | `(identifier) @ident` |
 | `a, b := v` | `(short_var_declaration left: (expression_list) @binding.pattern right: (expression_list) @binding.value) @binding` |
 | `var x T = v` / `var x T` | `(var_spec name: (identifier) @binding.pattern value: (expression_list) @binding.value) @binding`; `((var_spec name: (identifier) @binding.pattern !value) @binding @literal)` (the zero value, §3.2) |
-| `for k, v := range xs` | `(range_clause left: (expression_list) @binding.element right: (_) @binding.value) @binding` |
+| `for k, v := range xs` | `(range_clause left: (expression_list) @binding.pattern right: (_) @binding.value) @binding @binding.element` |
 | `a, b = v` / `a += v` | `(assignment_statement left: (expression_list) @assign.target right: (expression_list) @assign.value) @assign`; `((assignment_statement operator: _ @op) @assign.compound (#not-eq? @op "="))` |
 | `x++` / `x--` | `((inc_statement (_) @assign.target) @assign @assign.compound)`; `((dec_statement (_) @assign.target) @assign @assign.compound)` |
 | place bases | `(index_expression operand: (_) @place.base)`; `(unary_expression operator: "*" operand: (_) @place.base)` |

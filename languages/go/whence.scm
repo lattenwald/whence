@@ -8,7 +8,7 @@
 (var_spec
   name: (identifier) @binding.pattern
   value: (expression_list) @binding.value) @binding
-(range_clause left: (expression_list) @binding.element right: (_) @binding.value) @binding
+(range_clause left: (expression_list) @binding.pattern right: (_) @binding.value) @binding @binding.element
 
 (assignment_statement
   left: (expression_list) @assign.target
