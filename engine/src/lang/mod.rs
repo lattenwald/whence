@@ -6,6 +6,7 @@ mod embedded {
 
 use anyhow::{Context, anyhow};
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::path::Path;
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -28,6 +29,13 @@ pub struct Language {
     pub query: tree_sitter::Query,
     pub quirks: Quirks,
     pub extensions: Vec<String>,
+    capture_ids: HashMap<String, u32>,
+}
+
+impl Language {
+    pub fn cap_index(&self, name: &str) -> Option<u32> {
+        self.capture_ids.get(name).copied()
+    }
 }
 
 pub struct Registry {
@@ -47,12 +55,19 @@ impl Registry {
                     e.message
                 )
             })?;
+            let capture_ids = query
+                .capture_names()
+                .iter()
+                .enumerate()
+                .map(|(i, n)| ((*n).to_string(), i as u32))
+                .collect();
             languages.push(Language {
                 name,
                 ts,
                 query,
                 quirks: cfg.quirks,
                 extensions: cfg.extensions,
+                capture_ids,
             });
         }
         Ok(Registry { languages })

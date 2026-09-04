@@ -161,7 +161,7 @@ impl<'l> Doc<'l> {
     }
 
     fn cap_index(&self, name: &str) -> Option<u32> {
-        self.lang.query.capture_index_for_name(name)
+        self.lang.cap_index(name)
     }
 
     pub fn node(&self, span: Span) -> Option<N<'_>> {
@@ -321,8 +321,10 @@ impl<'l> Doc<'l> {
     }
 
     pub fn clauses_of(&self, group: usize, name: &str, arity: usize) -> Vec<FnDecl<'_>> {
-        self.functions()
+        self.caps_within(vocab::FUNCTION_NAME, 0, self.text.len())
             .into_iter()
+            .filter(|n| self.text_of(*n) == name)
+            .filter_map(|n| self.enclosing_function(n))
             .filter(|c| {
                 c.name == name && c.params.len() == arity && self.function_group(c) == group
             })

@@ -6,7 +6,7 @@ use std::time::Instant;
 use crate::host::{HostError, Location};
 use crate::lang::vocab;
 use crate::pos::Pos;
-use crate::syntax::{Doc, FnDecl, N, Proj, Role, Slot, Span, index_containing};
+use crate::syntax::{CallSite, Doc, FnDecl, N, Proj, Role, Slot, Span, index_containing};
 use crate::trace::TraceError;
 use crate::trace::frame::{Ctx, ExprRef, Frame, FuncId};
 use crate::tree::{Loc, Node, NodeKind, StopReason, Via, node_id, path_id};
@@ -412,11 +412,9 @@ fn classify(ctx: &mut Ctx, doc: &Doc, file: &Path, o: N) -> Result<Option<Occ>, 
         let Some(decl) = cdoc.declares_function(d.range.start) else {
             continue;
         };
-        let shift = receiver_shift(&decl, call.receiver.is_some(), call.args.len());
-        mutable |= match (slot, shift) {
-            (Slot::Receiver, _) | (Slot::Arg(0), true) => cdoc.has_mutable_receiver(&decl),
-            (Slot::Arg(i), true) => cdoc.param_is_mutable(&decl, i - 1),
-            (Slot::Arg(i), false) => cdoc.param_is_mutable(&decl, i),
+        mutable |= match declared_slot(&decl, &call, slot) {
+            Slot::Receiver => cdoc.has_mutable_receiver(&decl),
+            Slot::Arg(i) => cdoc.param_is_mutable(&decl, i),
         };
     }
     Ok(mutable.then(|| Occ::Escape {
@@ -614,8 +612,27 @@ fn narrow(doc: &Doc, pattern: Option<N>, ident: N, file: &Path, arg: &ExprRef) -
         .unwrap_or(arg.1)
 }
 
-fn receiver_shift(func: &FnDecl, call_has_receiver: bool, argc: usize) -> bool {
-    func.receiver.is_some() && !call_has_receiver && argc == func.params.len() + 1
+/// A method can be called as a plain function with the receiver first (Go `T.M(s, x)`).
+fn receiver_shift(func: &FnDecl, has_receiver: bool, argc: usize) -> bool {
+    func.receiver.is_some() && !has_receiver && argc == func.params.len() + 1
+}
+
+/// The receiver and arguments of a call as the declaration numbers them.
+fn as_declared<T>(func: &FnDecl, receiver: Option<T>, mut args: Vec<T>) -> (Option<T>, Vec<T>) {
+    if receiver_shift(func, receiver.is_some(), args.len()) {
+        return (Some(args.remove(0)), args);
+    }
+    (receiver, args)
+}
+
+fn declared_slot(func: &FnDecl, call: &CallSite, slot: Slot) -> Slot {
+    match slot {
+        Slot::Arg(i) if receiver_shift(func, call.receiver.is_some(), call.args.len()) => match i {
+            0 => Slot::Receiver,
+            i => Slot::Arg(i - 1),
+        },
+        s => s,
+    }
 }
 
 fn slot_pattern<'t>(func: &FnDecl<'t>, slot: Slot) -> Option<N<'t>> {
@@ -699,16 +716,10 @@ fn param_like(
         // structural: is it the callee of a call, and does that call pass this argument?
         match rdoc.call_with_callee_at(r.range.start) {
             Some(call) => {
-                let shift = usize::from(receiver_shift(
-                    func,
-                    call.receiver.is_some(),
-                    call.args.len(),
-                ));
+                let (receiver, args) = as_declared(func, call.receiver, call.args);
                 let picked = match slot {
-                    Slot::Arg(i) => call.args.get(i + shift).copied(),
-                    Slot::Receiver => call
-                        .receiver
-                        .or_else(|| (shift == 1).then(|| call.args.first().copied()).flatten()),
+                    Slot::Arg(i) => args.get(i).copied(),
+                    Slot::Receiver => receiver,
                 };
                 match picked {
                     Some(a) => sites.push((r.file.clone(), Span::of(a))),
@@ -1036,10 +1047,7 @@ fn call_result(
         if targets.iter().any(|t| t.func_id == func_id) {
             continue;
         }
-        let (mut args, mut receiver) = (args.clone(), receiver.clone());
-        if receiver_shift(&decl, receiver.is_some(), args.len()) {
-            receiver = Some(args.remove(0));
-        }
+        let (receiver, args) = as_declared(&decl, receiver.clone(), args.clone());
         targets.push(Frame {
             func_id,
             args,
