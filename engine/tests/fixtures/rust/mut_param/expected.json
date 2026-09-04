@@ -1,0 +1,76 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [],
+        "id": "133d3a91e0878226",
+        "kind": "stop",
+        "label": "v",
+        "loc": {
+          "col": 9,
+          "file": "src/main.rs",
+          "line": 9
+        },
+        "snippet": "fill(v);",
+        "stop": {
+          "detail": "may be written by fill(…)",
+          "reason": "unresolved"
+        },
+        "truncated": 0,
+        "via": null
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "eb95c8feec294d72",
+            "kind": "stop",
+            "label": "&mut xs",
+            "loc": {
+              "col": 16,
+              "file": "src/main.rs",
+              "line": 16
+            },
+            "snippet": "let n = run(&mut xs);",
+            "stop": {
+              "detail": "reference_expression",
+              "reason": "unresolved"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "f513803c9eff00b4",
+        "kind": "param",
+        "label": "v",
+        "loc": {
+          "col": 7,
+          "file": "src/main.rs",
+          "line": 8
+        },
+        "snippet": "fn run(v: &mut Vec<i32>) -> usize {",
+        "stop": null,
+        "truncated": 0,
+        "via": "match"
+      }
+    ],
+    "id": "7a13b4d1ecc3b64a",
+    "kind": "branch",
+    "label": "v",
+    "loc": {
+      "col": 4,
+      "file": "src/main.rs",
+      "line": 11
+    },
+    "snippet": "v.capacity()",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 6,
+    "ms": 0,
+    "nodes": 4,
+    "truncated": 0
+  }
+}

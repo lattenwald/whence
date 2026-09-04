@@ -698,6 +698,21 @@ fn rust_escape() {
 }
 
 #[test]
+fn rust_mut_param() {
+    let v = check(Case {
+        dir: "rust/mut_param",
+        file: "src/main.rs",
+        pos: (11, 4),
+        ..Default::default()
+    });
+    let kids = v["root"]["children"].as_array().unwrap();
+    // `fill` takes `&mut Vec<i32>`; `count` takes `&Vec<i32>` and is not a write.
+    assert_eq!(kids.len(), 2);
+    assert_eq!(kids[0]["stop"]["detail"], "may be written by fill(…)");
+    assert_eq!(kids[1]["kind"], "param");
+}
+
+#[test]
 fn a_call_through_a_variable_is_not_entered() {
     let v = check(Case {
         dir: "erlang/dynamic_call",
