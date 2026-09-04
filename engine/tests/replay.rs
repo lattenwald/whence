@@ -671,6 +671,33 @@ fn rust_rebind() {
 }
 
 #[test]
+fn rust_escape() {
+    let v = check(Case {
+        dir: "rust/escape",
+        file: "src/main.rs",
+        pos: (29, 10),
+        ..Default::default()
+    });
+    let kids = v["root"]["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 4);
+    let details: Vec<&str> = kids[..3]
+        .iter()
+        .map(|k| k["stop"]["detail"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        details,
+        [
+            "may be written by external method len",
+            "may be written by bump(…)",
+            "may be written by mutate(&mut s)",
+        ]
+    );
+    // `s.peek()` takes `&self`: reading through a method is not a write.
+    assert!(!serde_json::to_string(&v).unwrap().contains("peek"));
+    assert_eq!(kids[3]["via"], "match");
+}
+
+#[test]
 fn a_call_through_a_variable_is_not_entered() {
     let v = check(Case {
         dir: "erlang/dynamic_call",

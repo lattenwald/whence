@@ -9,14 +9,21 @@ vim.cmd("runtime plugin/whence.lua")
 require("whence").setup({ root = project })
 
 local servers = {
-  rust = { name = "rust-analyzer", cmd = { "rust-analyzer" }, filetype = "rust" },
+  -- the repo pins a toolchain without rust-src, and without std sources no method resolves
+  rust = {
+    name = "rust-analyzer",
+    cmd = { "rust-analyzer" },
+    filetype = "rust",
+    cmd_env = { RUSTUP_TOOLCHAIN = os.getenv("WHENCE_RUST_TOOLCHAIN") or "stable" },
+  },
   go = { name = "gopls", cmd = { "gopls" }, filetype = "go" },
 }
 local s = servers[lang]
 vim.cmd.cd(project)
 vim.cmd.edit(file)
 vim.bo.filetype = s.filetype
-local client_id = vim.lsp.start({ name = s.name, cmd = s.cmd, root_dir = project }, { bufnr = 0 })
+local client_id =
+  vim.lsp.start({ name = s.name, cmd = s.cmd, cmd_env = s.cmd_env, root_dir = project }, { bufnr = 0 })
 assert(client_id, "lsp did not start")
 
 assert(vim.wait(20000, function() return #vim.lsp.get_clients({ bufnr = 0 }) > 0 end), "no client attached")
@@ -29,12 +36,23 @@ local ready = vim.wait(120000, function()
   return false
 end, 1000)
 assert(ready, "server never answered a definition at the target")
+-- until indexing ends the server answers method and std lookups with nothing, silently
+vim.wait(180000, function() return vim.lsp.status() == "" end, 200)
+vim.wait(2000, function() return false end, 100)
 
-local done, err = false, nil
 local record = require("whence.record")
-record.begin(outdir, project, require("whence.util").cursor_target())
-require("whence").trace(function(e) err = e; done = true end)
-assert(vim.wait(60000, function() return done end, 50), "trace did not finish")
-local hint = record.finish()
+local hint, err
+for attempt = 1, 5 do
+  local done = false
+  err = nil
+  vim.fn.delete(outdir, "rf")
+  record.begin(outdir, project, require("whence.util").cursor_target())
+  require("whence").trace(function(e) err = e; done = true end)
+  assert(vim.wait(60000, function() return done end, 50), "trace did not finish")
+  hint = record.finish()
+  -- rust-analyzer fails a request with "content modified" while it is still indexing
+  if not err or attempt == 5 then break end
+  vim.wait(5000, function() return false end, 100)
+end
 io.stdout:write((err and ("error: " .. vim.inspect(err)) or (hint or "recorded nothing")) .. "\n")
 vim.cmd.qall({ bang = true })
