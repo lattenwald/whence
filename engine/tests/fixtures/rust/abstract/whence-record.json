@@ -1,0 +1,10 @@
+{
+  "file": "src/main.rs",
+  "root": ".",
+  "line": 34,
+  "col": 4,
+  "recorded_at": "2026-09-04T11:22:20Z",
+  "engine_version": "0.2.0",
+  "conflicts": [],
+  "recorded_with": "rust-analyzer 1.98.0 (88d9e12 2026-08-18), Neovim 0.12.5, headless scripts/record-fixture.lua; host.json merges two cursor positions (35:5, 35:9 1-based)"
+}

@@ -713,6 +713,41 @@ fn rust_mut_param() {
 }
 
 #[test]
+fn rust_abstract_method() {
+    let v = check(Case {
+        dir: "rust/abstract",
+        file: "src/main.rs",
+        pos: (34, 4),
+        ..Default::default()
+    });
+    let call = &v["root"]["children"][0];
+    assert_eq!(
+        (&call["kind"], &call["label"]),
+        (&"call_result".into(), &"abs".into())
+    );
+    let kids = call["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 2);
+    for k in kids {
+        assert_eq!(k["stop"]["reason"], "literal");
+    }
+}
+
+#[test]
+fn rust_trait_default_is_a_callee_beside_its_overrides() {
+    let v = check(Case {
+        dir: "rust/abstract",
+        file: "src/main.rs",
+        pos: (34, 8),
+        expected: "expected_default.json",
+        ..Default::default()
+    });
+    let call = &v["root"]["children"][0];
+    assert_eq!(call["label"], "dflt");
+    // Both implementations and the trait's own body.
+    assert_eq!(call["children"].as_array().unwrap().len(), 3);
+}
+
+#[test]
 fn a_call_through_a_variable_is_not_entered() {
     let v = check(Case {
         dir: "erlang/dynamic_call",

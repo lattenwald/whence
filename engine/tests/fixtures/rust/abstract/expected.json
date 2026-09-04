@@ -1,0 +1,76 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "63549cc40ac3e34b",
+            "kind": "stop",
+            "label": "10",
+            "loc": {
+              "col": 8,
+              "file": "src/main.rs",
+              "line": 13
+            },
+            "snippet": "10",
+            "stop": {
+              "detail": "integer_literal",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": null
+          },
+          {
+            "children": [],
+            "id": "cfa3563fc386f02c",
+            "kind": "stop",
+            "label": "20",
+            "loc": {
+              "col": 8,
+              "file": "src/main.rs",
+              "line": 23
+            },
+            "snippet": "20",
+            "stop": {
+              "detail": "integer_literal",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "bdb6e24fdb56e57e",
+        "kind": "call_result",
+        "label": "abs",
+        "loc": {
+          "col": 12,
+          "file": "src/main.rs",
+          "line": 32
+        },
+        "snippet": "let x = t.abs();",
+        "stop": null,
+        "truncated": 0,
+        "via": "return"
+      }
+    ],
+    "id": "f853d1f384cb1926",
+    "kind": "binding",
+    "label": "x",
+    "loc": {
+      "col": 8,
+      "file": "src/main.rs",
+      "line": 32
+    },
+    "snippet": "let x = t.abs();",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 5,
+    "ms": 0,
+    "nodes": 4,
+    "truncated": 0
+  }
+}

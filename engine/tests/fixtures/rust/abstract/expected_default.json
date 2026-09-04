@@ -1,0 +1,94 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "57db70fa961dbcdf",
+            "kind": "stop",
+            "label": "21",
+            "loc": {
+              "col": 8,
+              "file": "src/main.rs",
+              "line": 27
+            },
+            "snippet": "21",
+            "stop": {
+              "detail": "integer_literal",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": null
+          },
+          {
+            "children": [],
+            "id": "753ca1bb2aba2d97",
+            "kind": "stop",
+            "label": "11",
+            "loc": {
+              "col": 8,
+              "file": "src/main.rs",
+              "line": 17
+            },
+            "snippet": "11",
+            "stop": {
+              "detail": "integer_literal",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": null
+          },
+          {
+            "children": [],
+            "id": "c3326e85d122e62b",
+            "kind": "stop",
+            "label": "1",
+            "loc": {
+              "col": 8,
+              "file": "src/main.rs",
+              "line": 4
+            },
+            "snippet": "1",
+            "stop": {
+              "detail": "integer_literal",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "fc564f02a52c077a",
+        "kind": "call_result",
+        "label": "dflt",
+        "loc": {
+          "col": 12,
+          "file": "src/main.rs",
+          "line": 33
+        },
+        "snippet": "let y = t.dflt();",
+        "stop": null,
+        "truncated": 0,
+        "via": "return"
+      }
+    ],
+    "id": "7b1723076ba8037b",
+    "kind": "binding",
+    "label": "y",
+    "loc": {
+      "col": 8,
+      "file": "src/main.rs",
+      "line": 33
+    },
+    "snippet": "let y = t.dflt();",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 5,
+    "ms": 0,
+    "nodes": 5,
+    "truncated": 0
+  }
+}
