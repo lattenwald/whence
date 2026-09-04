@@ -57,6 +57,8 @@ pub const PLACE_BASE: &str = "place.base";
 
 /// An expression whose address or mutable reference is taken.
 pub const ESCAPE: &str = "escape";
+/// One parameter name; when a language defines it, positional parameters are these nodes.
+pub const PARAM: &str = "param";
 /// A parameter the callee may write through (`&mut T`, `*T`).
 pub const PARAM_MUTABLE: &str = "param.mutable";
 
@@ -73,6 +75,8 @@ pub const FUNCTION_GROUP: &str = "function.group";
 pub const BINDING_ELEMENT: &str = "binding.element";
 
 /// Captures every language must define; the rest are used only where present.
+/// `RETURN_VALUE` is not: it is read only inside a `RETURN_CONTAINER`, which a
+/// language whose branches are statements does not have.
 pub fn required() -> &'static [&'static str] {
     &[
         BINDING,
@@ -86,7 +90,6 @@ pub fn required() -> &'static [&'static str] {
         FUNCTION_PARAMS,
         FUNCTION_BODY,
         RETURN,
-        RETURN_VALUE,
         LITERAL,
         IDENT,
     ]

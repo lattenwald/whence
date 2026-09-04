@@ -203,6 +203,24 @@ over the definitions *before* those checks, and they see the implementations. Sp
 implementation outside the root to count toward `external`; inside the target loop it could not,
 because the verdict was already taken on the abstract declaration alone.
 
+### `@return.value` is required only where a language has return containers
+
+Plan: Task 7 touches no engine source but `engine/src/lang/mod.rs`. Done: `required()` in
+`engine/src/lang/vocab.rs` loses `@return.value`, and the registry test requires it of a language
+that defines `@return.container`. Go's branches are statements, so it has no container to expand
+and nothing honest to put on that capture; leaving it required would have forced a pattern that
+matches nothing. Spec §6 carries the rule.
+
+### Parameters are named nodes, not the children of the parameter list
+
+Plan: Task 7 adds no capture; a function's parameters are the named children of
+`@function.params` (Task 3). Done: the vocabulary gains `@param`, one parameter name, and
+`FnDecl.params` are those nodes where a language captures them. Go's `func f(a, b int)` is one
+`parameter_declaration` with two names, so `b` was parameter 0 and every argument after it
+landed on the wrong name; Rust's `(parameter pattern: (_) @param)` additionally makes a
+destructuring parameter the pattern it binds. `param_is_mutable` walks from the name to
+`@function.params`, since the mark sits on the declaration.
+
 ## M3 — VS Code extension
 
 - Plan: [2026-09-03-m3-vscode.md](superpowers/plans/2026-09-03-m3-vscode.md)

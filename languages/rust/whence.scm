@@ -28,6 +28,7 @@
 (self_parameter) @function.receiver
 ;; `&mut self` writes reach the caller; `mut self` does not
 (self_parameter "&" (mutable_specifier)) @function.receiver.mutable
+(parameter pattern: (_) @param)
 (parameter type: (reference_type (mutable_specifier))) @param.mutable
 (function_signature_item
   name: (_) @function.name

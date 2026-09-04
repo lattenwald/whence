@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 use whence::{
     lang::Registry,
     pos::Pos,
-    syntax::{Doc, Role},
+    syntax::{Doc, Role, Slot},
 };
 
 fn doc(lang: &str, path: &str, text: &str) -> Doc<'static> {
@@ -16,6 +16,12 @@ const RUST: &str = include_str!("fixtures/rust/queries/sample.rs");
 
 fn rust() -> (Doc<'static>, &'static str) {
     (doc("rust", "/s.rs", RUST), RUST)
+}
+
+const GO: &str = include_str!("fixtures/go/queries/sample.go");
+
+fn go() -> (Doc<'static>, &'static str) {
+    (doc("go", "/s.go", GO), GO)
 }
 
 /// Position of the `nth` (0-based) occurrence of `needle`, offset by `skip` bytes into it.
@@ -110,6 +116,37 @@ fn receiver_role_and_params_exclude_self() {
 }
 
 #[test]
+fn a_destructuring_parameter_is_the_pattern_it_binds() {
+    let (d, text) = rust();
+    let b = d.ident_at(at(text, "b): (i32, i32)", 0)).unwrap();
+    let Role::Param { func, index } = d.role_of(b) else {
+        panic!()
+    };
+    assert_eq!(func.params.len(), 1);
+    assert_eq!(index, 0);
+    assert_eq!(d.text_of(func.params[0]), "(a, b)");
+    assert_eq!(d.pattern_index(func.params[0], b), Some(1));
+}
+
+#[test]
+fn go_names_sharing_one_declaration_are_separate_parameters() {
+    let (d, text) = go();
+    let b = d.ident_at(at(text, "b int, rest", 0)).unwrap();
+    let Role::Param { func, index } = d.role_of(b) else {
+        panic!("each name of `a, b int` is a parameter of its own")
+    };
+    assert_eq!(index, 1);
+    assert_eq!(func.params.len(), 2);
+    assert!(!d.param_is_mutable(&func, 1));
+
+    let q = d.ident_at(at(text, "q *S", 0)).unwrap();
+    let Role::Param { func, index } = d.role_of(q) else {
+        panic!()
+    };
+    assert!(d.param_is_mutable(&func, index));
+}
+
+#[test]
 fn assign_at_classifies_rebind_compound_and_deref() {
     let (d, text) = rust();
     let v = d.ident_at(at(text, "v = v + 1", 0)).unwrap();
@@ -132,6 +169,59 @@ fn assign_at_classifies_rebind_compound_and_deref() {
         .map(|n| d.text_of(*n))
         .collect();
     assert_eq!(chain, ["*b", "b"]);
+}
+
+#[test]
+fn go_short_var_decl_index_and_zero_value() {
+    let (d, text) = go();
+    let r = d.ident_at(at(text, "r := g(v)", 0)).unwrap();
+    let Role::BoundBy { pattern, value } = d.role_of(r) else {
+        panic!()
+    };
+    assert!(d.destructure(pattern, r, value).is_none());
+    assert_eq!(d.pattern_index(pattern, r), Some(1));
+
+    let z = d.ident_at(at(text, "z int", 0)).unwrap();
+    assert!(matches!(d.role_of(z), Role::Declared { literal: true }));
+
+    let w = d.ident_at(at(text, "w int = v", 0)).unwrap();
+    let Role::BoundBy { value, .. } = d.role_of(w) else {
+        panic!("a var declaration with a value binds")
+    };
+    assert_eq!(d.text_of(d.through(value).unwrap()), "v");
+}
+
+#[test]
+fn go_receiver_outside_params() {
+    let (d, text) = go();
+    let s = d.ident_at(at(text, "s *S", 0)).unwrap();
+    let Role::Receiver { func } = d.role_of(s) else {
+        panic!("the receiver parameter is not a positional parameter")
+    };
+    assert_eq!(func.name, "Bump");
+    assert_eq!(func.params.len(), 1);
+    assert!(d.has_mutable_receiver(&func));
+
+    let by_value = d.enclosing_function(d.ident_at(at(text, "s.Y", 0)).unwrap());
+    assert!(!d.has_mutable_receiver(&by_value.unwrap()));
+}
+
+#[test]
+fn go_call_using_finds_receiver_and_argument_slots() {
+    let (d, text) = go();
+    let p = d.ident_at(at(text, "p.Bump", 0)).unwrap();
+    let (call, slot) = d.call_using(p).unwrap();
+    assert_eq!(d.text_of(call.callee), "Bump");
+    assert!(matches!(slot, Slot::Receiver));
+
+    let v = d.ident_at(at_skip(text, "&v, p)", 0, 1)).unwrap();
+    let (call, slot) = d.call_using(v).unwrap();
+    assert_eq!(d.text_of(call.callee), "h");
+    assert!(matches!(slot, Slot::Arg(0)));
+    assert!(d.escaped(v).is_some());
+
+    let arg = d.ident_at(at_skip(text, "&v, p)", 0, 4)).unwrap();
+    assert!(matches!(d.call_using(arg), Some((_, Slot::Arg(1)))));
 }
 
 #[test]

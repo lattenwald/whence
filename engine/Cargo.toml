@@ -19,6 +19,7 @@ clap = { version = "4", features = ["derive"] }
 tree-sitter = "0.27"
 tree-sitter-erlang = "0.20"
 tree-sitter-rust = "0.24"
+tree-sitter-go = "0.25"
 toml = "0.9"
 sha2 = "0.10"
 log = "0.4"

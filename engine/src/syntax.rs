@@ -383,10 +383,13 @@ impl<'l> Doc<'l> {
             )
             .first()
             .copied();
-        let params = named_children(params)
-            .into_iter()
-            .filter(|p| receiver.is_none_or(|r| r.0.id() != p.0.id()))
-            .collect();
+        let params = match self.cap_index(vocab::PARAM) {
+            Some(_) => self.caps_owned_by(vocab::PARAM, &[vocab::FUNCTION_PARAMS], params),
+            None => named_children(params)
+                .into_iter()
+                .filter(|p| receiver.is_none_or(|r| r.0.id() != p.0.id()))
+                .collect(),
+        };
         Some(FnDecl {
             node,
             name,
@@ -456,9 +459,20 @@ impl<'l> Doc<'l> {
     }
 
     pub fn param_is_mutable(&self, f: &FnDecl, index: usize) -> bool {
-        f.params
-            .get(index)
-            .is_some_and(|p| self.has_cap(*p, vocab::PARAM_MUTABLE))
+        let Some(p) = f.params.get(index) else {
+            return false;
+        };
+        let mut cur = Some(p.0);
+        while let Some(c) = cur {
+            if self.has_cap(N(c), vocab::PARAM_MUTABLE) {
+                return true;
+            }
+            if self.has_cap(N(c), vocab::FUNCTION_PARAMS) {
+                return false;
+            }
+            cur = c.parent();
+        }
+        false
     }
 
     pub fn role_of(&self, ident: N) -> Role<'_> {

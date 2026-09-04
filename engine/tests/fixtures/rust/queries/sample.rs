@@ -56,6 +56,10 @@ fn tail_return(a: i32) -> i32 {
     return a
 }
 
+fn pairs((a, b): (i32, i32)) -> i32 {
+    a + b
+}
+
 fn hold(e: &mut i32) {
     *e += 1;
 }

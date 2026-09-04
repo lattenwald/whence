@@ -133,6 +133,12 @@ and takes each call site's `@call.receiver`. A call with no `@call.receiver`
 to a declaration with a receiver, whose argument count is one more than the
 parameter count, passes its first argument as the receiver (`T::m(x)`).
 
+`FnDecl.params` are the `@param` nodes owned by `@function.params` where the
+language captures them, and its named children otherwise: one Go
+`parameter_declaration` may name several parameters, and a Rust `parameter`
+binds a pattern, so neither is a position. An argument is destructured against
+the parameter node, which is then the pattern the name sits in.
+
 ### 3.5 Projection
 
 `ctx.proj: Vec<String>` becomes `Vec<Proj>` with `Proj::Field(String)` and
@@ -185,7 +191,7 @@ Additions, all read by generic code:
 @assign  @assign.target  @assign.value  @assign.compound
 @place.base
 @escape
-@param.mutable
+@param  @param.mutable
 @call.receiver
 @function.receiver  @function.receiver.mutable  @function.abstract  @function.group
 @binding.element
@@ -197,8 +203,13 @@ Additions, all read by generic code:
   in `x[i] = e`, `*x = e`), so that the index is not mistaken for a write.
 - `@escape`: an expression whose address or mutable reference is taken
   (`&mut e`, `&e` in Go).
+- `@param`: one parameter name. Where a language defines it, a function's
+  positional parameters are these nodes rather than the named children of
+  `@function.params`; a declaration naming several parameters (`a, b int`) or
+  binding a pattern (`(a, b): (i32, i32)`) is then counted correctly.
 - `@param.mutable`: a parameter declaration through which the callee may
-  write (`x: &mut T`, `p *T`).
+  write (`x: &mut T`, `p *T`); it may sit on the declaration containing the
+  `@param` name.
 - `@call.receiver`: the receiver expression of a method call.
 - `@function.receiver`: the receiver parameter of a method declaration;
   `.mutable` co-captured when writes through it reach the caller (`&mut
@@ -214,8 +225,11 @@ value is classified (§2), and `@construct` positional matching no longer
 requires equal node kinds (§3.2). `is_literal` on a keyed construct skips
 `@construct.field.name` nodes and checks each entry's `@construct.field.value`.
 
-`required()` is unchanged; the new captures are used only where present, so
-the Erlang query gains only `@function.group`.
+`required()` loses `@return.value`, which is read only inside a
+`@return.container` and so cannot be required of a language whose branches are
+statements; a language that defines `@return.container` must still define it.
+The new captures are used only where present, so the Erlang query gains only
+`@function.group`.
 
 `lang.toml`: `[quirks] single_assignment = true|false` is the only key.
 
@@ -237,6 +251,7 @@ grammar's `_expression` supertype where "any expression" is meant.
 | method call | `(call_expression function: (field_expression value: (_) @call.receiver field: (_) @call.callee) arguments: (arguments) @call.args) @call` |
 | function | `(function_item name: (_) @function.name parameters: (_) @function.params body: (_) @function.body) @function` |
 | receiver | `(self_parameter) @function.receiver`; `(self_parameter "&" (mutable_specifier)) @function.receiver.mutable` |
+| parameter | `(parameter pattern: (_) @param)` (`self_parameter` carries no pattern and stays the receiver) |
 | mutable param | `(parameter type: (reference_type (mutable_specifier))) @param.mutable` |
 | trait method, no body | `(function_signature_item name: (_) @function.name parameters: (_) @function.params) @function.abstract` |
 | trait default | `(trait_item body: (declaration_list (function_item) @function.abstract))` |
@@ -268,7 +283,7 @@ callee text is that name.
 |---|---|
 | identifiers | `(identifier) @ident` |
 | `a, b := v` | `(short_var_declaration left: (expression_list) @binding.pattern right: (expression_list) @binding.value) @binding` |
-| `var x T = v` / `var x T` | `(var_spec name: (identifier) @binding.pattern value: (expression_list)? @binding.value) @binding` |
+| `var x T = v` / `var x T` | `(var_spec name: (identifier) @binding.pattern value: (expression_list) @binding.value) @binding`; `((var_spec name: (identifier) @binding.pattern !value) @binding @literal)` (the zero value, §3.2) |
 | `for k, v := range xs` | `(range_clause left: (expression_list) @binding.element right: (_) @binding.value) @binding` |
 | `a, b = v` / `a += v` | `(assignment_statement left: (expression_list) @assign.target right: (expression_list) @assign.value) @assign`; `((assignment_statement operator: _ @op) @assign.compound (#not-eq? @op "="))` |
 | `x++` / `x--` | `((inc_statement (_) @assign.target) @assign @assign.compound)`; `((dec_statement (_) @assign.target) @assign @assign.compound)` |
@@ -277,7 +292,9 @@ callee text is that name.
 | method / package call | `(call_expression function: (selector_expression operand: (_) @call.receiver field: (_) @call.callee) arguments: (argument_list) @call.args) @call` (a package qualifier is captured as a receiver and ignored when the callee is not a method) |
 | function | `(function_declaration name: (_) @function.name parameters: (_) @function.params body: (_) @function.body) @function` |
 | method | `(method_declaration receiver: (parameter_list (parameter_declaration) @function.receiver) name: (_) @function.name parameters: (_) @function.params body: (_) @function.body) @function`; `(method_declaration receiver: (parameter_list (parameter_declaration type: (pointer_type)) @function.receiver.mutable))` |
-| mutable param | `(parameter_declaration type: (pointer_type)) @param.mutable` |
+| parameter | `(parameter_declaration name: (identifier) @param)` (one declaration may name several) |
+| mutable param | `(parameter_declaration type: [(pointer_type) (slice_type) (map_type) (channel_type)]) @param.mutable`; the same for `(variadic_parameter_declaration type: …)` |
+| variadic param | `(variadic_parameter_declaration) @opaque` — `c ...int` is one name for any number of arguments, so it holds no argument position |
 | interface method | `(method_elem name: (_) @function.name parameters: (_) @function.params) @function.abstract` |
 | `return a, b` | `(return_statement (expression_list) @return)`; bare `return` → `((return_statement) @return (#eq? @return "return"))` |
 | expression lists | `(expression_list) @construct`; `(expression_list . (_) @through.inner .) @through` |
@@ -286,7 +303,7 @@ callee text is that name.
 | composite literal | `(composite_literal body: (literal_value) @through.inner) @through`; `(literal_value) @construct`; `(keyed_element key: (literal_element) @construct.field.name value: (literal_element) @construct.field.value)`; `(literal_element (_) @through.inner) @through` |
 | wrappers | `(parenthesized_expression (_) @through.inner) @through` |
 | literals | `[(int_literal) (float_literal) (imaginary_literal) (rune_literal) (interpreted_string_literal) (raw_string_literal) (true) (false) (nil) (iota)] @literal` |
-| opaque | `[(func_literal) (go_statement) (defer_statement) (select_statement)] @opaque` |
+| opaque | `[(func_literal) (go_statement) (defer_statement)] @opaque` (`select_statement` is not opaque: a `return` in one of its cases is the function's) |
 
 Verified in the parse trees: `q, r := g(v)` is an `expression_list` of two
 identifiers against an `expression_list` of one `call_expression`; a pointer
@@ -295,7 +312,10 @@ receiver is `parameter_declaration type: (pointer_type)` under the
 `key:`/`value:` fields of `literal_element`; the assignment operator is an
 anonymous node under `operator:`. Go has no expression-level branches, so
 `@return.container`, `@return.value` and `@branch.*` are absent; a
-`switch`/`if` never appears as a value.
+`switch`/`if` never appears as a value. In `var u, w = f()` each `name:` child is
+its own `@binding.pattern` against the whole `@binding.value` list, so a name
+carries no position: the trace continues into the list and ends where the list
+ends, never on a wrong element.
 
 ### 6.3 Erlang
 

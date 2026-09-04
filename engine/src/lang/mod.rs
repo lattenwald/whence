@@ -88,6 +88,7 @@ mod tests {
             "erlang"
         );
         assert_eq!(r.for_file(Path::new("/p/src/a.rs")).unwrap().name, "rust");
+        assert_eq!(r.for_file(Path::new("/p/src/a.go")).unwrap().name, "go");
         assert!(r.for_file(Path::new("/p/README.md")).is_none());
     }
 
@@ -105,6 +106,12 @@ mod tests {
             for req in vocab::required() {
                 assert!(have.contains(req), "{name} lacks @{req}");
             }
+            assert!(
+                !have.contains(&vocab::RETURN_CONTAINER) || have.contains(&vocab::RETURN_VALUE),
+                "{name} has @{} without @{}",
+                vocab::RETURN_CONTAINER,
+                vocab::RETURN_VALUE
+            );
         }
     }
 }
