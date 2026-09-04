@@ -227,6 +227,22 @@ impl<'l> Doc<'l> {
             .collect()
     }
 
+    /// Start byte of the nearest `@function.group` ancestor of `f`, else of `f` itself:
+    /// the key that puts a function's clauses together and keeps same-name functions apart.
+    pub fn function_group(&self, f: &FnDecl) -> usize {
+        self.nearest_ancestor_with(f.node, vocab::FUNCTION_GROUP)
+            .map_or(f.node.0.start_byte(), |g| g.0.start_byte())
+    }
+
+    pub fn clauses_of(&self, group: usize, name: &str, arity: usize) -> Vec<FnDecl<'_>> {
+        self.functions()
+            .into_iter()
+            .filter(|c| {
+                c.name == name && c.params.len() == arity && self.function_group(c) == group
+            })
+            .collect()
+    }
+
     pub fn declares_function(&self, p: Pos) -> Option<FnDecl<'_>> {
         let off = self.byte_offset(p)?;
         let name = self

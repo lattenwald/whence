@@ -330,6 +330,7 @@ fn param(
 ) -> Result<Node, TraceError> {
     let func_id = FuncId {
         file: file.to_path_buf(),
+        group: doc.function_group(func),
         name: func.name.clone(),
         arity: func.params.len(),
     };
@@ -635,6 +636,7 @@ fn call_result(
         };
         let t = FuncId {
             file: d.file.clone(),
+            group: doc.function_group(&decl),
             name: decl.name.clone(),
             arity: decl.params.len(),
         };
@@ -652,9 +654,8 @@ fn call_result(
         }
         let doc = ctx.doc(&t.file)?;
         let mut returns: Vec<Span> = doc
-            .functions()
+            .clauses_of(t.group, &t.name, t.arity)
             .iter()
-            .filter(|c| c.name == t.name && c.params.len() == t.arity)
             .flat_map(|c| doc.returns_of(c))
             .map(Span::of)
             .collect();

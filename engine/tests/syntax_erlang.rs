@@ -266,6 +266,18 @@ fn a_comment_inside_an_argument_list_is_not_an_argument() {
 }
 
 #[test]
+fn function_group_joins_clauses_and_separates_functions() {
+    let (d, _) = doc();
+    let fns = d.functions();
+    let picks: Vec<_> = fns.iter().filter(|f| f.name == "pick").collect();
+    assert_eq!(picks.len(), 2);
+    assert_eq!(d.function_group(picks[0]), d.function_group(picks[1]));
+    let handle = fns.iter().find(|f| f.name == "handle").unwrap();
+    assert_eq!(d.clauses_of(d.function_group(picks[0]), "pick", 1).len(), 2);
+    assert_eq!(d.clauses_of(d.function_group(handle), "handle", 2).len(), 1);
+}
+
+#[test]
 fn every_catch_clause_tail_is_a_return() {
     let text = "g() -> X = try f() catch _:_ -> default; error:_ -> other end, X.\nf() -> 1.\n";
     let d = parse(text);

@@ -143,6 +143,17 @@ Rulings from the M1 branch review; each landed with the spec section it changes.
   `capabilities.documentHighlight = false` — the engine never sends the request in M1, so
   declaring support was misleading.
 
+## M2 — Rust and Go
+
+### Erlang `@function.group` node
+
+Plan: Erlang marks `(fun_decl) @function.group`, and `Doc::clauses_of(group)` returns every
+clause sharing that group. Done: tree-sitter-erlang 0.20 gives each clause its own `fun_decl`,
+so that capture separated the clauses it was meant to join and broke frame matching; Erlang
+marks `(source_file) @function.group` and `clauses_of(group, name, arity)` keeps the name and
+arity filter that the group alone cannot supply. A language whose functions are one node still
+groups each on itself, so name and arity never merge distinct functions there.
+
 ## M3 — VS Code extension
 
 - Plan: [2026-09-03-m3-vscode.md](superpowers/plans/2026-09-03-m3-vscode.md)

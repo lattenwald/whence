@@ -141,8 +141,10 @@ unresolved: no element <i> in this <kind>` / `no field <f> …` as today.
 `FuncId { file, group: usize, name, arity }` where `group` is the start byte
 of the nearest `@function.group` ancestor of the declaring `@function`, else
 of the `@function` itself. The clause set of a callee is every `@function`
-whose group start equals `group`. `describe()` is unchanged. Erlang marks
-`(fun_decl) @function.group`; Rust and Go mark none.
+whose group start, name and arity equal the callee's. `describe()` is
+unchanged. Erlang marks `(source_file) @function.group` — the grammar gives
+each clause its own `fun_decl`, so the module is the node its clauses share;
+Rust and Go mark none.
 
 ## 4. Tree model (parent §5.1)
 
@@ -285,7 +287,7 @@ anonymous node under `operator:`. Go has no expression-level branches, so
 
 ### 6.3 Erlang
 
-Adds `(fun_decl) @function.group`. `lang.toml` loses the two unused keys.
+Adds `(source_file) @function.group`. `lang.toml` loses the two unused keys.
 
 ## 7. Engine changes by file
 

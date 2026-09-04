@@ -18,6 +18,8 @@ pub type ExprRef = (PathBuf, Span);
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FuncId {
     pub file: PathBuf,
+    /// `Doc::function_group` of the declaration: clauses share it, same-name functions do not.
+    pub group: usize,
     pub name: String,
     pub arity: usize,
 }

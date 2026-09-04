@@ -1,6 +1,6 @@
 ---
 id: whe-q0z2
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-09-03T14:05:32Z

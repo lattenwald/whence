@@ -8,14 +8,11 @@ use anyhow::{Context, anyhow};
 use serde::Deserialize;
 use std::path::Path;
 
-// TODO(M2): parsed but never read. Decide per key whether it becomes a capture
-// (as `returns` did) or stays a flag, and delete what M2 does not use.
 #[derive(Debug, Clone, Default, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Quirks {
-    pub multi_assign: bool,
+    /// A variable is bound once; the write step of spec M2 §3.1 is skipped.
     pub single_assignment: bool,
-    pub mutable_ref_markers: Vec<String>,
 }
 
 #[derive(Deserialize)]
