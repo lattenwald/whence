@@ -710,6 +710,7 @@ fn rust_mut_param() {
     assert_eq!(kids.len(), 2);
     assert_eq!(kids[0]["stop"]["detail"], "may be written by fill(…)");
     assert_eq!(kids[1]["kind"], "param");
+    assert_eq!(kids[1]["children"][0]["label"], "xs");
 }
 
 #[test]

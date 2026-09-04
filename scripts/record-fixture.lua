@@ -2,6 +2,7 @@
 -- line/col are 1-based (col is a byte column, like the cursor).
 local lang, repo, project, file, line, col, outdir = arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7]
 line, col = tonumber(line), tonumber(col)
+assert(vim.fn.isdirectory(outdir) == 0, outdir .. " already exists")
 
 vim.opt.rtp:prepend(repo .. "/nvim")
 vim.g.whence_bin = repo .. "/target/debug/whence"

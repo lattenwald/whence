@@ -1,6 +1,6 @@
 # whence — Rust and Go (M2) design
 
-- Status: draft, awaiting review
+- Status: implemented
 - Date: 2026-09-03
 - Parent: [whence design](2026-09-01-whence-design.md) §4 (protocol), §5 (trace), §6 (language data), §9 (testing), §11 (milestones)
 - Protocol reference: [docs/PROTOCOL.md](../../PROTOCOL.md)
