@@ -1,0 +1,58 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "02a43bd806b43109",
+            "kind": "stop",
+            "label": "[]int{1, 2, 3}",
+            "loc": {
+              "col": 7,
+              "file": "main.go",
+              "line": 7
+            },
+            "snippet": "xs := []int{1, 2, 3}",
+            "stop": {
+              "detail": "composite_literal",
+              "reason": "unresolved"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "2bdca6331832e1fe",
+        "kind": "binding",
+        "label": "xs",
+        "loc": {
+          "col": 1,
+          "file": "main.go",
+          "line": 7
+        },
+        "snippet": "xs := []int{1, 2, 3}",
+        "stop": null,
+        "truncated": 0,
+        "via": "element"
+      }
+    ],
+    "id": "389ce90960a23740",
+    "kind": "binding",
+    "label": "e",
+    "loc": {
+      "col": 8,
+      "file": "main.go",
+      "line": 8
+    },
+    "snippet": "for _, e := range xs {",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 5,
+    "ms": 0,
+    "nodes": 3,
+    "truncated": 0
+  }
+}

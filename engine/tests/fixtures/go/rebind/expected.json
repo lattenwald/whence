@@ -1,0 +1,142 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "65c393c034983c28",
+            "kind": "stop",
+            "label": "v++",
+            "loc": {
+              "col": 1,
+              "file": "main.go",
+              "line": 10
+            },
+            "snippet": "v++",
+            "stop": {
+              "detail": "inc_statement",
+              "reason": "literal"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "722a2b765b7ce8ff",
+        "kind": "binding",
+        "label": "v",
+        "loc": {
+          "col": 1,
+          "file": "main.go",
+          "line": 10
+        },
+        "snippet": "v++",
+        "stop": null,
+        "truncated": 0,
+        "via": "mutation"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "id": "99b883dadd09e0f4",
+            "kind": "stop",
+            "label": "v + 1",
+            "loc": {
+              "col": 5,
+              "file": "main.go",
+              "line": 9
+            },
+            "snippet": "v = v + 1",
+            "stop": {
+              "detail": "binary_expression",
+              "reason": "unresolved"
+            },
+            "truncated": 0,
+            "via": null
+          }
+        ],
+        "id": "9f1294332e6d1294",
+        "kind": "binding",
+        "label": "v",
+        "loc": {
+          "col": 1,
+          "file": "main.go",
+          "line": 9
+        },
+        "snippet": "v = v + 1",
+        "stop": null,
+        "truncated": 0,
+        "via": "rebind"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "id": "ae24b365aa5bed5f",
+                "kind": "stop",
+                "label": "1",
+                "loc": {
+                  "col": 6,
+                  "file": "main.go",
+                  "line": 7
+                },
+                "snippet": "a := 1",
+                "stop": {
+                  "detail": "int_literal",
+                  "reason": "literal"
+                },
+                "truncated": 0,
+                "via": null
+              }
+            ],
+            "id": "d50df6e0c620da5e",
+            "kind": "binding",
+            "label": "a",
+            "loc": {
+              "col": 1,
+              "file": "main.go",
+              "line": 7
+            },
+            "snippet": "a := 1",
+            "stop": null,
+            "truncated": 0,
+            "via": "match"
+          }
+        ],
+        "id": "f3e511be0a2af4a5",
+        "kind": "binding",
+        "label": "v",
+        "loc": {
+          "col": 1,
+          "file": "main.go",
+          "line": 8
+        },
+        "snippet": "v := a",
+        "stop": null,
+        "truncated": 0,
+        "via": "match"
+      }
+    ],
+    "id": "059b0dd2f2462e49",
+    "kind": "branch",
+    "label": "v",
+    "loc": {
+      "col": 6,
+      "file": "main.go",
+      "line": 11
+    },
+    "snippet": "show(v)",
+    "stop": null,
+    "truncated": 0,
+    "via": "match"
+  },
+  "stats": {
+    "host_requests": 5,
+    "ms": 0,
+    "nodes": 8,
+    "truncated": 0
+  }
+}

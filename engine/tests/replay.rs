@@ -818,6 +818,103 @@ fn rust_field_write() {
 }
 
 #[test]
+fn go_rebind() {
+    let v = check(Case {
+        dir: "go/rebind",
+        file: "main.go",
+        pos: (11, 6),
+        ..Default::default()
+    });
+    let kids = v["root"]["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 3);
+    assert_eq!(kids[0]["via"], "mutation");
+    // `v++` reads the old value and names no new one.
+    assert_eq!(kids[0]["children"][0]["stop"]["reason"], "literal");
+    assert_eq!(kids[1]["via"], "rebind");
+    assert_eq!(kids[2]["children"][0]["label"], "a");
+}
+
+#[test]
+fn go_multi_value() {
+    let v = check(Case {
+        dir: "go/multi_value",
+        file: "main.go",
+        pos: (14, 10),
+        ..Default::default()
+    });
+    let call = &v["root"]["children"][0];
+    assert_eq!(call["kind"], "call_result");
+    let set = &call["children"][0];
+    assert_eq!(
+        (&set["via"], &set["label"]),
+        (&"field_set".into(), &"b".into())
+    );
+    assert_eq!(call["children"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn go_receiver() {
+    let v = check(Case {
+        dir: "go/receiver",
+        file: "main.go",
+        pos: (27, 6),
+        ..Default::default()
+    });
+    let kids = v["root"]["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 3);
+    assert_eq!(kids[0]["stop"]["detail"], "may be written by h(&s)");
+    assert_eq!(kids[1]["stop"]["detail"], "may be written by Bump(…)");
+    // `Get` takes a value receiver, so its writes stay inside it.
+    assert!(!serde_json::to_string(&v).unwrap().contains("Get"));
+    assert_eq!(kids[2]["kind"], "binding");
+}
+
+#[test]
+fn go_interface() {
+    let v = check(Case {
+        dir: "go/interface",
+        file: "main.go",
+        pos: (20, 8),
+        ..Default::default()
+    });
+    let call = &v["root"]["children"][0];
+    assert_eq!(call["label"], "Abs");
+    let kids = call["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 2);
+    for k in kids {
+        assert_eq!(k["stop"]["reason"], "literal");
+    }
+}
+
+#[test]
+fn go_zero_value() {
+    let v = check(Case {
+        dir: "go/zero_value",
+        file: "main.go",
+        pos: (8, 6),
+        ..Default::default()
+    });
+    assert_eq!(v["root"]["stop"]["reason"], "literal");
+    assert_eq!(v["root"]["stop"]["detail"], "zero value");
+}
+
+#[test]
+fn go_range() {
+    let v = check(Case {
+        dir: "go/range",
+        file: "main.go",
+        pos: (9, 7),
+        ..Default::default()
+    });
+    assert_eq!(v["root"]["kind"], "binding");
+    let it = &v["root"]["children"][0];
+    assert_eq!(
+        (&it["via"], &it["label"]),
+        (&"element".into(), &"xs".into())
+    );
+}
+
+#[test]
 fn a_call_through_a_variable_is_not_entered() {
     let v = check(Case {
         dir: "erlang/dynamic_call",
