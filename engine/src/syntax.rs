@@ -39,12 +39,14 @@ pub struct FnDecl<'t> {
     pub name: String,
     pub params: Vec<N<'t>>,
     pub body: N<'t>,
+    pub receiver: Option<N<'t>>,
 }
 
 pub struct CallSite<'t> {
     pub node: N<'t>,
     pub callee: N<'t>,
     pub args: Vec<N<'t>>,
+    pub receiver: Option<N<'t>>,
 }
 
 pub enum Role<'t> {
@@ -65,6 +67,9 @@ pub enum Role<'t> {
     Param {
         func: FnDecl<'t>,
         index: usize,
+    },
+    Receiver {
+        func: FnDecl<'t>,
     },
     BranchPattern {
         pattern: N<'t>,
@@ -167,20 +172,24 @@ impl<'l> Doc<'l> {
             .is_some_and(|off| !self.caps_containing(cap, off).is_empty())
     }
 
-    fn caps_owned_by<'a>(&'a self, cap: &str, owner_cap: &str, owner: N<'a>) -> Vec<N<'a>> {
+    fn caps_owned_by<'a>(&'a self, cap: &str, owner_caps: &[&str], owner: N<'a>) -> Vec<N<'a>> {
         self.caps_within(cap, owner.0.start_byte(), owner.0.end_byte())
             .into_iter()
             .filter(|n| {
-                self.nearest_ancestor_with(*n, owner_cap)
+                self.nearest_ancestor_with_any(*n, owner_caps)
                     .is_some_and(|a| a.0.id() == owner.0.id())
             })
             .collect()
     }
 
     fn nearest_ancestor_with<'a>(&'a self, n: N<'a>, cap: &str) -> Option<N<'a>> {
+        self.nearest_ancestor_with_any(n, &[cap])
+    }
+
+    fn nearest_ancestor_with_any<'a>(&'a self, n: N<'a>, caps: &[&str]) -> Option<N<'a>> {
         let mut cur = n.0.parent();
         while let Some(c) = cur {
-            if self.has_cap(N(c), cap) {
+            if caps.iter().any(|cap| self.has_cap(N(c), cap)) {
                 return Some(N(c));
             }
             cur = c.parent();
@@ -309,12 +318,36 @@ impl<'l> Doc<'l> {
             .first()
             .copied()?;
         let node = self.node(Span::of(func))?;
+        let receiver = self
+            .caps_owned_by(
+                vocab::FUNCTION_RECEIVER,
+                &[vocab::FUNCTION, vocab::FUNCTION_ABSTRACT],
+                node,
+            )
+            .first()
+            .copied();
+        let params = named_children(params)
+            .into_iter()
+            .filter(|p| receiver.is_none_or(|r| r.0.id() != p.0.id()))
+            .collect();
         Some(FnDecl {
             node,
             name,
-            params: named_children(params),
+            params,
             body,
+            receiver,
         })
+    }
+
+    pub fn has_mutable_receiver(&self, f: &FnDecl) -> bool {
+        f.receiver
+            .is_some_and(|r| self.has_cap(r, vocab::FUNCTION_RECEIVER_MUTABLE))
+    }
+
+    pub fn param_is_mutable(&self, f: &FnDecl, index: usize) -> bool {
+        f.params
+            .get(index)
+            .is_some_and(|p| self.has_cap(*p, vocab::PARAM_MUTABLE))
     }
 
     pub fn role_of(&self, ident: N) -> Role<'_> {
@@ -338,6 +371,11 @@ impl<'l> Doc<'l> {
                         literal: self.has_cap(binding, vocab::LITERAL),
                     },
                 };
+            }
+            if self.has_cap(n, vocab::FUNCTION_RECEIVER)
+                && let Some(func) = self.enclosing_function(n)
+            {
+                return Role::Receiver { func };
             }
             if self.has_cap(n, vocab::FUNCTION_PARAMS)
                 && let Some(func) = self.enclosing_function(n)
@@ -415,17 +453,21 @@ impl<'l> Doc<'l> {
 
     fn call_site<'a>(&'a self, call: N<'a>) -> Option<CallSite<'a>> {
         let callee = self
-            .caps_owned_by(vocab::CALL_CALLEE, vocab::CALL, call)
+            .caps_owned_by(vocab::CALL_CALLEE, &[vocab::CALL], call)
             .first()
             .copied()?;
         let args = self
-            .caps_owned_by(vocab::CALL_ARGS, vocab::CALL, call)
+            .caps_owned_by(vocab::CALL_ARGS, &[vocab::CALL], call)
             .first()
             .copied()?;
         Some(CallSite {
             node: call,
             callee,
             args: named_children(args),
+            receiver: self
+                .caps_owned_by(vocab::CALL_RECEIVER, &[vocab::CALL], call)
+                .first()
+                .copied(),
         })
     }
 
@@ -565,11 +607,11 @@ impl<'l> Doc<'l> {
             return None;
         }
         let container = self
-            .caps_owned_by(vocab::FIELD_CONTAINER, vocab::FIELD, n)
+            .caps_owned_by(vocab::FIELD_CONTAINER, &[vocab::FIELD], n)
             .first()
             .copied()?;
         let name = self
-            .caps_owned_by(vocab::FIELD_NAME, vocab::FIELD, n)
+            .caps_owned_by(vocab::FIELD_NAME, &[vocab::FIELD], n)
             .first()
             .copied()?;
         Some((container, self.text_of(name).to_string()))

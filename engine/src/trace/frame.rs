@@ -53,6 +53,7 @@ impl Proj {
 pub struct Frame {
     pub func_id: FuncId,
     pub args: Vec<ExprRef>,
+    pub receiver: Option<ExprRef>,
 }
 
 pub struct Ctx<'a> {
@@ -157,6 +158,10 @@ impl<'a> Ctx<'a> {
         for f in &self.frames {
             f.func_id.hash(&mut h);
             for (file, span) in &f.args {
+                self.rel(file).hash(&mut h);
+                span.start.hash(&mut h);
+            }
+            if let Some((file, span)) = &f.receiver {
                 self.rel(file).hash(&mut h);
                 span.start.hash(&mut h);
             }

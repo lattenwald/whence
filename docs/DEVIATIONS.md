@@ -165,6 +165,14 @@ keyed-construct rule of spec §6 — skip `@construct.field.name`, check each en
 so making a struct of constants a literal makes a map of constants one too, which is the more
 honest answer. Node ids are unchanged.
 
+### The receiver shift applies to call sites found through references
+
+Plan: in the references loop of `param_like`, `Slot::Arg(i)` takes `call.args.get(i)`. Done: the
+loop applies the same shift `call_result` does — a call with no `@call.receiver` to a declaration
+with a receiver and one argument too many passes the receiver first — so a parameter is not
+matched to the receiver expression one place to its left (spec §3.4). The rule lives in one
+helper both call sites use.
+
 ## M3 — VS Code extension
 
 - Plan: [2026-09-03-m3-vscode.md](superpowers/plans/2026-09-03-m3-vscode.md)

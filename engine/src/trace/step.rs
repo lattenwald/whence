@@ -307,9 +307,26 @@ fn definition(
                 0,
             ))
         }
-        Role::Param { func, index } => {
-            param(ctx, &doc, def_file, &func, index, ident, &dsite, depth)
-        }
+        Role::Param { func, index } => param_like(
+            ctx,
+            &doc,
+            def_file,
+            &func,
+            Slot::Arg(index),
+            ident,
+            &dsite,
+            depth,
+        ),
+        Role::Receiver { func } => param_like(
+            ctx,
+            &doc,
+            def_file,
+            &func,
+            Slot::Receiver,
+            ident,
+            &dsite,
+            depth,
+        ),
         Role::Opaque(n) => Ok(unresolved(
             ctx,
             &dsite,
@@ -352,13 +369,30 @@ fn narrow(doc: &Doc, pattern: Option<N>, ident: N, file: &Path, arg: &ExprRef) -
         .unwrap_or(arg.1)
 }
 
+#[derive(Clone, Copy)]
+enum Slot {
+    Arg(usize),
+    Receiver,
+}
+
+fn receiver_shift(func: &FnDecl, call_has_receiver: bool, argc: usize) -> bool {
+    func.receiver.is_some() && !call_has_receiver && argc == func.params.len() + 1
+}
+
+fn slot_pattern<'t>(func: &FnDecl<'t>, slot: Slot) -> Option<N<'t>> {
+    match slot {
+        Slot::Arg(i) => func.params.get(i).copied(),
+        Slot::Receiver => func.receiver,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
-fn param(
+fn param_like(
     ctx: &mut Ctx,
     doc: &Doc,
     file: &Path,
     func: &FnDecl,
-    index: usize,
+    slot: Slot,
     ident: N,
     site: &Site,
     depth: u32,
@@ -371,22 +405,26 @@ fn param(
     };
 
     if let Some(frame) = ctx.frames.pop_if(|f| f.func_id == func_id) {
-        let arg = frame.args.get(index).cloned();
+        let arg = match slot {
+            Slot::Arg(i) => frame.args.get(i).cloned(),
+            Slot::Receiver => frame.receiver.clone(),
+        };
         // The argument is the caller's expression: expand it in the caller's frame.
         let child = match arg {
             Some(a) => {
-                let s = narrow(doc, func.params.get(index).copied(), ident, file, &a);
+                let s = narrow(doc, slot_pattern(func, slot), ident, file, &a);
                 expand(ctx, &Expr::Value(a.0, s), depth + 1)
             }
             None => {
                 ctx.node_count += 1;
+                let what = match slot {
+                    Slot::Arg(i) => format!("argument {i}"),
+                    Slot::Receiver => "receiver".to_string(),
+                };
                 Ok(unresolved(
                     ctx,
                     site,
-                    format!(
-                        "frame has no argument {index} for {}",
-                        func_id.describe(ctx)
-                    ),
+                    format!("frame has no {what} for {}", func_id.describe(ctx)),
                 ))
             }
         };
@@ -429,14 +467,30 @@ fn param(
         // The server already tied the reference to this function; what is left is
         // structural: is it the callee of a call, and does that call pass this argument?
         match rdoc.call_with_callee_at(r.range.start) {
-            Some(call) => match call.args.get(index) {
-                Some(a) => sites.push((r.file.clone(), Span::of(*a))),
-                None => strays.push((
-                    r.file.clone(),
-                    r.range.start,
-                    format!("call has no argument {}", index + 1),
-                )),
-            },
+            Some(call) => {
+                let shift = usize::from(receiver_shift(
+                    func,
+                    call.receiver.is_some(),
+                    call.args.len(),
+                ));
+                let picked = match slot {
+                    Slot::Arg(i) => call.args.get(i + shift).copied(),
+                    Slot::Receiver => call
+                        .receiver
+                        .or_else(|| (shift == 1).then(|| call.args.first().copied()).flatten()),
+                };
+                match picked {
+                    Some(a) => sites.push((r.file.clone(), Span::of(a))),
+                    None => strays.push((
+                        r.file.clone(),
+                        r.range.start,
+                        match slot {
+                            Slot::Arg(i) => format!("call has no argument {}", i + 1),
+                            Slot::Receiver => "call has no receiver".to_string(),
+                        },
+                    )),
+                }
+            }
             None => strays.push((
                 r.file.clone(),
                 r.range.start,
@@ -481,7 +535,7 @@ fn param(
     let (dropped, collapsed) = candidates(ctx, site, &mut sites, "call sites");
     let mut children = Vec::new();
     for a in sites {
-        let s = narrow(doc, func.params.get(index).copied(), ident, file, &a);
+        let s = narrow(doc, slot_pattern(func, slot), ident, file, &a);
         children.push(expand(ctx, &Expr::Value(a.0, s), depth + 1)?);
     }
     children.extend(collapsed);
@@ -612,11 +666,13 @@ fn value<'t>(
             .iter()
             .map(|a| (file.to_path_buf(), Span::of(*a)))
             .collect();
+        let receiver = call.receiver.map(|r| (file.to_path_buf(), Span::of(r)));
         return call_result(
             ctx,
             doc.pos_of(call.callee),
             &callee,
             args,
+            receiver,
             file,
             site,
             depth,
@@ -632,11 +688,19 @@ fn value<'t>(
     Ok(unresolved(ctx, site, n.0.kind()))
 }
 
+struct Target {
+    id: FuncId,
+    args: Vec<ExprRef>,
+    receiver: Option<ExprRef>,
+}
+
+#[allow(clippy::too_many_arguments)]
 fn call_result(
     ctx: &mut Ctx,
     name_pos: Pos,
     callee: &str,
     args: Vec<ExprRef>,
+    receiver: Option<ExprRef>,
     file: &Path,
     site: &Site,
     depth: u32,
@@ -658,7 +722,7 @@ fn call_result(
     }
 
     // Distinct callees, not clauses: several definitions of one function collapse here.
-    let mut targets: Vec<FuncId> = Vec::new();
+    let mut targets: Vec<Target> = Vec::new();
     for d in &defs {
         let Some(doc) = ctx.doc_if_known(&d.file)? else {
             return Ok(unresolved(ctx, site, no_language(ctx, &d.file)));
@@ -670,27 +734,35 @@ fn call_result(
                 format!("definition of {callee} is not a function"),
             ));
         };
-        let t = FuncId {
+        let id = FuncId {
             file: d.file.clone(),
             group: doc.function_group(&decl),
             name: decl.name.clone(),
             arity: decl.params.len(),
         };
-        if !targets.contains(&t) {
-            targets.push(t);
+        let (mut args, mut receiver) = (args.clone(), receiver.clone());
+        if receiver_shift(&decl, receiver.is_some(), args.len()) {
+            receiver = Some(args.remove(0));
+        }
+        if !targets.iter().any(|t| t.id == id) {
+            targets.push(Target { id, args, receiver });
         }
     }
 
     let mut plan: Vec<(usize, Span)> = Vec::new();
     let mut recursive: Vec<usize> = Vec::new();
     for (i, t) in targets.iter().enumerate() {
-        if ctx.frames.iter().any(|f| &f.func_id == t && f.args == args) {
+        if ctx
+            .frames
+            .iter()
+            .any(|f| f.func_id == t.id && f.args == t.args && f.receiver == t.receiver)
+        {
             recursive.push(i);
             continue;
         }
-        let doc = ctx.doc(&t.file)?;
+        let doc = ctx.doc(&t.id.file)?;
         let mut returns: Vec<Span> = doc
-            .clauses_of(t.group, &t.name, t.arity)
+            .clauses_of(t.id.group, &t.id.name, t.id.arity)
             .iter()
             .flat_map(|c| doc.returns_of(c))
             .map(Span::of)
@@ -699,7 +771,7 @@ fn call_result(
         plan.extend(returns.into_iter().map(|s| (i, s)));
     }
     if plan.is_empty() && !recursive.is_empty() {
-        let t = &targets[recursive[0]];
+        let t = &targets[recursive[0]].id;
         return Ok(unresolved(
             ctx,
             site,
@@ -720,17 +792,18 @@ fn call_result(
     for (i, s) in plan {
         let t = &targets[i];
         let frame = Frame {
-            func_id: t.clone(),
-            args: args.clone(),
+            func_id: t.id.clone(),
+            args: t.args.clone(),
+            receiver: t.receiver.clone(),
         };
-        let f = t.file.clone();
+        let f = t.id.file.clone();
         ctx.frames.push(frame);
         let child = expand(ctx, &Expr::Value(f, s), depth + 1);
         ctx.frames.pop();
         children.push(child?);
     }
     for (nth, i) in recursive.into_iter().enumerate() {
-        let t = &targets[i];
+        let t = &targets[i].id;
         let detail = format!("recursive call to {}/{}", t.name, t.arity);
         children.push(stop_nth(
             ctx,
