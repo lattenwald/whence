@@ -221,6 +221,15 @@ landed on the wrong name; Rust's `(parameter pattern: (_) @param)` additionally 
 destructuring parameter the pattern it binds. `param_is_mutable` walks from the name to
 `@function.params`, since the mark sits on the declaration.
 
+### Fixtures are recorded by a script, not by hand in an editor
+
+Plan: Task 8 records each case by opening the fixture in Neovim, waiting for the server to
+index, and running `:WhenceRecord <tmpdir>` at the cursor. Done: `scripts/record-fixture.lua`
+does the same headless — it starts the server rooted at the fixture, polls
+`textDocument/definition` until the server answers at the target, and runs the plugin's
+recorder. The recording is then reproducible and reviewable, and a fixture can be re-recorded
+after a query change without a hand session.
+
 ## M3 — VS Code extension
 
 - Plan: [2026-09-03-m3-vscode.md](superpowers/plans/2026-09-03-m3-vscode.md)
