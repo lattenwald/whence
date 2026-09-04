@@ -6,7 +6,7 @@ use std::time::Instant;
 use crate::host::{HostError, Location};
 use crate::lang::vocab;
 use crate::pos::Pos;
-use crate::syntax::{CallSite, Doc, FnDecl, N, Proj, Role, Slot, Span, index_containing};
+use crate::syntax::{Doc, FnDecl, N, Proj, Role, Slot, Span, index_containing};
 use crate::trace::TraceError;
 use crate::trace::frame::{Ctx, ExprRef, Frame, FuncId};
 use crate::tree::{Loc, Node, NodeKind, StopReason, Via, node_id, path_id};
@@ -412,7 +412,14 @@ fn classify(ctx: &mut Ctx, doc: &Doc, file: &Path, o: N) -> Result<Option<Occ>, 
         let Some(decl) = cdoc.declares_function(d.range.start) else {
             continue;
         };
-        mutable |= match declared_slot(&cdoc, &decl, &call, slot) {
+        let shift = shifts_receiver(
+            ctx,
+            &decl,
+            file,
+            call.receiver.map(|r| doc.pos_of(r)),
+            call.args.len(),
+        )?;
+        mutable |= match declared_slot(shift, slot) {
             Slot::Receiver => cdoc.has_mutable_receiver(&decl),
             Slot::Arg(i) => cdoc.param_is_mutable(&decl, i),
         };
@@ -612,33 +619,49 @@ fn narrow(doc: &Doc, pattern: Option<N>, ident: N, file: &Path, arg: &ExprRef) -
         .unwrap_or(arg.1)
 }
 
-/// A method can be called as a plain function with the receiver first: Rust
-/// `T::m(s, x)`, and Go's method expression `T.M(s, x)`, whose `T` is the type
-/// and not a receiver. One argument too many is what says so, so a declaration
-/// of open arity says nothing.
-fn receiver_shift(doc: &Doc, func: &FnDecl, argc: usize) -> bool {
-    func.receiver.is_some() && !doc.is_variadic(func) && argc == func.params.len() + 1
+/// A method can be called as a plain function with the receiver first. Rust's
+/// `T::m(s, x)` writes no receiver, and the argument count is what says so; Go's
+/// method expression `T.M(s, x)` writes the type where a receiver goes, and only
+/// the host can say that `T` is a type. Anything else is an ordinary call: an
+/// argument too many is a call the author is still typing, not a second reading.
+fn shifts_receiver(
+    ctx: &mut Ctx,
+    func: &FnDecl,
+    file: &Path,
+    receiver: Option<Pos>,
+    argc: usize,
+) -> Result<bool, TraceError> {
+    if func.receiver.is_none() {
+        return Ok(false);
+    }
+    let Some(at) = receiver else {
+        return Ok(argc == func.params.len() + 1);
+    };
+    if argc <= func.params.len() {
+        return Ok(false);
+    }
+    for d in ctx.definition(file, at)? {
+        if let Some(doc) = ctx.doc_if_known(&d.file)?
+            && doc.covers(vocab::TYPE_NAME, d.range.start)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// The receiver and arguments of a call as the declaration numbers them.
-fn as_declared<T>(
-    doc: &Doc,
-    func: &FnDecl,
-    receiver: Option<T>,
-    mut args: Vec<T>,
-) -> (Option<T>, Vec<T>) {
-    if receiver_shift(doc, func, args.len()) {
+fn as_declared<T>(shift: bool, receiver: Option<T>, mut args: Vec<T>) -> (Option<T>, Vec<T>) {
+    if shift && !args.is_empty() {
         return (Some(args.remove(0)), args);
     }
     (receiver, args)
 }
 
-fn declared_slot(doc: &Doc, func: &FnDecl, call: &CallSite, slot: Slot) -> Slot {
+fn declared_slot(shift: bool, slot: Slot) -> Slot {
     match slot {
-        Slot::Arg(i) if receiver_shift(doc, func, call.args.len()) => match i {
-            0 => Slot::Receiver,
-            i => Slot::Arg(i - 1),
-        },
+        Slot::Arg(0) if shift => Slot::Receiver,
+        Slot::Arg(i) if shift => Slot::Arg(i - 1),
         s => s,
     }
 }
@@ -727,7 +750,14 @@ fn param_like(
         // structural: is it the callee of a call, and does that call pass this argument?
         match rdoc.call_with_callee_at(r.range.start) {
             Some(call) => {
-                let (receiver, args) = as_declared(doc, func, call.receiver, call.args);
+                let shift = shifts_receiver(
+                    ctx,
+                    func,
+                    &r.file,
+                    call.receiver.map(|c| rdoc.pos_of(c)),
+                    call.args.len(),
+                )?;
+                let (receiver, args) = as_declared(shift, call.receiver, call.args);
                 let picked = pick(slot, &receiver, &args);
                 match picked {
                     Some(a) => sites.push((r.file.clone(), Span::of(a))),
@@ -1081,7 +1111,15 @@ fn call_result(
         if targets.iter().any(|t| t.func_id == func_id) {
             continue;
         }
-        let (receiver, args) = as_declared(&doc, &decl, receiver.clone(), args.clone());
+        let receiver_at = match &receiver {
+            Some((f, sp)) => match ctx.doc_if_known(f)? {
+                Some(d) => d.node(*sp).map(|n| d.pos_of(n)),
+                None => None,
+            },
+            None => None,
+        };
+        let shift = shifts_receiver(ctx, &decl, file, receiver_at, args.len())?;
+        let (receiver, args) = as_declared(shift, receiver.clone(), args.clone());
         targets.push(Frame {
             func_id,
             args,

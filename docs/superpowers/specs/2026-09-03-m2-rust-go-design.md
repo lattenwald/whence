@@ -29,7 +29,7 @@ inspection.
 | Multi-value bindings | A positional pattern against a call or other non-constructor value pushes a pending *index* projection, reusing the pending-field mechanism. | `a, b := f()` and `let (a, b) = f()` are the same shape as `R#r.a` with `f()` as the container. |
 | Loop variables | `for x in xs` / `for i, e := range xs` bind through `via: element` to the iterable. | The value is derived from the iterable and nothing else the engine can see; `via: match` would claim the variable *is* the iterable. |
 | Same-name functions | A function's clause set is the `@function` nodes under its nearest `@function.group` ancestor; without a group, the one node. `FuncId` carries the group's position, not just name/arity. | Rust `impl A { fn new() }` / `impl B { fn new() }` and Go methods on different types collide by name and arity; M1's name/arity collapse was an Erlang assumption. |
-| Methods and receivers | `@call.receiver` at the call site, `@function.receiver` (and `.mutable`) on the declaration; the receiver is excluded from the positional parameters and travels in the frame separately. A path-style call to a method (`T::m(x)`) passes the receiver as its first argument. | Rust's `self` sits inside `parameters`; Go's sits outside. One model covers both. |
+| Methods and receivers | `@call.receiver` at the call site, `@function.receiver` (and `.mutable`) on the declaration; the receiver is excluded from the positional parameters and travels in the frame separately. A path-style call to a method (`T::m(x)`) passes the receiver as its first argument, and so does Go's method expression (`T.M(s, x)`), which the host identifies by `@type.name` rather than the engine by counting arguments. | Rust's `self` sits inside `parameters`; Go's sits outside. One model covers both. |
 | Transparent wrappers | `@through`/`@through.inner` is applied at the start of `value`, `is_literal` and `destructure`, not only in `call_at`, and to a fixpoint, so nested wrappers (`(&x)`, a one-element `expression_list` around a composite literal) unwrap in one step; a wrapper around a bare identifier is a variable use at that identifier. | Rust `(e)`, `e?`, `e.await`, struct-expression bodies and Go one-element `expression_list`s wrap a value without changing it; one generic rule beats a capture per wrapper. |
 | `lang.toml` quirks | `single_assignment` is kept and read (skips the occurrence step); `multi_assign` and `mutable_ref_markers` are deleted. | Both are expressed by captures now. A flag nothing reads is a lie in the data. |
 | Fixture projects | Small hand-written Rust and Go projects under `engine/tests/fixtures/{rust,go}/<case>/`, recorded with `:WhenceRecord` against rust-analyzer and gopls. | Fixtures are recorded, not written. Nothing from a private codebase enters the repo. |
@@ -137,13 +137,17 @@ exclude that node. A `Frame` carries `receiver: Option<ExprRef>` beside
 `args`. `Role::Param { func, slot: Slot::Receiver }` is the role of an
 identifier inside the declaration's receiver; with a frame it resolves to the
 frame's receiver expression, without one it goes through `host/references`
-like a parameter and takes each call site's `@call.receiver`. A call to a declaration with a receiver whose argument count is one more than
-the parameter count passes its first argument as the receiver: Rust's `T::m(s,
-x)` writes no `@call.receiver` at all, and Go's method expression `T.M(s, x)`
-writes the *type* there, which is not a value and is dropped. A declaration
-carrying `@function.variadic` is exempt: its argument count means nothing, so
-`t.Errorf(f, a)` against `Errorf(format string, args ...any)` is an ordinary
-call.
+like a parameter and takes each call site's `@call.receiver`. A call to a declaration with a receiver passes its first argument as the
+receiver in two cases. Rust's `T::m(s, x)` writes no `@call.receiver`, and one
+argument more than the parameter count is what identifies it. Go's method
+expression `T.M(s, x)` writes the *type* where a receiver goes, and only the
+host can tell a type from a value: when a receiver is written and the call
+carries more arguments than the declaration has parameters, `host/definition`
+on the receiver decides — a definition covered by `@type.name` means the
+receiver is the type and is dropped, and the first argument is the receiver.
+Anything else is an ordinary call, including `t.Errorf(f, a)` against a variadic
+declaration and a call the author is still typing. Counting arguments alone
+would rewrite both of those into a reading their code never had.
 
 `FnDecl.params` are the `@param` nodes owned by `@function.params`: one Go
 `parameter_declaration` may name several parameters, and a Rust `parameter`
@@ -206,8 +210,8 @@ Additions, all read by generic code:
 @escape
 @param  @param.mutable
 @call.receiver
-@function.receiver  @function.receiver.mutable  @function.abstract
-@function.variadic  @function.group
+@function.receiver  @function.receiver.mutable  @function.abstract  @function.group
+@type.name
 @binding.element  @binding.positional
 @field.name.index
 ```
@@ -216,8 +220,7 @@ A capture named `<base>.<marker>` and co-captured on a `<base>` node is a
 **marker**: the base keeps every obligation it had and is read through the
 same code as any other, and the marker only adds meaning. `@assign.compound`,
 `@function.receiver.mutable`, `@function.abstract`, `@field.name.index`,
-`@binding.element`, `@binding.positional` and `@function.variadic` are all of
-this shape; each entry
+`@binding.element` and `@binding.positional` are all of this shape; each entry
 below says only what its marker means.
 
 - `@assign`: a write to an existing place. `.target`/`.value` as for
@@ -240,9 +243,11 @@ below says only what its marker means.
 - `@function.abstract`: the function has no body, or is a trait default;
   implementations are asked for. It is the one exemption from `@function.body`,
   which every other `@function` must carry.
-- `@function.variadic`: the function takes an open number of arguments, so its
-  `@param` list is a lower bound and no argument count identifies a shape (§3.4).
 - `@function.group`: the node grouping the clauses of one function.
+- `@type.name`: the name a type declaration binds. An expression whose
+  definition lands on one names a type, not a value (§3.4); a language that
+  defines it answers method expressions, one that does not treats every written
+  receiver as a value.
 - `@field.name.index`: the field addresses a position, not a name (Rust
   `t.0`); the projection is `Index` and the engine never parses a field name
   as a number.
@@ -322,6 +327,7 @@ callee text is that name.
 | Construct | Pattern |
 |---|---|
 | identifiers | `(identifier) @ident` |
+| type names | `(type_spec name: (_) @type.name)`; `(type_alias name: (_) @type.name)` — what `T.M(s, x)` is recognised by (§3.4) |
 | `a, b := v` | `(short_var_declaration left: (expression_list) @binding.pattern right: (expression_list) @binding.value) @binding` |
 | `var x T = v` / `var x T` | `(var_spec name: (identifier) @binding.pattern value: (expression_list) @binding.value) @binding @binding.positional` (`name:` repeats, so `var c, d = 1, 2` divides the list); `(var_spec name: (identifier) @binding.pattern type: (_) @binding.value @literal !value) @binding` (the zero value is the type, §3.2) |
 | `for k, v := range xs` | `(range_clause left: (expression_list) @binding.pattern right: (_) @binding.value) @binding @binding.element` |
@@ -334,7 +340,7 @@ callee text is that name.
 | method | `(method_declaration receiver: (parameter_list (parameter_declaration) @function.receiver) name: (_) @function.name parameters: (_) @function.params body: (_) @function.body) @function`; `(method_declaration receiver: (parameter_list (parameter_declaration type: (pointer_type)) @function.receiver.mutable))` |
 | parameter | `(parameter_declaration name: (identifier) @param)` (one declaration may name several) |
 | mutable param | `(parameter_declaration type: [(pointer_type) (slice_type) (map_type) (channel_type)]) @param.mutable` (not the variadic declaration: it is `@opaque` and names no `@param`) |
-| variadic param | `(variadic_parameter_declaration) @opaque` — `c ...int` is one name for any number of arguments, so it holds no argument position; `(function_declaration \| method_declaration \| method_elem parameters: (parameter_list (variadic_parameter_declaration))) @function.variadic` leaves the declaration's arity open (§3.4) |
+| variadic param | `(variadic_parameter_declaration) @opaque` — `c ...int` is one name for any number of arguments, so it holds no argument position |
 | interface method | `(method_elem name: (_) @function.name parameters: (_) @function.params) @function @function.abstract` |
 | `return a, b` | `(return_statement (expression_list) @return)`; bare `return` → `((return_statement) @return (#eq? @return "return"))` |
 | expression lists | `(expression_list) @construct`; `(expression_list . (_) @through.inner .) @through` |

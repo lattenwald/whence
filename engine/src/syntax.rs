@@ -339,10 +339,6 @@ impl<'l> Doc<'l> {
         self.has_cap(f.node, vocab::FUNCTION_ABSTRACT)
     }
 
-    pub fn is_variadic(&self, f: &FnDecl) -> bool {
-        self.has_cap(f.node, vocab::FUNCTION_VARIADIC)
-    }
-
     pub fn name_node<'a>(&'a self, f: &FnDecl<'a>) -> Option<N<'a>> {
         self.caps_within(
             vocab::FUNCTION_NAME,

@@ -46,11 +46,11 @@
   type: [(pointer_type) (slice_type) (map_type) (channel_type)]) @param.mutable
 ;; `c ...int` is one name for many arguments: no position of its own
 (variadic_parameter_declaration) @opaque
-;; and it leaves the declaration's arity open
-(function_declaration parameters: (parameter_list (variadic_parameter_declaration))) @function.variadic
-(method_declaration parameters: (parameter_list (variadic_parameter_declaration))) @function.variadic
-(method_elem parameters: (parameter_list (variadic_parameter_declaration))) @function.variadic
 (method_elem name: (_) @function.name parameters: (_) @function.params) @function @function.abstract
+
+;; a name resolving here is a type: `T.M(s, x)` passes the receiver as an argument
+(type_spec name: (_) @type.name)
+(type_alias name: (_) @type.name)
 
 (return_statement (expression_list) @return)
 ;; a bare `return` in a named-results function yields the results, not an expression

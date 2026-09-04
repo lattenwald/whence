@@ -123,61 +123,128 @@ impl Host for Interfaces {
     }
 }
 
-/// gopls lists the interfaces that embed a method among its implementations, so one
-/// concrete method is reached twice: through `I.M` directly and again through `J.M`.
-#[test]
-fn a_method_reached_through_two_interfaces_is_still_a_callee() {
-    let text = "package p\n\ntype I interface{ M() int }\ntype J interface{ M() int }\n\n\
-                type T struct{}\n\nfunc (t T) M() int { return 7 }\n\n\
-                func run(i I) int {\n\tv := i.M()\n\treturn v\n}\n";
-    let (concrete, embedding) = (at("/r/p.go", 7, 11), at("/r/p.go", 3, 18));
+/// One Go file, one fake host: `defs` and `impls` are what the servers answer.
+fn trace_go(
+    text: &str,
+    at_pos: Pos,
+    defs: &[(Pos, Location)],
+    impls: &[(Pos, Vec<Location>)],
+) -> String {
     let mut host = Interfaces {
         text: text.to_string(),
-        definitions: HashMap::from([
-            (pos(10, 1), at("/r/p.go", 10, 1)),
-            (pos(10, 8), at("/r/p.go", 2, 18)),
-        ]),
-        implementations: HashMap::from([
-            (pos(2, 18), vec![concrete.clone(), embedding]),
-            (pos(3, 18), vec![concrete]),
-        ]),
+        definitions: defs.iter().cloned().collect(),
+        implementations: impls.iter().cloned().collect(),
     };
     let reg = Registry::embedded().unwrap();
     let req = TraceRequest {
         root: "/r".into(),
         file: "/r/p.go".into(),
-        pos: pos(10, 1),
+        pos: at_pos,
         limits: Limits::default(),
     };
-    let out = serde_json::to_string(&trace(&mut host, &reg, &req).unwrap()).unwrap();
+    serde_json::to_string(&trace(&mut host, &reg, &req).unwrap()).unwrap()
+}
+
+const INTERFACES: &str = "package p\n\ntype I interface{ M() int }\ntype J interface{ M() int }\n\n\
+                          type T struct{}\n\nfunc (t T) M() int { return 7 }\n\n\
+                          func run(i I) int {\n\tv := i.M()\n\treturn v\n}\n";
+
+fn interface_defs() -> Vec<(Pos, Location)> {
+    vec![
+        (pos(10, 1), at("/r/p.go", 10, 1)),
+        (pos(10, 8), at("/r/p.go", 2, 18)),
+    ]
+}
+
+/// gopls lists the interfaces that embed a method among its implementations, so one
+/// concrete method is reached twice: through `I.M` directly and again through `J.M`.
+#[test]
+fn a_method_reached_through_two_interfaces_is_still_a_callee() {
+    let (concrete, embedding) = (at("/r/p.go", 7, 11), at("/r/p.go", 3, 18));
+    let out = trace_go(
+        INTERFACES,
+        pos(10, 1),
+        &interface_defs(),
+        &[
+            (pos(2, 18), vec![concrete.clone(), embedding]),
+            (pos(3, 18), vec![concrete]),
+        ],
+    );
     assert!(!out.contains("no implementation"), "{out}");
     assert!(out.contains("\"label\":\"7\""), "{out}");
 }
 
 #[test]
 fn an_unimplemented_interface_beside_a_concrete_method_keeps_the_method() {
-    let text = "package p\n\ntype I interface{ M() int }\ntype J interface{ M() int }\n\n\
-                type T struct{}\n\nfunc (t T) M() int { return 7 }\n\n\
-                func run(i I) int {\n\tv := i.M()\n\treturn v\n}\n";
-    let mut host = Interfaces {
-        text: text.to_string(),
-        definitions: HashMap::from([
-            (pos(10, 1), at("/r/p.go", 10, 1)),
-            (pos(10, 8), at("/r/p.go", 2, 18)),
-        ]),
-        implementations: HashMap::from([(
-            pos(2, 18),
-            vec![at("/r/p.go", 7, 11), at("/r/p.go", 3, 18)],
-        )]),
-    };
-    let reg = Registry::embedded().unwrap();
-    let req = TraceRequest {
-        root: "/r".into(),
-        file: "/r/p.go".into(),
-        pos: pos(10, 1),
-        limits: Limits::default(),
-    };
-    let out = serde_json::to_string(&trace(&mut host, &reg, &req).unwrap()).unwrap();
+    let out = trace_go(
+        INTERFACES,
+        pos(10, 1),
+        &interface_defs(),
+        &[(pos(2, 18), vec![at("/r/p.go", 7, 11), at("/r/p.go", 3, 18)])],
+    );
+    assert!(out.contains("\"label\":\"7\""), "{out}");
+}
+
+/// Go's method expression names the type, not a receiver: `T.M(s, x)` passes the
+/// receiver as its first argument, the way Rust's `T::m(s, x)` does.
+#[test]
+fn a_method_expression_passes_the_receiver_as_the_first_argument() {
+    let text = "package p\n\ntype T struct{ f int }\n\n\
+                func (t T) M(x int) int { return x }\n\n\
+                func run(s T) int {\n\tv := T.M(s, 7)\n\treturn v\n}\n";
+    let out = trace_go(
+        text,
+        pos(7, 1),
+        &[
+            (pos(7, 1), at("/r/p.go", 7, 1)),
+            (pos(7, 8), at("/r/p.go", 4, 11)),
+            (pos(4, 33), at("/r/p.go", 4, 13)),
+            (pos(7, 6), at("/r/p.go", 2, 5)),
+        ],
+        &[],
+    );
+    assert!(out.contains("\"label\":\"7\""), "{out}");
+}
+
+/// A variadic method expression: the argument count says nothing here, and the
+/// type does.
+#[test]
+fn a_variadic_method_expression_still_passes_the_receiver_first() {
+    let text = "package p\n\ntype T struct{ f int }\n\n\
+                func (t T) N(x int, xs ...int) int { return x }\n\n\
+                func run(s T) int {\n\tv := T.N(s, 7, 8)\n\treturn v\n}\n";
+    let out = trace_go(
+        text,
+        pos(7, 1),
+        &[
+            (pos(7, 1), at("/r/p.go", 7, 1)),
+            (pos(7, 8), at("/r/p.go", 4, 11)),
+            (pos(4, 44), at("/r/p.go", 4, 13)),
+            (pos(7, 6), at("/r/p.go", 2, 5)),
+        ],
+        &[],
+    );
+    assert!(out.contains("\"label\":\"7\""), "{out}");
+}
+
+/// A variadic method takes any number of arguments, so one more than it declares
+/// is not a method expression and the receiver stays where it is written.
+#[test]
+fn an_extra_argument_to_a_variadic_method_is_not_a_receiver() {
+    let text = "package p\n\ntype T struct{ f int }\n\n\
+                func (t T) N(x int, xs ...int) int { return x }\n\n\
+                func run(s T) int {\n\tv := s.N(7, 8)\n\treturn v\n}\n";
+    let out = trace_go(
+        text,
+        pos(7, 1),
+        &[
+            (pos(7, 1), at("/r/p.go", 7, 1)),
+            (pos(7, 8), at("/r/p.go", 4, 11)),
+            (pos(4, 44), at("/r/p.go", 4, 13)),
+            (pos(7, 6), at("/r/p.go", 6, 9)),
+        ],
+        &[],
+    );
     assert!(out.contains("\"label\":\"7\""), "{out}");
 }
 
@@ -234,58 +301,4 @@ fn a_single_assignment_language_asks_for_no_highlights() {
     };
     trace(&mut host, &reg, &req).unwrap();
     assert_eq!(host.highlights, 0);
-}
-
-/// Go's method expression names the type, not a receiver: `T.M(s, x)` passes the
-/// receiver as its first argument, the way Rust's `T::m(s, x)` does.
-#[test]
-fn a_method_expression_passes_the_receiver_as_the_first_argument() {
-    let text = "package p\n\ntype T struct{ f int }\n\n\
-                func (t T) M(x int) int { return x }\n\n\
-                func run(s T) int {\n\tv := T.M(s, 7)\n\treturn v\n}\n";
-    let mut host = Interfaces {
-        text: text.to_string(),
-        definitions: HashMap::from([
-            (pos(7, 1), at("/r/p.go", 7, 1)),
-            (pos(7, 8), at("/r/p.go", 4, 11)),
-            (pos(4, 33), at("/r/p.go", 4, 13)),
-        ]),
-        implementations: HashMap::new(),
-    };
-    let reg = Registry::embedded().unwrap();
-    let req = TraceRequest {
-        root: "/r".into(),
-        file: "/r/p.go".into(),
-        pos: pos(7, 1),
-        limits: Limits::default(),
-    };
-    let out = serde_json::to_string(&trace(&mut host, &reg, &req).unwrap()).unwrap();
-    assert!(out.contains("\"label\":\"7\""), "{out}");
-}
-
-/// A variadic method takes any number of arguments, so one more than it declares
-/// is not a method expression and the receiver stays where it is written.
-#[test]
-fn an_extra_argument_to_a_variadic_method_is_not_a_receiver() {
-    let text = "package p\n\ntype T struct{ f int }\n\n\
-                func (t T) N(x int, xs ...int) int { return x }\n\n\
-                func run(s T) int {\n\tv := s.N(7, 8)\n\treturn v\n}\n";
-    let mut host = Interfaces {
-        text: text.to_string(),
-        definitions: HashMap::from([
-            (pos(7, 1), at("/r/p.go", 7, 1)),
-            (pos(7, 8), at("/r/p.go", 4, 11)),
-            (pos(4, 44), at("/r/p.go", 4, 13)),
-        ]),
-        implementations: HashMap::new(),
-    };
-    let reg = Registry::embedded().unwrap();
-    let req = TraceRequest {
-        root: "/r".into(),
-        file: "/r/p.go".into(),
-        pos: pos(7, 1),
-        limits: Limits::default(),
-    };
-    let out = serde_json::to_string(&trace(&mut host, &reg, &req).unwrap()).unwrap();
-    assert!(out.contains("\"label\":\"7\""), "{out}");
 }

@@ -47,6 +47,10 @@ pub const CONSTRUCT_BASE: &str = "construct.base";
 
 pub const IDENT: &str = "ident";
 
+/// The name a type declaration binds: an expression whose definition lands here
+/// names a type and is not a value (Go's method expression `T.M(s, x)`).
+pub const TYPE_NAME: &str = "type.name";
+
 /// A write to an existing place: `x = e`, `x += e`, `x++`.
 pub const ASSIGN: &str = "assign";
 pub const ASSIGN_TARGET: &str = "assign.target";
@@ -71,9 +75,6 @@ pub const FUNCTION_RECEIVER_MUTABLE: &str = "function.receiver.mutable";
 /// Co-captured on a `@function` declared without a body, or on a trait default:
 /// implementations are asked for.
 pub const FUNCTION_ABSTRACT: &str = "function.abstract";
-/// Co-captured on a `@function` that takes an open number of arguments: its
-/// `@param` list is a lower bound, so no argument count can be read as a shape.
-pub const FUNCTION_VARIADIC: &str = "function.variadic";
 /// Groups the clauses of one function; absent where a function is one node.
 pub const FUNCTION_GROUP: &str = "function.group";
 
