@@ -183,6 +183,17 @@ containers — `@field.container` or the new `@place.base` capture. Containment 
 of `arr[i] = 3` and the key of `m[k] = v` as mutated, and they are only read; a wrong edge is
 worse than a missing one. Spec §3.1 rule 1 and §6 carry the rule and the capture.
 
+### Two rules the Rust query exposed
+
+Plan: Task 6 touches no engine source but `engine/src/lang/mod.rs`. Done: two rules in
+`engine/src/syntax.rs` that only Rust's shapes can reach. `role_of` numbers a `Role::Param` by its
+position in `FnDecl::params` rather than among the named children of `@function.params` — Rust puts
+`self_parameter` inside `(parameters)`, so the receiver, which `FnDecl` excludes, shifted every
+later parameter onto the wrong argument. `expand_return` pushes a leaf through `@through`, as §2
+requires of every classified value — a `return e` block tail is `@return` twice, once as the tail
+and once as the operand, and without it the tree grew a second leaf for the same value. Neither
+changes anything for Erlang.
+
 ### Implementations are expanded before the outside-root verdict
 
 Plan: `call_result` expands an abstract callee inside the loop that builds targets, "then run the

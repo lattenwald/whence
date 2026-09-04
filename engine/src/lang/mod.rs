@@ -87,6 +87,7 @@ mod tests {
             r.for_file(Path::new("/p/src/a.erl")).unwrap().name,
             "erlang"
         );
+        assert_eq!(r.for_file(Path::new("/p/src/a.rs")).unwrap().name, "rust");
         assert!(r.for_file(Path::new("/p/README.md")).is_none());
     }
 

@@ -490,7 +490,7 @@ impl<'l> Doc<'l> {
             }
             if self.has_cap(n, vocab::FUNCTION_PARAMS)
                 && let Some(func) = self.enclosing_function(n)
-                && let Some(index) = index_of_child_containing(c, ident.0)
+                && let Some(index) = func.params.iter().position(|p| contains(p.0, ident.0))
             {
                 return Role::Param { func, index };
             }
@@ -655,7 +655,7 @@ impl<'l> Doc<'l> {
 
     fn expand_return<'a>(&'a self, n: N<'a>, out: &mut Vec<N<'a>>) {
         if !self.has_cap(n, vocab::RETURN_CONTAINER) {
-            out.push(n);
+            out.push(self.through(n).unwrap_or(n));
             return;
         }
         for v in self.caps_within(vocab::RETURN_VALUE, n.0.start_byte(), n.0.end_byte()) {
@@ -872,12 +872,4 @@ fn named_children<'t>(n: N<'t>) -> Vec<N<'t>> {
 
 fn contains(outer: tree_sitter::Node, inner: tree_sitter::Node) -> bool {
     outer.start_byte() <= inner.start_byte() && inner.end_byte() <= outer.end_byte()
-}
-
-fn index_of_child_containing(parent: tree_sitter::Node, inner: tree_sitter::Node) -> Option<usize> {
-    let mut cursor = parent.walk();
-    parent
-        .named_children(&mut cursor)
-        .filter(|c| !c.is_extra())
-        .position(|c| contains(c, inner))
 }
