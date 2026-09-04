@@ -416,7 +416,8 @@ fn classify(ctx: &mut Ctx, doc: &Doc, file: &Path, o: N) -> Result<Option<Occ>, 
             ctx,
             &decl,
             file,
-            call.receiver.map(|r| doc.pos_of(r)),
+            call.receiver.is_some(),
+            call.receiver.and_then(|r| type_name_at(doc, r)),
             call.args.len(),
         )?;
         mutable |= match declared_slot(shift, slot) {
@@ -628,14 +629,19 @@ fn shifts_receiver(
     ctx: &mut Ctx,
     func: &FnDecl,
     file: &Path,
-    receiver: Option<Pos>,
+    written: bool,
+    name_at: Option<Pos>,
     argc: usize,
 ) -> Result<bool, TraceError> {
     if func.receiver.is_none() {
         return Ok(false);
     }
-    let Some(at) = receiver else {
+    if !written {
         return Ok(argc == func.params.len() + 1);
+    }
+    // A receiver that is not a name is an expression, and an expression is a value.
+    let Some(at) = name_at else {
+        return Ok(false);
     };
     if argc <= func.params.len() {
         return Ok(false);
@@ -648,6 +654,22 @@ fn shifts_receiver(
         }
     }
     Ok(false)
+}
+
+/// Where to ask whether a receiver names a type: at the name, never at an
+/// expression that merely begins with one (`T{f: 1}` and `T(v)` are values).
+fn type_name_at<'a>(doc: &'a Doc, receiver: N<'a>) -> Option<Pos> {
+    let r = doc.through(receiver).unwrap_or(receiver);
+    if doc.has_cap(r, vocab::IDENT) {
+        return Some(doc.pos_of(r));
+    }
+    // `q.T.M(s, x)`: the type is the field, the package is the container
+    if let Some(name) = doc.caps_child_of(vocab::FIELD_NAME, r).first() {
+        return Some(doc.pos_of(*name));
+    }
+    // `(*T).M(s, x)`: a pointer receiver's method expression
+    let base = doc.caps_child_of(vocab::PLACE_BASE, r).first().copied()?;
+    type_name_at(doc, base)
 }
 
 /// The receiver and arguments of a call as the declaration numbers them.
@@ -754,7 +776,8 @@ fn param_like(
                     ctx,
                     func,
                     &r.file,
-                    call.receiver.map(|c| rdoc.pos_of(c)),
+                    call.receiver.is_some(),
+                    call.receiver.and_then(|c| type_name_at(&rdoc, c)),
                     call.args.len(),
                 )?;
                 let (receiver, args) = as_declared(shift, call.receiver, call.args);
@@ -1113,12 +1136,19 @@ fn call_result(
         }
         let receiver_at = match &receiver {
             Some((f, sp)) => match ctx.doc_if_known(f)? {
-                Some(d) => d.node(*sp).map(|n| d.pos_of(n)),
+                Some(d) => d.node(*sp).and_then(|n| type_name_at(&d, n)),
                 None => None,
             },
             None => None,
         };
-        let shift = shifts_receiver(ctx, &decl, file, receiver_at, args.len())?;
+        let shift = shifts_receiver(
+            ctx,
+            &decl,
+            file,
+            receiver.is_some(),
+            receiver_at,
+            args.len(),
+        )?;
         let (receiver, args) = as_declared(shift, receiver.clone(), args.clone());
         targets.push(Frame {
             func_id,

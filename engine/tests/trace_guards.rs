@@ -206,6 +206,47 @@ fn a_method_expression_passes_the_receiver_as_the_first_argument() {
     assert!(out.contains("\"label\":\"7\""), "{out}");
 }
 
+/// A receiver that only begins with a type name is a value: `T{f: 1}` is the
+/// receiver of an ordinary call, not the operand of a method expression.
+#[test]
+fn a_composite_literal_receiver_is_a_value_not_a_type() {
+    let text = "package p\n\ntype T struct{ f int }\n\n\
+                func (t T) N(x int, xs ...int) int { return x }\n\n\
+                func run() int {\n\tv := T{f: 1}.N(7, 8)\n\treturn v\n}\n";
+    let out = trace_go(
+        text,
+        pos(7, 1),
+        &[
+            (pos(7, 1), at("/r/p.go", 7, 1)),
+            (pos(7, 14), at("/r/p.go", 4, 11)),
+            (pos(4, 44), at("/r/p.go", 4, 13)),
+            (pos(7, 6), at("/r/p.go", 2, 5)),
+        ],
+        &[],
+    );
+    assert!(out.contains("\"label\":\"7\""), "{out}");
+}
+
+/// `(*T).M(s, x)` is how a pointer-receiver method is named as a function.
+#[test]
+fn a_pointer_method_expression_passes_the_receiver_first() {
+    let text = "package p\n\ntype T struct{ f int }\n\n\
+                func (t *T) M(x int) int { return x }\n\n\
+                func run(s *T) int {\n\tv := (*T).M(s, 7)\n\treturn v\n}\n";
+    let out = trace_go(
+        text,
+        pos(7, 1),
+        &[
+            (pos(7, 1), at("/r/p.go", 7, 1)),
+            (pos(7, 11), at("/r/p.go", 4, 12)),
+            (pos(4, 34), at("/r/p.go", 4, 14)),
+            (pos(7, 8), at("/r/p.go", 2, 5)),
+        ],
+        &[],
+    );
+    assert!(out.contains("\"label\":\"7\""), "{out}");
+}
+
 /// A variadic method expression: the argument count says nothing here, and the
 /// type does.
 #[test]
@@ -227,8 +268,8 @@ fn a_variadic_method_expression_still_passes_the_receiver_first() {
     assert!(out.contains("\"label\":\"7\""), "{out}");
 }
 
-/// A variadic method takes any number of arguments, so one more than it declares
-/// is not a method expression and the receiver stays where it is written.
+/// A variadic method takes any number of arguments, so more of them than it
+/// declares is not a method expression and the receiver stays where it is written.
 #[test]
 fn an_extra_argument_to_a_variadic_method_is_not_a_receiver() {
     let text = "package p\n\ntype T struct{ f int }\n\n\

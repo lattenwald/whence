@@ -143,8 +143,12 @@ argument more than the parameter count is what identifies it. Go's method
 expression `T.M(s, x)` writes the *type* where a receiver goes, and only the
 host can tell a type from a value: when a receiver is written and the call
 carries more arguments than the declaration has parameters, `host/definition`
-on the receiver decides — a definition covered by `@type.name` means the
-receiver is the type and is dropped, and the first argument is the receiver.
+on the receiver's *name* decides — a definition covered by `@type.name` means
+the receiver is the type and is dropped, and the first argument is the receiver.
+The name is the receiver itself when it is an `@ident`, its `@field.name` when
+it is qualified (`q.T.M`), or its `@place.base` through a deref (`(*T).M`); a
+receiver that is no name at all is an expression, and an expression is a value,
+so `T{f: 1}.M(a, b)` is an ordinary call.
 Anything else is an ordinary call, including `t.Errorf(f, a)` against a variadic
 declaration and a call the author is still typing. Counting arguments alone
 would rewrite both of those into a reading their code never had.
