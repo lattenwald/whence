@@ -1,6 +1,8 @@
 //! The only capture names the engine reads; extend here, never per language.
 
 pub const BINDING: &str = "binding";
+/// Several per `@binding` where the grammar gives the declared names no
+/// container (Go `var c, d = 1, 2`): the nth name takes the nth element.
 pub const BINDING_PATTERN: &str = "binding.pattern";
 pub const BINDING_VALUE: &str = "binding.value";
 

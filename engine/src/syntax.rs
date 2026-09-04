@@ -789,10 +789,38 @@ impl<'l> Doc<'l> {
     }
 
     pub fn pattern_index(&self, pattern: N, ident: N) -> Option<usize> {
+        if let Some((_, i)) = self.repeated_names(pattern) {
+            return Some(i);
+        }
         index_containing(&self.positional(pattern)?, ident)
     }
 
+    /// How many `@binding.pattern` captures one `@binding` carries and which is
+    /// this one; `None` unless the grammar repeats the field.
+    fn repeated_names(&self, pattern: N) -> Option<(usize, usize)> {
+        let binding = N(pattern.0.parent()?);
+        if !self.has_cap(binding, vocab::BINDING) {
+            return None;
+        }
+        let names = self.caps_child_of(vocab::BINDING_PATTERN, binding);
+        if names.len() < 2 {
+            return None;
+        }
+        Some((names.len(), index_containing(&names, pattern)?))
+    }
+
     pub fn destructure<'a>(&'a self, pattern: N<'a>, ident: N<'a>, value: N<'a>) -> Option<N<'a>> {
+        // Repeated names divide a construct; anything else (Go `var c, d int`) they share.
+        let value = match self.repeated_names(pattern) {
+            Some((count, i)) if self.has_cap(value, vocab::CONSTRUCT) => {
+                let vs = self.positional(value)?;
+                if vs.len() != count {
+                    return None;
+                }
+                *vs.get(i)?
+            }
+            _ => value,
+        };
         if pattern.0.start_byte() == ident.0.start_byte()
             && pattern.0.end_byte() == ident.0.end_byte()
         {

@@ -242,6 +242,14 @@ marker means.
 - `@binding.element`: the `@binding.value` is an iterable, not the bound
   value, so it is not destructured against the pattern.
 
+One `@binding` may carry several `@binding.pattern` captures, where the grammar
+gives the declared names no container node and repeats the field instead (Go
+`var c, d = 1, 2`). The nth name then takes the nth element of a
+`@binding.value` construct of the same arity; a value that is not a construct
+(`var c, d int`, the zero value of §3.2) is what every one of them binds; and a
+construct of a different arity (`var c, d = f()`) yields the position as a
+pending projection, exactly as a positional pattern does.
+
 Semantics change for two existing captures: `@through` is applied wherever a
 value is classified (§2) and repeated to a fixpoint, and `@construct` positional matching no longer
 requires equal node kinds (§3.2). `is_literal` on a keyed construct skips
@@ -338,9 +346,8 @@ receiver is `parameter_declaration type: (pointer_type)` under the
 anonymous node under `operator:`. Go has no expression-level branches, so
 `@return.container`, `@return.value` and `@branch.*` are absent; a
 `switch`/`if` never appears as a value. In `var u, w = f()` each `name:` child is
-its own `@binding.pattern` against the whole `@binding.value` list, so a name
-carries no position: the trace continues into the list and ends where the list
-ends, never on a wrong element.
+its own `@binding.pattern` against the whole `@binding.value` list; the repeated
+field is what tells the engine the names are positional (§6).
 
 ### 6.3 Erlang
 

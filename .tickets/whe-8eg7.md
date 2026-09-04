@@ -1,6 +1,6 @@
 ---
 id: whe-8eg7
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-09-04T16:19:06Z
