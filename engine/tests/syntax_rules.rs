@@ -220,6 +220,53 @@ fn go_call_using_finds_receiver_and_argument_slots() {
 }
 
 #[test]
+fn a_comment_is_never_a_captured_node() {
+    let text = "package p\nfunc h() { x := ( // c\n 1) }\n";
+    let d = doc("go", "/c.go", text);
+    let x = d.ident_at(at(text, "x :=", 0)).unwrap();
+    let Role::BoundBy { value, .. } = d.role_of(x) else {
+        panic!()
+    };
+    assert_eq!(d.text_of(d.through(value).unwrap()), "1");
+}
+
+#[test]
+fn a_function_nested_in_a_default_body_is_not_abstract() {
+    let text = "trait T { fn m(&self) -> i32 { fn inner() -> i32 { 1 } inner() } }\n";
+    let d = doc("rust", "/t.rs", text);
+    let p = at(text, "inner", 0);
+    assert!(d.declares_abstract(p).is_none());
+    assert_eq!(d.declares_function(p).unwrap().name, "inner");
+}
+
+#[test]
+fn a_function_typed_parameter_owns_no_parameters() {
+    let text = "package p\nfunc Map(xs []int, f func(x int) int, p *int) {}\n";
+    let d = doc("go", "/m.go", text);
+    let f = d.functions().pop().unwrap();
+    let names: Vec<&str> = f.params.iter().map(|n| d.text_of(*n)).collect();
+    assert_eq!(names, ["xs", "f", "p"]);
+    assert!(d.param_is_mutable(&f, 2));
+
+    let text = "fn f(cb: fn(a: i32), p: &mut i32) {}\n";
+    let d = doc("rust", "/f.rs", text);
+    let f = d.functions().pop().unwrap();
+    let names: Vec<&str> = f.params.iter().map(|n| d.text_of(*n)).collect();
+    assert_eq!(names, ["cb", "p"]);
+}
+
+#[test]
+fn a_one_element_pattern_projects_by_index() {
+    let text = "fn f(t: (i32,)) { let (x,) = t; }\n";
+    let d = doc("rust", "/o.rs", text);
+    let x = d.ident_at(at(text, "x,) = t", 0)).unwrap();
+    let Role::BoundBy { pattern, .. } = d.role_of(x) else {
+        panic!()
+    };
+    assert_eq!(d.pattern_index(pattern, x), Some(0));
+}
+
+#[test]
 fn function_group_separates_same_name_methods() {
     let (d, _) = rust();
     let gets: Vec<_> = d

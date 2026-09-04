@@ -82,3 +82,5 @@
 
 ;; @opaque: the engine never looks inside these
 [(closure_expression) (macro_invocation) (async_block)] @opaque
+;; a function type's own parameters belong to no declaration
+(function_type parameters: (_) @opaque)

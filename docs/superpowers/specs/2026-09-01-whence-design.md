@@ -213,9 +213,10 @@ Vocabulary (v1 below; M2 additions in the [M2 design §6](2026-09-03-m2-rust-go-
 ```
 
 Generic derivations (no per-language code): arguments are the named children
-of `@call.args`; argument index is position among them; parameters likewise
-from `@function.params`; callee identifier position is the end of
-`@call.callee`.
+of `@call.args`; argument index is position among them; parameters are the
+`@param` nodes owned by `@function.params` — `@param` is required, a language
+without it declares no parameters — and parameter index is position among
+them; callee identifier position is the end of `@call.callee`.
 
 Returns are data, not a flag: `@return` marks every place a value leaves a
 function (a body tail, a `return` operand), and `@return.container` /

@@ -114,6 +114,10 @@ impl<'l> Doc<'l> {
         let mut it = cursor.matches(&lang.query, tree.root_node(), text.as_bytes());
         while let Some(m) = it.next() {
             for c in m.captures() {
+                // comments are named nodes, so a wildcard pattern captures them too
+                if c.node.is_extra() {
+                    continue;
+                }
                 caps.push(Cap {
                     cap: c.index,
                     span: Span::of(N(c.node)),
@@ -184,11 +188,17 @@ impl<'l> Doc<'l> {
             .is_some_and(|off| !self.caps_containing(cap, off).is_empty())
     }
 
-    fn caps_owned_by<'a>(&'a self, cap: &str, owner_caps: &[&str], owner: N<'a>) -> Vec<N<'a>> {
+    fn caps_owned_by<'a>(
+        &'a self,
+        cap: &str,
+        owner_caps: &[&str],
+        stop: &[&str],
+        owner: N<'a>,
+    ) -> Vec<N<'a>> {
         self.caps_within(cap, owner.0.start_byte(), owner.0.end_byte())
             .into_iter()
             .filter(|n| {
-                self.climb(n.0.parent(), owner_caps, &[])
+                self.climb(n.0.parent(), owner_caps, stop)
                     .is_some_and(|a| a.0.id() == owner.0.id())
             })
             .collect()
@@ -262,11 +272,16 @@ impl<'l> Doc<'l> {
         self.lines.byte_offset(&self.text, p)
     }
 
-    pub fn ident_at(&self, p: Pos) -> Option<N<'_>> {
+    /// The innermost node carrying `cap` at `p`.
+    fn node_at(&self, cap: &str, p: Pos) -> Option<N<'_>> {
         let off = self.byte_offset(p)?;
-        self.caps_containing(vocab::IDENT, off)
+        self.caps_containing(cap, off)
             .first()
             .and_then(|c| self.node(c.span))
+    }
+
+    pub fn ident_at(&self, p: Pos) -> Option<N<'_>> {
+        self.node_at(vocab::IDENT, p)
     }
 
     /// Every clause in the file: multi-clause functions are separate `@function` matches.
@@ -294,12 +309,7 @@ impl<'l> Doc<'l> {
     }
 
     fn function_name_at(&self, p: Pos) -> Option<N<'_>> {
-        let off = self.byte_offset(p)?;
-        let name = self
-            .caps_containing(vocab::FUNCTION_NAME, off)
-            .first()
-            .copied()?;
-        self.node(name.span)
+        self.node_at(vocab::FUNCTION_NAME, p)
     }
 
     pub fn declares_function(&self, p: Pos) -> Option<FnDecl<'_>> {
@@ -309,7 +319,11 @@ impl<'l> Doc<'l> {
     /// The bodiless (or default-bodied) declaration at `p`, if the position is on its name.
     pub fn declares_abstract(&self, p: Pos) -> Option<FnDecl<'_>> {
         let name = self.function_name_at(p)?;
-        let decl = self.climb(name.0.parent(), &[vocab::FUNCTION_ABSTRACT], &[])?;
+        let decl = self.climb(
+            name.0.parent(),
+            &[vocab::FUNCTION_ABSTRACT],
+            &[vocab::FUNCTION],
+        )?;
         self.fn_decl(decl)
     }
 
@@ -366,15 +380,18 @@ impl<'l> Doc<'l> {
             .caps_owned_by(
                 vocab::FUNCTION_RECEIVER,
                 &[vocab::FUNCTION, vocab::FUNCTION_ABSTRACT],
+                &[],
                 node,
             )
             .first()
             .copied();
-        let params = self
-            .caps_owned_by(vocab::PARAM, &[vocab::FUNCTION_PARAMS], params)
-            .into_iter()
-            .filter(|p| !p.0.is_extra()) // a wildcard `@param` pattern also matches comments
-            .collect();
+        // a parameter of function type nests a parameter list of its own, marked @opaque
+        let params = self.caps_owned_by(
+            vocab::PARAM,
+            &[vocab::FUNCTION_PARAMS],
+            &[vocab::OPAQUE],
+            params,
+        );
         Some(FnDecl {
             node,
             name,
@@ -567,11 +584,11 @@ impl<'l> Doc<'l> {
 
     fn call_site<'a>(&'a self, call: N<'a>) -> Option<CallSite<'a>> {
         let callee = self
-            .caps_owned_by(vocab::CALL_CALLEE, &[vocab::CALL], call)
+            .caps_owned_by(vocab::CALL_CALLEE, &[vocab::CALL], &[], call)
             .first()
             .copied()?;
         let args = self
-            .caps_owned_by(vocab::CALL_ARGS, &[vocab::CALL], call)
+            .caps_owned_by(vocab::CALL_ARGS, &[vocab::CALL], &[], call)
             .first()
             .copied()?;
         Some(CallSite {
@@ -579,7 +596,7 @@ impl<'l> Doc<'l> {
             callee,
             args: named_children(args),
             receiver: self
-                .caps_owned_by(vocab::CALL_RECEIVER, &[vocab::CALL], call)
+                .caps_owned_by(vocab::CALL_RECEIVER, &[vocab::CALL], &[], call)
                 .first()
                 .copied(),
         })
@@ -700,11 +717,11 @@ impl<'l> Doc<'l> {
             return None;
         }
         let container = self
-            .caps_owned_by(vocab::FIELD_CONTAINER, &[vocab::FIELD], n)
+            .caps_owned_by(vocab::FIELD_CONTAINER, &[vocab::FIELD], &[], n)
             .first()
             .copied()?;
         let name = self
-            .caps_owned_by(vocab::FIELD_NAME, &[vocab::FIELD], n)
+            .caps_owned_by(vocab::FIELD_NAME, &[vocab::FIELD], &[], n)
             .first()
             .copied()?;
         Some((container, self.text_of(name).to_string()))

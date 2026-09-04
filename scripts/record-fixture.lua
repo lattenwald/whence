@@ -60,7 +60,7 @@ for attempt = 1, 5 do
   hint = record.finish()
   -- rust-analyzer fails a request with "content modified" while it is still indexing
   if not err or attempt == 5 then break end
-  vim.wait(5000, function() return vim.lsp.status() == "" end, 100)
+  vim.wait(5000)
 end
 io.stdout:write((err and ("error: " .. vim.inspect(err)) or (hint or "recorded nothing")) .. "\n")
 vim.cmd.qall({ bang = true })

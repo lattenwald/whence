@@ -73,3 +73,5 @@
 
 ;; @opaque: the engine never looks inside these
 [(func_literal) (go_statement) (defer_statement)] @opaque
+;; a function type's own parameters belong to no declaration
+(function_type parameters: (_) @opaque)

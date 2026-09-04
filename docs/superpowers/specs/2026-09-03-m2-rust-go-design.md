@@ -103,7 +103,7 @@ kind: Rust `tuple_pattern` vs `tuple_expression` and `struct_pattern` vs
 `field_initializer_list` are different kinds of the same shape. The rule is
 now: both `@construct`, both keyed (matched by `@construct.field.name` text)
 or both positional with equal arity (matched by index). A positional pattern
-with more than one element against a value that is not a matching
+of one or more elements against a value that is not a matching
 construct (a call, an index expression) pushes `Proj::Index(i)` for the
 identifier's position and traces the whole value; see §3.5.
 
@@ -126,12 +126,13 @@ more callee alongside its implementations. No implementations and no body
 A `CallSite` carries `receiver: Option<N>` from `@call.receiver`; a `FnDecl`
 carries `receiver: Option<N>` from `@function.receiver`, and its `params`
 exclude that node. A `Frame` carries `receiver: Option<ExprRef>` beside
-`args`. `Role::Receiver { func }` is the role of an identifier inside the
-declaration's receiver; with a frame it resolves to the frame's receiver
-expression, without one it goes through `host/references` like a parameter
-and takes each call site's `@call.receiver`. A call with no `@call.receiver`
-to a declaration with a receiver, whose argument count is one more than the
-parameter count, passes its first argument as the receiver (`T::m(x)`).
+`args`. `Role::Param { func, slot: Slot::Receiver }` is the role of an
+identifier inside the declaration's receiver; with a frame it resolves to the
+frame's receiver expression, without one it goes through `host/references`
+like a parameter and takes each call site's `@call.receiver`. A call with no
+`@call.receiver` to a declaration with a receiver, whose argument count is one
+more than the parameter count, passes its first argument as the receiver
+(`T::m(x)`).
 
 `FnDecl.params` are the `@param` nodes owned by `@function.params`: one Go
 `parameter_declaration` may name several parameters, and a Rust `parameter`
@@ -266,6 +267,7 @@ grammar's `_expression` supertype where "any expression" is meant.
 | struct pattern | `(struct_pattern) @construct`; `(field_pattern name: (_) @construct.field.name pattern: (_) @construct.field.value)`; `(field_pattern name: (shorthand_field_identifier) @construct.field.name @construct.field.value)` |
 | wrappers | `(parenthesized_expression (_expression) @through.inner) @through`; `(try_expression (_expression) @through.inner) @through`; `(await_expression (_expression) @through.inner) @through`; `(reference_expression value: (_expression) @through.inner) @through` (a reference is its referent, so a trace across a by-reference argument reaches the variable); `(return_expression (_expression) @through.inner) @through` (a `return e` block tail is captured `@return` twice — once as the tail, once as the operand — and the wrapper being transparent leaves one) |
 | literals | `[(integer_literal) (float_literal) (string_literal) (raw_string_literal) (char_literal) (boolean_literal) (unit_expression)] @literal` |
+| function-type params | `(function_type parameters: (_) @opaque)` — `cb: fn(a: i32)` nests a parameter list of its own; `@opaque` stops the `@param` climb there, so `a` is not a parameter of the enclosing function |
 | opaque | `[(closure_expression) (macro_invocation) (async_block)] @opaque`. Loops are not opaque: `owning_function` stops at `@opaque`, and a `return` inside a loop body is still the function's. A loop used as a value falls to the default `unresolved: <kind>`. |
 
 Notes verified in the parse trees: `&mut self` is `self_parameter` with a
@@ -303,6 +305,7 @@ callee text is that name.
 | composite literal | `(composite_literal body: (literal_value) @through.inner) @through`; `(literal_value) @construct`; `(keyed_element key: (literal_element) @construct.field.name value: (literal_element) @construct.field.value)`; `(literal_element (_) @through.inner) @through` |
 | wrappers | `(parenthesized_expression (_) @through.inner) @through` (the `&` wrapper is the escape row above) |
 | literals | `[(int_literal) (float_literal) (imaginary_literal) (rune_literal) (interpreted_string_literal) (raw_string_literal) (true) (false) (nil) (iota)] @literal` |
+| function-type params | `(function_type parameters: (_) @opaque)` — `f func(x int) int` nests a parameter list of its own; `@opaque` stops the `@param` climb there, so `x` is not a parameter of the enclosing function |
 | opaque | `[(func_literal) (go_statement) (defer_statement)] @opaque` (`select_statement` is not opaque: a `return` in one of its cases is the function's) |
 
 Verified in the parse trees: `q, r := g(v)` is an `expression_list` of two
@@ -351,7 +354,8 @@ patterns, which is what the named children of `@function.params` were.
   one-element list transparency. No capture-by-capture inventory.
 - **Syntax tests** for the new generic rules against the Rust and Go
   samples: `destructure` across pattern/value kinds and with an index
-  projection, `Role::Receiver`, `assign_at` classification, `function_group`.
+  projection, `Role::Param { slot: Slot::Receiver }`, `assign_at`
+  classification, `function_group`.
   These test engine logic, not the grammar.
 - **Replay fixtures**, recorded with `:WhenceRecord` from the sample projects
   (rust-analyzer, gopls), one directory per case under

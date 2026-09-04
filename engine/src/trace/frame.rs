@@ -130,16 +130,14 @@ impl<'a> Ctx<'a> {
     }
 
     pub fn definition(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, TraceError> {
-        let host = &mut self.host;
         memo(&mut self.defs, (file.to_path_buf(), pos), || {
-            Ok(host.definition(file, pos)?)
+            self.host.definition(file, pos)
         })
     }
 
     pub fn implementation(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, TraceError> {
-        let host = &mut self.host;
         memo(&mut self.impls, (file.to_path_buf(), pos), || {
-            Ok(host.implementation(file, pos)?)
+            self.host.implementation(file, pos)
         })
     }
 
@@ -179,11 +177,10 @@ impl<'a> Ctx<'a> {
         pos: Pos,
         include_decl: bool,
     ) -> Result<Vec<Location>, TraceError> {
-        let host = &mut self.host;
         memo(
             &mut self.refs,
             (file.to_path_buf(), pos, include_decl),
-            || Ok(host.references(file, pos, include_decl)?),
+            || self.host.references(file, pos, include_decl),
         )
     }
 
@@ -217,7 +214,7 @@ impl<'a> Ctx<'a> {
 fn memo<K: Hash + Eq + Clone, V: Clone>(
     cache: &mut HashMap<K, V>,
     key: K,
-    fetch: impl FnOnce() -> Result<V, TraceError>,
+    fetch: impl FnOnce() -> Result<V, HostError>,
 ) -> Result<V, TraceError> {
     if let Some(v) = cache.get(&key) {
         return Ok(v.clone());
