@@ -45,17 +45,13 @@ fmt: ## Format Rust sources
 
 .PHONY: bump
 bump: ## Set the release version everywhere: make bump VERSION=x.y.z
-	@case "$(VERSION)" in \
-	  *[!0-9.]*|"") echo "usage: make bump VERSION=x.y.z" >&2; exit 1;; \
-	  [0-9]*.[0-9]*.[0-9]*) ;; \
-	  *) echo "usage: make bump VERSION=x.y.z" >&2; exit 1;; \
-	esac
+	@echo "$(VERSION)" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$$' || \
+	  { echo "usage: make bump VERSION=x.y.z" >&2; exit 1; }
 	sed -i '/^\[package\]/,/^\[/ s/^version = ".*"/version = "$(VERSION)"/' engine/Cargo.toml
 	sed -i 's/^return ".*"/return "$(VERSION)"/' nvim/lua/whence/version.lua
-	sed -i 's/^  "version": .*/  "version": "$(VERSION)",/' vscode/package.json
 	sed -i -e 's/^  "version": .*/  "version": "$(VERSION)",/' \
 	       -e '/^    "": {/,/^    },/ s/^      "version": .*/      "version": "$(VERSION)",/' \
-	       vscode/package-lock.json
+	       vscode/package.json vscode/package-lock.json
 	cargo update --workspace --offline
 	@$(MAKE) --no-print-directory release-check
 

@@ -551,7 +551,7 @@ fn definition(
                 0,
             ))
         }
-        Role::ElementOf { value, .. } => {
+        Role::ElementOf { value } => {
             let mut child = expand(
                 ctx,
                 &Expr::Value(def_file.to_path_buf(), Span::of(value)),
@@ -635,10 +635,10 @@ fn declared_slot(func: &FnDecl, call: &CallSite, slot: Slot) -> Slot {
     }
 }
 
-fn slot_pattern<'t>(func: &FnDecl<'t>, slot: Slot) -> Option<N<'t>> {
+fn pick<T: Clone>(slot: Slot, receiver: &Option<T>, args: &[T]) -> Option<T> {
     match slot {
-        Slot::Arg(i) => func.params.get(i).copied(),
-        Slot::Receiver => func.receiver,
+        Slot::Arg(i) => args.get(i).cloned(),
+        Slot::Receiver => receiver.clone(),
     }
 }
 
@@ -661,14 +661,17 @@ fn param_like(
     };
 
     if let Some(frame) = ctx.frames.pop_if(|f| f.func_id == func_id) {
-        let arg = match slot {
-            Slot::Arg(i) => frame.args.get(i).cloned(),
-            Slot::Receiver => frame.receiver.clone(),
-        };
+        let arg = pick(slot, &frame.receiver, &frame.args);
         // The argument is the caller's expression: expand it in the caller's frame.
         let child = match arg {
             Some(a) => {
-                let s = narrow(doc, slot_pattern(func, slot), ident, file, &a);
+                let s = narrow(
+                    doc,
+                    pick(slot, &func.receiver, &func.params),
+                    ident,
+                    file,
+                    &a,
+                );
                 expand(ctx, &Expr::Value(a.0, s), depth + 1)
             }
             None => {
@@ -717,10 +720,7 @@ fn param_like(
         match rdoc.call_with_callee_at(r.range.start) {
             Some(call) => {
                 let (receiver, args) = as_declared(func, call.receiver, call.args);
-                let picked = match slot {
-                    Slot::Arg(i) => args.get(i).copied(),
-                    Slot::Receiver => receiver,
-                };
+                let picked = pick(slot, &receiver, &args);
                 match picked {
                     Some(a) => sites.push((r.file.clone(), Span::of(a))),
                     None => strays.push((
@@ -777,7 +777,13 @@ fn param_like(
     let (dropped, collapsed) = candidates(ctx, site, &mut sites, "call sites");
     let mut children = Vec::new();
     for a in sites {
-        let s = narrow(doc, slot_pattern(func, slot), ident, file, &a);
+        let s = narrow(
+            doc,
+            pick(slot, &func.receiver, &func.params),
+            ident,
+            file,
+            &a,
+        );
         children.push(expand(ctx, &Expr::Value(a.0, s), depth + 1)?);
     }
     children.extend(collapsed);
@@ -931,65 +937,80 @@ fn value<'t>(
 }
 
 enum Halt {
+    /// A `stop: unresolved` with this detail, built by the caller: it holds the site.
     Stop(String),
-    Err(TraceError),
+    Fail(TraceError),
 }
 
 impl From<TraceError> for Halt {
     fn from(e: TraceError) -> Halt {
-        Halt::Err(e)
+        Halt::Fail(e)
     }
 }
+
+/// What each declaration already expanded to; `None` while its own expansion is in flight.
+type Expansions = Vec<(Location, Option<Vec<Location>>)>;
 
 /// An abstract declaration is not a callee: its implementations are, and an implementation
 /// may be abstract in turn (an interface embedding the method), so this runs to a fixpoint.
 fn implementations_of(
     ctx: &mut Ctx,
     defs: &[Location],
-    seen: &mut Vec<Location>,
+    done: &mut Expansions,
 ) -> Result<Vec<Location>, Halt> {
     let mut out: Vec<Location> = Vec::new();
     for d in defs {
-        if seen.iter().any(|s| s.file == d.file && s.range == d.range) {
+        if let Some((_, prior)) = done.iter().find(|(l, _)| l == d) {
+            out.extend(prior.clone().unwrap_or_default());
             continue;
         }
-        seen.push(d.clone());
-        if !ctx.in_root(&d.file) {
-            out.push(d.clone());
-            continue;
-        }
-        let Some(doc) = ctx.doc_if_known(&d.file)? else {
-            out.push(d.clone());
-            continue;
-        };
-        let Some(abs) = doc
-            .declares_function(d.range.start)
-            .filter(|f| doc.is_abstract(f))
-        else {
-            out.push(d.clone());
-            continue;
-        };
-        let Some(name) = doc.name_node(&abs) else {
-            return Err(Halt::Stop("function declaration has no name".into()));
-        };
-        let decl_pos = doc.pos_of(name);
-        let impls = match ctx.implementation(&d.file, decl_pos) {
-            Ok(impls) => distinct(&impls),
-            Err(TraceError::Host(HostError::Unsupported(_))) => {
-                return Err(Halt::Stop(format!("abstract method {}", abs.name)));
-            }
-            Err(e) => return Err(Halt::Err(e)),
-        };
-        let mut here = implementations_of(ctx, &impls, seen)?;
-        if abs.body.is_some() {
-            here.push(d.clone());
-        }
-        if here.is_empty() {
-            return Err(Halt::Stop(format!("no implementation of {}", abs.name)));
+        done.push((d.clone(), None));
+        let here = implementations_at(ctx, d, done)?;
+        if let Some((_, slot)) = done.iter_mut().find(|(l, _)| l == d) {
+            *slot = Some(here.clone());
         }
         out.extend(here);
     }
     Ok(distinct(&out))
+}
+
+/// The callees `d` stands for: itself, unless it is an abstract declaration.
+fn implementations_at(
+    ctx: &mut Ctx,
+    d: &Location,
+    done: &mut Expansions,
+) -> Result<Vec<Location>, Halt> {
+    if !ctx.in_root(&d.file) {
+        return Ok(vec![d.clone()]);
+    }
+    let Some(doc) = ctx.doc_if_known(&d.file)? else {
+        return Ok(vec![d.clone()]);
+    };
+    let Some(abs) = doc
+        .declares_function(d.range.start)
+        .filter(|f| doc.is_abstract(f))
+    else {
+        return Ok(vec![d.clone()]);
+    };
+    let Some(name) = doc.name_node(&abs) else {
+        return Err(Halt::Stop("function declaration has no name".into()));
+    };
+    let decl_pos = doc.pos_of(name);
+    let impls = match ctx.implementation(&d.file, decl_pos) {
+        Ok(impls) => impls,
+        Err(TraceError::Host(HostError::Unsupported(_))) => {
+            return Err(Halt::Stop(format!("abstract method {}", abs.name)));
+        }
+        Err(e) => return Err(Halt::Fail(e)),
+    };
+    let mut here = implementations_of(ctx, &impls, done)?;
+    if abs.body.is_some() {
+        here.push(d.clone());
+    }
+    if here.is_empty() {
+        return Err(Halt::Stop(format!("no implementation of {}", abs.name)));
+    }
+    Ok(here)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1010,7 +1031,7 @@ fn call_result(
     let defs = match implementations_of(ctx, &defs, &mut Vec::new()) {
         Ok(defs) => defs,
         Err(Halt::Stop(detail)) => return Ok(unresolved(ctx, site, detail)),
-        Err(Halt::Err(e)) => return Err(e),
+        Err(Halt::Fail(e)) => return Err(e),
     };
 
     let outside = defs.iter().filter(|l| !ctx.in_root(&l.file)).count();

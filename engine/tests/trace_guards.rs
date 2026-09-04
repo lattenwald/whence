@@ -91,6 +91,69 @@ fn a_callee_defined_in_a_file_without_a_grammar_stops_that_node_only() {
     assert!(out.contains("no language for x.escript"), "{out}");
 }
 
+struct Interfaces {
+    text: String,
+    definitions: HashMap<Pos, Location>,
+    implementations: HashMap<Pos, Vec<Location>>,
+}
+
+impl Host for Interfaces {
+    fn text(&mut self, _: &Path) -> Result<String, HostError> {
+        Ok(self.text.clone())
+    }
+
+    fn definition(&mut self, _: &Path, pos: Pos) -> Result<Vec<Location>, HostError> {
+        Ok(self.definitions.get(&pos).cloned().into_iter().collect())
+    }
+
+    fn references(&mut self, _: &Path, _: Pos, _: bool) -> Result<Vec<Location>, HostError> {
+        Ok(Vec::new())
+    }
+
+    fn document_highlight(&mut self, _: &Path, _: Pos) -> Result<Vec<Highlight>, HostError> {
+        Err(HostError::Unsupported("documentHighlight"))
+    }
+
+    fn implementation(&mut self, _: &Path, pos: Pos) -> Result<Vec<Location>, HostError> {
+        Ok(self.implementations.get(&pos).cloned().unwrap_or_default())
+    }
+
+    fn request_count(&self) -> u32 {
+        0
+    }
+}
+
+/// gopls lists the interfaces that embed a method among its implementations, so one
+/// concrete method is reached twice: through `I.M` directly and again through `J.M`.
+#[test]
+fn a_method_reached_through_two_interfaces_is_still_a_callee() {
+    let text = "package p\n\ntype I interface{ M() int }\ntype J interface{ M() int }\n\n\
+                type T struct{}\n\nfunc (t T) M() int { return 7 }\n\n\
+                func run(i I) int {\n\tv := i.M()\n\treturn v\n}\n";
+    let (concrete, embedding) = (at("/r/p.go", 7, 11), at("/r/p.go", 3, 18));
+    let mut host = Interfaces {
+        text: text.to_string(),
+        definitions: HashMap::from([
+            (pos(10, 1), at("/r/p.go", 10, 1)),
+            (pos(10, 8), at("/r/p.go", 2, 18)),
+        ]),
+        implementations: HashMap::from([
+            (pos(2, 18), vec![concrete.clone(), embedding]),
+            (pos(3, 18), vec![concrete]),
+        ]),
+    };
+    let reg = Registry::embedded().unwrap();
+    let req = TraceRequest {
+        root: "/r".into(),
+        file: "/r/p.go".into(),
+        pos: pos(10, 1),
+        limits: Limits::default(),
+    };
+    let out = serde_json::to_string(&trace(&mut host, &reg, &req).unwrap()).unwrap();
+    assert!(!out.contains("no implementation"), "{out}");
+    assert!(out.contains("\"label\":\"7\""), "{out}");
+}
+
 struct Counting {
     inner: ReplayHost,
     highlights: u32,

@@ -63,10 +63,9 @@ Each kept occurrence `O` is classified in this order:
    (Go `a, b = b, a`); an `@assign` without a value (`x++`) gets a `stop:
    literal` child at `A`. With a pending projection `p`: a place `O.p…` sets
    it, so the child is the value `via: field_set` and `p` is consumed (a
-   `Field` matches a named field, an `Index(i)` a `@field.index` reading
-   `i`); a place
-   that projects `O` elsewhere does not affect `p` and the occurrence is
-   dropped; a write to `O` itself is kept whatever `p` is.
+   `Field` matches a named field, an `Index(i)` a `@field.name.index` reading
+   `i`); a place that projects `O` elsewhere does not affect `p` and the
+   occurrence is dropped; a write to `O` itself is kept whatever `p` is.
 2. **Escape.** `O` is inside an `@escape` node → `stop: unresolved: may be
    written by <text of the enclosing statement or call>`, located at `O`.
 3. **Mutable receiver.** `O` is inside the `@call.receiver` of a call `C`.
@@ -120,8 +119,10 @@ such definition it sends `host/implementation` at the declaration's name and
 treats every returned location like a definition: outside root counts toward
 `external`, inside root must declare a function. An implementation may itself
 be abstract — gopls lists the interfaces that embed a method among its
-implementations — so the expansion repeats to a fixpoint, cut where a
-declaration already asked about comes back. An abstract declaration that has
+implementations — so the expansion repeats to a fixpoint. A declaration
+already expanded contributes that expansion again (two interfaces embedding
+one method both reach it); one whose expansion is still in flight is a cycle
+and contributes nothing. An abstract declaration that has
 a body (a trait default) is one more callee alongside its implementations. No
 implementations and no body → `stop: unresolved: no implementation of
 <name>`. A host without the `implementation` capability → `stop: unresolved:
@@ -149,7 +150,7 @@ the parameter node, which is then the pattern the name sits in.
 
 `ctx.proj: Vec<String>` becomes `Vec<Proj>` with `Proj::Field(String)` and
 `Proj::Index(usize)`. A field access pushes whichever its `@field.name` says:
-`Index` when the name carries `@field.index` (Rust `t.0`), else `Field`. On a
+`Index` when the name carries `@field.name.index` (Rust `t.0`), else `Field`. On a
 keyed `@construct`, `Field(f)` selects the entry named `f` as today; on a
 positional `@construct`, `Index(i)` selects the `i`-th element. The engine
 never reads a field name as a number: only the query decides that a field
@@ -203,11 +204,18 @@ Additions, all read by generic code:
 @call.receiver
 @function.receiver  @function.receiver.mutable  @function.abstract  @function.group
 @binding.element
-@field.index
+@field.name.index
 ```
 
+A capture named `<base>.<marker>` and co-captured on a `<base>` node is a
+**marker**: the base keeps every obligation it had and is read through the
+same code as any other, and the marker only adds meaning. `@assign.compound`,
+`@function.receiver.mutable`, `@function.abstract`, `@field.name.index` and
+`@binding.element` are all of this shape; each entry below says only what its
+marker means.
+
 - `@assign`: a write to an existing place. `.target`/`.value` as for
-  `@binding`; `.compound` co-captured on the same node for `+=`, `++`, etc.
+  `@binding`; `.compound` for `+=`, `++`, etc.
 - `@place.base`: the expression an index or deref target writes through (`x`
   in `x[i] = e`, `*x = e`), so that the index is not mistaken for a write.
 - `@escape`: an expression whose address or mutable reference is taken
@@ -223,19 +231,15 @@ Additions, all read by generic code:
 - `@function.receiver`: the receiver parameter of a method declaration;
   `.mutable` co-captured when writes through it reach the caller (`&mut
   self`, `(s *T)`); a by-value `mut self` is not mutable in this sense.
-- `@function.abstract`: co-captured on a `@function` that has no body, or on a
-  trait default. A bodiless declaration is a function like any other — its
-  parameters have roles, its name is looked up the same way — and the marker
-  says only that implementations are asked for; `@function.body` is required
-  of every `@function` that does not carry it.
+- `@function.abstract`: the function has no body, or is a trait default;
+  implementations are asked for. It is the one exemption from `@function.body`,
+  which every other `@function` must carry.
 - `@function.group`: the node grouping the clauses of one function.
-- `@field.index`: co-captured on a `@field.name` that addresses a position
-  rather than a name (Rust `t.0`); the projection is `Index` and the engine
-  never parses a field name as a number.
-- `@binding.element`: co-captured on a `@binding` whose `@binding.value` is an
-  iterable rather than the bound value. A loop binding carries
-  `@binding.pattern`/`@binding.value` like any other; the marker says only
-  that the value must not be destructured against the pattern.
+- `@field.name.index`: the field addresses a position, not a name (Rust
+  `t.0`); the projection is `Index` and the engine never parses a field name
+  as a number.
+- `@binding.element`: the `@binding.value` is an iterable, not the bound
+  value, so it is not destructured against the pattern.
 
 Semantics change for two existing captures: `@through` is applied wherever a
 value is classified (§2) and repeated to a fixpoint, and `@construct` positional matching no longer
@@ -278,7 +282,7 @@ grammar's `_expression` supertype where "any expression" is meant.
 | containers | `[(block) (if_expression) (match_expression) (unsafe_block)] @return.container`; `(block (_expression) @return.value .)`; `(if_expression consequence: (_) @return.value)`; `(else_clause (_) @return.value)`; `(match_arm value: (_) @return.value)`; `(unsafe_block (block) @return.value)` |
 | match | `(match_expression value: (_) @branch.subject)`; `(match_arm pattern: (_) @branch.pattern) @branch` |
 | escapes | `(reference_expression (mutable_specifier) value: (_) @escape)` |
-| field access | `(field_expression value: (_) @field.container field: (_) @field.name) @field`; `(field_expression field: (integer_literal) @field.index)` (only when not a call's callee: the callee pattern above claims the `field_expression` first; the engine checks `@call.callee` before `@field`) |
+| field access | `(field_expression value: (_) @field.container field: (_) @field.name) @field`; `(field_expression field: (integer_literal) @field.name.index)` (only when not a call's callee: the callee pattern above claims the `field_expression` first; the engine checks `@call.callee` before `@field`) |
 | struct literal | `(struct_expression body: (field_initializer_list) @through.inner) @through`; `(field_initializer_list) @construct`; `(field_initializer field: (_) @construct.field.name value: (_) @construct.field.value)`; `(shorthand_field_initializer (identifier) @construct.field.name @construct.field.value)`; `(base_field_initializer (_expression) @through.inner) @through @construct.base` (the capture sits on the construct's own child, which is transparent) |
 | tuples, arrays | `[(tuple_expression) (array_expression) (tuple_pattern) (slice_pattern)] @construct`; `(tuple_pattern (remaining_field_pattern)) @construct.cons`; `(slice_pattern (remaining_field_pattern)) @construct.cons`. `tuple_struct_pattern` is not a construct: its `type:` child would count as an element, so `Some(z) = e` traces the whole `e`. |
 | struct pattern | `(struct_pattern) @construct`; `(field_pattern name: (_) @construct.field.name pattern: (_) @construct.field.value)`; `(field_pattern name: (shorthand_field_identifier) @construct.field.name @construct.field.value)` |

@@ -55,7 +55,7 @@ pub enum Slot {
     Receiver,
 }
 
-/// A name, or a position: `t.0`, whose `@field.name` carries `@field.index`.
+/// A name, or a position: `t.0`, whose `@field.name` carries `@field.name.index`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Proj {
     Field(String),
@@ -160,10 +160,6 @@ impl<'l> Doc<'l> {
         }
     }
 
-    fn cap_index(&self, name: &str) -> Option<u32> {
-        self.lang.cap_index(name)
-    }
-
     pub fn node(&self, span: Span) -> Option<N<'_>> {
         let mut n = self
             .tree
@@ -178,7 +174,7 @@ impl<'l> Doc<'l> {
     }
 
     pub fn caps_within(&self, cap: &str, start: usize, end: usize) -> Vec<N<'_>> {
-        let Some(idx) = self.cap_index(cap) else {
+        let Some(idx) = self.lang.cap_index(cap) else {
             return Vec::new();
         };
         let from = self.caps.partition_point(|c| c.span.start < start);
@@ -191,7 +187,7 @@ impl<'l> Doc<'l> {
     }
 
     fn caps_containing(&self, cap: &str, off: usize) -> Vec<Cap> {
-        let Some(idx) = self.cap_index(cap) else {
+        let Some(idx) = self.lang.cap_index(cap) else {
             return Vec::new();
         };
         let mut hits: Vec<Cap> = self
@@ -258,7 +254,7 @@ impl<'l> Doc<'l> {
     }
 
     pub fn has_cap(&self, n: N, cap: &str) -> bool {
-        let Some(idx) = self.cap_index(cap) else {
+        let Some(idx) = self.lang.cap_index(cap) else {
             return false;
         };
         self.set.contains(&Cap {
@@ -722,13 +718,10 @@ impl<'l> Doc<'l> {
             .first()
             .copied()?;
         let text = self.text_of(name);
-        let index = self
-            .has_cap(name, vocab::FIELD_INDEX)
-            .then(|| text.parse().ok())
-            .flatten();
-        let field = match index {
-            Some(i) => Proj::Index(i),
-            None => Proj::Field(text.to_string()),
+        // a @field.name.index that does not read as a number is a query bug, not a name
+        let field = match self.has_cap(name, vocab::FIELD_NAME_INDEX) {
+            true => Proj::Index(text.parse().ok()?),
+            false => Proj::Field(text.to_string()),
         };
         Some((container, field))
     }
