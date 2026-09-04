@@ -154,6 +154,33 @@ fn a_method_reached_through_two_interfaces_is_still_a_callee() {
     assert!(out.contains("\"label\":\"7\""), "{out}");
 }
 
+#[test]
+fn an_unimplemented_interface_beside_a_concrete_method_keeps_the_method() {
+    let text = "package p\n\ntype I interface{ M() int }\ntype J interface{ M() int }\n\n\
+                type T struct{}\n\nfunc (t T) M() int { return 7 }\n\n\
+                func run(i I) int {\n\tv := i.M()\n\treturn v\n}\n";
+    let mut host = Interfaces {
+        text: text.to_string(),
+        definitions: HashMap::from([
+            (pos(10, 1), at("/r/p.go", 10, 1)),
+            (pos(10, 8), at("/r/p.go", 2, 18)),
+        ]),
+        implementations: HashMap::from([(
+            pos(2, 18),
+            vec![at("/r/p.go", 7, 11), at("/r/p.go", 3, 18)],
+        )]),
+    };
+    let reg = Registry::embedded().unwrap();
+    let req = TraceRequest {
+        root: "/r".into(),
+        file: "/r/p.go".into(),
+        pos: pos(10, 1),
+        limits: Limits::default(),
+    };
+    let out = serde_json::to_string(&trace(&mut host, &reg, &req).unwrap()).unwrap();
+    assert!(out.contains("\"label\":\"7\""), "{out}");
+}
+
 struct Counting {
     inner: ReplayHost,
     highlights: u32,

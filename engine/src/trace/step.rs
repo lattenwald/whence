@@ -612,7 +612,7 @@ fn narrow(doc: &Doc, pattern: Option<N>, ident: N, file: &Path, arg: &ExprRef) -
         .unwrap_or(arg.1)
 }
 
-/// A method can be called as a plain function with the receiver first (Go `T.M(s, x)`).
+/// A method can be called as a plain function with the receiver first (Rust `T::m(s, x)`).
 fn receiver_shift(func: &FnDecl, has_receiver: bool, argc: usize) -> bool {
     func.receiver.is_some() && !has_receiver && argc == func.params.len() + 1
 }
@@ -1003,12 +1003,10 @@ fn implementations_at(
         }
         Err(e) => return Err(Halt::Fail(e)),
     };
+    // an abstract declaration nothing implements yields no callee; its siblings still do
     let mut here = implementations_of(ctx, &impls, done)?;
     if abs.body.is_some() {
         here.push(d.clone());
-    }
-    if here.is_empty() {
-        return Err(Halt::Stop(format!("no implementation of {}", abs.name)));
     }
     Ok(here)
 }
@@ -1033,6 +1031,13 @@ fn call_result(
         Err(Halt::Stop(detail)) => return Ok(unresolved(ctx, site, detail)),
         Err(Halt::Fail(e)) => return Err(e),
     };
+    if defs.is_empty() {
+        return Ok(unresolved(
+            ctx,
+            site,
+            format!("no implementation of {callee}"),
+        ));
+    }
 
     let outside = defs.iter().filter(|l| !ctx.in_root(&l.file)).count();
     if outside == defs.len() {

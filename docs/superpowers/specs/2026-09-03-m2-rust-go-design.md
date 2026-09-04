@@ -122,11 +122,12 @@ be abstract — gopls lists the interfaces that embed a method among its
 implementations — so the expansion repeats to a fixpoint. A declaration
 already expanded contributes that expansion again (two interfaces embedding
 one method both reach it); one whose expansion is still in flight is a cycle
-and contributes nothing. An abstract declaration that has
-a body (a trait default) is one more callee alongside its implementations. No
-implementations and no body → `stop: unresolved: no implementation of
-<name>`. A host without the `implementation` capability → `stop: unresolved:
-abstract method <name>`.
+and contributes nothing. An abstract declaration that has a body (a trait
+default) is one more callee alongside its implementations. A declaration
+nothing implements yields no callee and does not take its siblings with it;
+only when the whole expansion is empty → `stop: unresolved: no implementation
+of <callee>`. A host without the `implementation` capability → `stop:
+unresolved: abstract method <name>`.
 
 ### 3.4 Methods
 
