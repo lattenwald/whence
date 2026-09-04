@@ -4,7 +4,8 @@ Where does this value come from?
 
 Put the cursor on a variable and ask. `whence` walks back through
 assignments, rebindings, mutations, call-site arguments and callee returns,
-and shows the trail as a tree you can jump around in. The trail ends where
+and shows the trail as a tree you can jump around in. It understands Erlang,
+Rust and Go. The trail ends where
 the value enters the program from outside — or where the tool can no longer
 follow, in which case it says so rather than guessing.
 
@@ -16,7 +17,8 @@ See [docs/INTENT.md](docs/INTENT.md) for what it is meant to do and
 ## Neovim
 
 Needs Neovim 0.11+, a language server attached to the buffer (Erlang: `elp`
-or `erlang_ls`), and the `whence` engine binary.
+or `erlang_ls`; Rust: `rust-analyzer`; Go: `gopls`), and the `whence` engine
+binary.
 
 Install the plugin from GitHub; with lazy.nvim:
 
@@ -76,8 +78,8 @@ code --install-extension whence-linux-x64-<version>.vsix
 
 The engine binary is bundled inside the VSIX, so nothing else needs
 installing. A language server for the file's language must be active
-(Erlang: `elp` or `erlang_ls`); the extension asks it for definitions and
-references. To upgrade, install the newer VSIX over the old one.
+(Erlang: `elp` or `erlang_ls`; Rust: `rust-analyzer`; Go: `gopls`); the
+extension asks it for definitions, references and implementations. To upgrade, install the newer VSIX over the old one.
 
 ### Usage
 
