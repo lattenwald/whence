@@ -137,10 +137,13 @@ exclude that node. A `Frame` carries `receiver: Option<ExprRef>` beside
 `args`. `Role::Param { func, slot: Slot::Receiver }` is the role of an
 identifier inside the declaration's receiver; with a frame it resolves to the
 frame's receiver expression, without one it goes through `host/references`
-like a parameter and takes each call site's `@call.receiver`. A call with no
-`@call.receiver` to a declaration with a receiver, whose argument count is one
-more than the parameter count, passes its first argument as the receiver
-(`T::m(x)`).
+like a parameter and takes each call site's `@call.receiver`. A call to a declaration with a receiver whose argument count is one more than
+the parameter count passes its first argument as the receiver: Rust's `T::m(s,
+x)` writes no `@call.receiver` at all, and Go's method expression `T.M(s, x)`
+writes the *type* there, which is not a value and is dropped. A declaration
+carrying `@function.variadic` is exempt: its argument count means nothing, so
+`t.Errorf(f, a)` against `Errorf(format string, args ...any)` is an ordinary
+call.
 
 `FnDecl.params` are the `@param` nodes owned by `@function.params`: one Go
 `parameter_declaration` may name several parameters, and a Rust `parameter`
@@ -203,7 +206,8 @@ Additions, all read by generic code:
 @escape
 @param  @param.mutable
 @call.receiver
-@function.receiver  @function.receiver.mutable  @function.abstract  @function.group
+@function.receiver  @function.receiver.mutable  @function.abstract
+@function.variadic  @function.group
 @binding.element  @binding.positional
 @field.name.index
 ```
@@ -212,7 +216,8 @@ A capture named `<base>.<marker>` and co-captured on a `<base>` node is a
 **marker**: the base keeps every obligation it had and is read through the
 same code as any other, and the marker only adds meaning. `@assign.compound`,
 `@function.receiver.mutable`, `@function.abstract`, `@field.name.index`,
-`@binding.element` and `@binding.positional` are all of this shape; each entry
+`@binding.element`, `@binding.positional` and `@function.variadic` are all of
+this shape; each entry
 below says only what its marker means.
 
 - `@assign`: a write to an existing place. `.target`/`.value` as for
@@ -235,6 +240,8 @@ below says only what its marker means.
 - `@function.abstract`: the function has no body, or is a trait default;
   implementations are asked for. It is the one exemption from `@function.body`,
   which every other `@function` must carry.
+- `@function.variadic`: the function takes an open number of arguments, so its
+  `@param` list is a lower bound and no argument count identifies a shape (§3.4).
 - `@function.group`: the node grouping the clauses of one function.
 - `@field.name.index`: the field addresses a position, not a name (Rust
   `t.0`); the projection is `Index` and the engine never parses a field name
@@ -327,7 +334,7 @@ callee text is that name.
 | method | `(method_declaration receiver: (parameter_list (parameter_declaration) @function.receiver) name: (_) @function.name parameters: (_) @function.params body: (_) @function.body) @function`; `(method_declaration receiver: (parameter_list (parameter_declaration type: (pointer_type)) @function.receiver.mutable))` |
 | parameter | `(parameter_declaration name: (identifier) @param)` (one declaration may name several) |
 | mutable param | `(parameter_declaration type: [(pointer_type) (slice_type) (map_type) (channel_type)]) @param.mutable` (not the variadic declaration: it is `@opaque` and names no `@param`) |
-| variadic param | `(variadic_parameter_declaration) @opaque` — `c ...int` is one name for any number of arguments, so it holds no argument position |
+| variadic param | `(variadic_parameter_declaration) @opaque` — `c ...int` is one name for any number of arguments, so it holds no argument position; `(function_declaration \| method_declaration \| method_elem parameters: (parameter_list (variadic_parameter_declaration))) @function.variadic` leaves the declaration's arity open (§3.4) |
 | interface method | `(method_elem name: (_) @function.name parameters: (_) @function.params) @function @function.abstract` |
 | `return a, b` | `(return_statement (expression_list) @return)`; bare `return` → `((return_statement) @return (#eq? @return "return"))` |
 | expression lists | `(expression_list) @construct`; `(expression_list . (_) @through.inner .) @through` |

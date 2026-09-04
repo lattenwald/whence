@@ -1,6 +1,6 @@
 ---
 id: whe-2a0n
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-09-04T16:49:22Z

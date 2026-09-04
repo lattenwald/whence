@@ -71,6 +71,9 @@ pub const FUNCTION_RECEIVER_MUTABLE: &str = "function.receiver.mutable";
 /// Co-captured on a `@function` declared without a body, or on a trait default:
 /// implementations are asked for.
 pub const FUNCTION_ABSTRACT: &str = "function.abstract";
+/// Co-captured on a `@function` that takes an open number of arguments: its
+/// `@param` list is a lower bound, so no argument count can be read as a shape.
+pub const FUNCTION_VARIADIC: &str = "function.variadic";
 /// Groups the clauses of one function; absent where a function is one node.
 pub const FUNCTION_GROUP: &str = "function.group";
 

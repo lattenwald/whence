@@ -235,3 +235,57 @@ fn a_single_assignment_language_asks_for_no_highlights() {
     trace(&mut host, &reg, &req).unwrap();
     assert_eq!(host.highlights, 0);
 }
+
+/// Go's method expression names the type, not a receiver: `T.M(s, x)` passes the
+/// receiver as its first argument, the way Rust's `T::m(s, x)` does.
+#[test]
+fn a_method_expression_passes_the_receiver_as_the_first_argument() {
+    let text = "package p\n\ntype T struct{ f int }\n\n\
+                func (t T) M(x int) int { return x }\n\n\
+                func run(s T) int {\n\tv := T.M(s, 7)\n\treturn v\n}\n";
+    let mut host = Interfaces {
+        text: text.to_string(),
+        definitions: HashMap::from([
+            (pos(7, 1), at("/r/p.go", 7, 1)),
+            (pos(7, 8), at("/r/p.go", 4, 11)),
+            (pos(4, 33), at("/r/p.go", 4, 13)),
+        ]),
+        implementations: HashMap::new(),
+    };
+    let reg = Registry::embedded().unwrap();
+    let req = TraceRequest {
+        root: "/r".into(),
+        file: "/r/p.go".into(),
+        pos: pos(7, 1),
+        limits: Limits::default(),
+    };
+    let out = serde_json::to_string(&trace(&mut host, &reg, &req).unwrap()).unwrap();
+    assert!(out.contains("\"label\":\"7\""), "{out}");
+}
+
+/// A variadic method takes any number of arguments, so one more than it declares
+/// is not a method expression and the receiver stays where it is written.
+#[test]
+fn an_extra_argument_to_a_variadic_method_is_not_a_receiver() {
+    let text = "package p\n\ntype T struct{ f int }\n\n\
+                func (t T) N(x int, xs ...int) int { return x }\n\n\
+                func run(s T) int {\n\tv := s.N(7, 8)\n\treturn v\n}\n";
+    let mut host = Interfaces {
+        text: text.to_string(),
+        definitions: HashMap::from([
+            (pos(7, 1), at("/r/p.go", 7, 1)),
+            (pos(7, 8), at("/r/p.go", 4, 11)),
+            (pos(4, 44), at("/r/p.go", 4, 13)),
+        ]),
+        implementations: HashMap::new(),
+    };
+    let reg = Registry::embedded().unwrap();
+    let req = TraceRequest {
+        root: "/r".into(),
+        file: "/r/p.go".into(),
+        pos: pos(7, 1),
+        limits: Limits::default(),
+    };
+    let out = serde_json::to_string(&trace(&mut host, &reg, &req).unwrap()).unwrap();
+    assert!(out.contains("\"label\":\"7\""), "{out}");
+}
