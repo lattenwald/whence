@@ -30,7 +30,7 @@ inspection.
 | Loop variables | `for x in xs` / `for i, e := range xs` bind through `via: element` to the iterable. | The value is derived from the iterable and nothing else the engine can see; `via: match` would claim the variable *is* the iterable. |
 | Same-name functions | A function's clause set is the `@function` nodes under its nearest `@function.group` ancestor; without a group, the one node. `FuncId` carries the group's position, not just name/arity. | Rust `impl A { fn new() }` / `impl B { fn new() }` and Go methods on different types collide by name and arity; M1's name/arity collapse was an Erlang assumption. |
 | Methods and receivers | `@call.receiver` at the call site, `@function.receiver` (and `.mutable`) on the declaration; the receiver is excluded from the positional parameters and travels in the frame separately. A path-style call to a method (`T::m(x)`) passes the receiver as its first argument. | Rust's `self` sits inside `parameters`; Go's sits outside. One model covers both. |
-| Transparent wrappers | `@through`/`@through.inner` is applied at the start of `value`, `is_literal` and `destructure`, not only in `call_at`; a wrapper around a bare identifier is a variable use at that identifier. | Rust `(e)`, `e?`, `e.await`, struct-expression bodies and Go one-element `expression_list`s wrap a value without changing it; one generic rule beats a capture per wrapper. |
+| Transparent wrappers | `@through`/`@through.inner` is applied at the start of `value`, `is_literal` and `destructure`, not only in `call_at`, and to a fixpoint, so nested wrappers (`(&x)`, a one-element `expression_list` around a composite literal) unwrap in one step; a wrapper around a bare identifier is a variable use at that identifier. | Rust `(e)`, `e?`, `e.await`, struct-expression bodies and Go one-element `expression_list`s wrap a value without changing it; one generic rule beats a capture per wrapper. |
 | `lang.toml` quirks | `single_assignment` is kept and read (skips the occurrence step); `multi_assign` and `mutable_ref_markers` are deleted. | Both are expressed by captures now. A flag nothing reads is a lie in the data. |
 | Fixture projects | Small hand-written Rust and Go projects under `engine/tests/fixtures/{rust,go}/<case>/`, recorded with `:WhenceRecord` against rust-analyzer and gopls. | Fixtures are recorded, not written. Nothing from a private codebase enters the repo. |
 
@@ -133,8 +133,7 @@ and takes each call site's `@call.receiver`. A call with no `@call.receiver`
 to a declaration with a receiver, whose argument count is one more than the
 parameter count, passes its first argument as the receiver (`T::m(x)`).
 
-`FnDecl.params` are the `@param` nodes owned by `@function.params` where the
-language captures them, and its named children otherwise: one Go
+`FnDecl.params` are the `@param` nodes owned by `@function.params`: one Go
 `parameter_declaration` may name several parameters, and a Rust `parameter`
 binds a pattern, so neither is a position. An argument is destructured against
 the parameter node, which is then the pattern the name sits in.
@@ -203,10 +202,10 @@ Additions, all read by generic code:
   in `x[i] = e`, `*x = e`), so that the index is not mistaken for a write.
 - `@escape`: an expression whose address or mutable reference is taken
   (`&mut e`, `&e` in Go).
-- `@param`: one parameter name. Where a language defines it, a function's
+- `@param`: one parameter name, required of every language. A function's
   positional parameters are these nodes rather than the named children of
-  `@function.params`; a declaration naming several parameters (`a, b int`) or
-  binding a pattern (`(a, b): (i32, i32)`) is then counted correctly.
+  `@function.params`, so that a declaration naming several parameters
+  (`a, b int`) or binding a pattern (`(a, b): (i32, i32)`) is counted correctly.
 - `@param.mutable`: a parameter declaration through which the callee may
   write (`x: &mut T`, `p *T`); it may sit on the declaration containing the
   `@param` name.
@@ -221,15 +220,16 @@ Additions, all read by generic code:
   iterable.
 
 Semantics change for two existing captures: `@through` is applied wherever a
-value is classified (§2), and `@construct` positional matching no longer
+value is classified (§2) and repeated to a fixpoint, and `@construct` positional matching no longer
 requires equal node kinds (§3.2). `is_literal` on a keyed construct skips
 `@construct.field.name` nodes and checks each entry's `@construct.field.value`.
 
 `required()` loses `@return.value`, which is read only inside a
 `@return.container` and so cannot be required of a language whose branches are
 statements; a language that defines `@return.container` must still define it.
-The new captures are used only where present, so the Erlang query gains only
-`@function.group`.
+It gains `@param`: without it a function has no positional parameters. The
+other new captures are used only where present, so the Erlang query gains only
+`@param` and `@function.group`.
 
 `lang.toml`: `[quirks] single_assignment = true|false` is the only key.
 
@@ -293,15 +293,15 @@ callee text is that name.
 | function | `(function_declaration name: (_) @function.name parameters: (_) @function.params body: (_) @function.body) @function` |
 | method | `(method_declaration receiver: (parameter_list (parameter_declaration) @function.receiver) name: (_) @function.name parameters: (_) @function.params body: (_) @function.body) @function`; `(method_declaration receiver: (parameter_list (parameter_declaration type: (pointer_type)) @function.receiver.mutable))` |
 | parameter | `(parameter_declaration name: (identifier) @param)` (one declaration may name several) |
-| mutable param | `(parameter_declaration type: [(pointer_type) (slice_type) (map_type) (channel_type)]) @param.mutable`; the same for `(variadic_parameter_declaration type: …)` |
+| mutable param | `(parameter_declaration type: [(pointer_type) (slice_type) (map_type) (channel_type)]) @param.mutable` (not the variadic declaration: it is `@opaque` and names no `@param`) |
 | variadic param | `(variadic_parameter_declaration) @opaque` — `c ...int` is one name for any number of arguments, so it holds no argument position |
 | interface method | `(method_elem name: (_) @function.name parameters: (_) @function.params) @function.abstract` |
 | `return a, b` | `(return_statement (expression_list) @return)`; bare `return` → `((return_statement) @return (#eq? @return "return"))` |
 | expression lists | `(expression_list) @construct`; `(expression_list . (_) @through.inner .) @through` |
-| escapes | `(unary_expression operator: "&" operand: (_) @escape)` |
+| escapes | `(unary_expression operator: "&" operand: (_) @escape @through.inner) @through` (one pattern: the referent both escapes and is what the reference is) |
 | field access | `(selector_expression operand: (_) @field.container field: (_) @field.name) @field` |
 | composite literal | `(composite_literal body: (literal_value) @through.inner) @through`; `(literal_value) @construct`; `(keyed_element key: (literal_element) @construct.field.name value: (literal_element) @construct.field.value)`; `(literal_element (_) @through.inner) @through` |
-| wrappers | `(parenthesized_expression (_) @through.inner) @through`; `(unary_expression operator: "&" operand: (_) @through.inner) @through` (a reference is its referent) |
+| wrappers | `(parenthesized_expression (_) @through.inner) @through` (the `&` wrapper is the escape row above) |
 | literals | `[(int_literal) (float_literal) (imaginary_literal) (rune_literal) (interpreted_string_literal) (raw_string_literal) (true) (false) (nil) (iota)] @literal` |
 | opaque | `[(func_literal) (go_statement) (defer_statement)] @opaque` (`select_statement` is not opaque: a `return` in one of its cases is the function's) |
 
@@ -319,13 +319,16 @@ ends, never on a wrong element.
 
 ### 6.3 Erlang
 
-Adds `(source_file) @function.group`. `lang.toml` loses the two unused keys.
+Adds `(source_file) @function.group` and
+`(function_clause args: (expr_args (_) @param))` — the clause's argument
+patterns, which is what the named children of `@function.params` were.
+`lang.toml` loses the two unused keys.
 
 ## 7. Engine changes by file
 
 - `engine/src/lang/vocab.rs`: the constants above.
 - `engine/src/lang/mod.rs`: `Quirks { single_assignment }` only; `Language.quirks` read by the step function.
-- `engine/src/syntax.rs`: `FnDecl.receiver`, `CallSite.receiver`, `Role::Receiver`, `Role::ElementOf`, `BoundBy.value: Option`; `assign_at(occurrence) -> Option<Assign { node, target, value: Option<N>, compound: bool }>`; `escapes(occurrence) -> bool`; `is_abstract(FnDecl)`; `function_group(FnDecl) -> usize`; `through` applied in `value`-facing helpers; `destructure` without the kind check and with the positional/keyed rule; `construct_element(construct, i)`.
+- `engine/src/syntax.rs`: `FnDecl.receiver`, `CallSite.receiver`, `Role::Param { func, slot: Slot }` (`Slot::Receiver` or `Slot::Arg(i)`), `Role::ElementOf`, `BoundBy.value: Option`; `assign_at(occurrence) -> Option<Assign { node, target, value: Option<N>, compound: bool }>`; `escapes(occurrence) -> bool`; `is_abstract(FnDecl)`; `function_group(FnDecl) -> usize`; `through` applied in `value`-facing helpers; `destructure` without the kind check and with the positional/keyed rule; `construct_element(construct, i)`.
 - `engine/src/trace/frame.rs`: `FuncId.group`, `Frame.receiver`, `Ctx.proj: Vec<Proj>`, `Ctx.highlights`/`Ctx.implementation` caches beside `defs`/`refs`, `Ctx.occurrences(file, pos)` implementing the highlight-or-references choice.
 - `engine/src/trace/step.rs`: `ident` gains the occurrence step (§3.1) and builds the `branch`; `definition` handles the new roles; `call_result` handles `@function.abstract`, receivers and groups; `project` handles `Proj::Index`.
 - `engine/src/host.rs`, `host_rpc.rs`, `host_replay.rs`, `server.rs`: `implementation` request and capability; replay section.

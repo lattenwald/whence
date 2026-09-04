@@ -44,8 +44,6 @@
 (parameter_declaration name: (identifier) @param)
 (parameter_declaration
   type: [(pointer_type) (slice_type) (map_type) (channel_type)]) @param.mutable
-(variadic_parameter_declaration
-  type: [(pointer_type) (slice_type) (map_type) (channel_type)]) @param.mutable
 ;; `c ...int` is one name for many arguments: no position of its own
 (variadic_parameter_declaration) @opaque
 (method_elem name: (_) @function.name parameters: (_) @function.params) @function.abstract
@@ -65,11 +63,9 @@
 ;; a one-element list is the expression it holds
 (expression_list . (_) @through.inner .) @through
 
-;; `&e`: the callee may write through it
-(unary_expression operator: "&" operand: (_) @escape)
-
 (parenthesized_expression (_) @through.inner) @through
-(unary_expression operator: "&" operand: (_) @through.inner) @through
+;; `&e`: a reference is its referent, and the callee may write through it
+(unary_expression operator: "&" operand: (_) @escape @through.inner) @through
 
 [(int_literal) (float_literal) (imaginary_literal) (rune_literal)
  (interpreted_string_literal) (raw_string_literal)

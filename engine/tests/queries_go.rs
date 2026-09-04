@@ -1,31 +1,13 @@
 use std::collections::BTreeMap;
-use tree_sitter::StreamingIterator;
-use whence::lang::{Registry, vocab};
+use whence::lang::vocab;
+
+mod common;
+use common::has;
 
 const SAMPLE: &str = include_str!("fixtures/go/queries/sample.go");
 
 fn captures(src: &str) -> BTreeMap<String, Vec<String>> {
-    let reg = Registry::embedded().unwrap();
-    let lang = reg.by_name("go").unwrap();
-    let mut parser = tree_sitter::Parser::new();
-    parser.set_language(&lang.ts).unwrap();
-    let tree = parser.parse(src, None).unwrap();
-    let mut cur = tree_sitter::QueryCursor::new();
-    let mut out: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    let names = lang.query.capture_names();
-    let mut it = cur.matches(&lang.query, tree.root_node(), src.as_bytes());
-    while let Some(m) = it.next() {
-        for c in m.captures() {
-            out.entry(names[c.index as usize].to_string())
-                .or_default()
-                .push(c.node.utf8_text(src.as_bytes()).unwrap().to_string());
-        }
-    }
-    out
-}
-
-fn has(c: &BTreeMap<String, Vec<String>>, cap: &str, text: &str) -> bool {
-    c.get(cap).is_some_and(|v| v.iter().any(|s| s == text))
+    common::captures("go", src)
 }
 
 #[test]

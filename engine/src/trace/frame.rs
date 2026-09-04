@@ -50,6 +50,7 @@ impl Proj {
     }
 }
 
+#[derive(Clone, PartialEq, Eq)]
 pub struct Frame {
     pub func_id: FuncId,
     pub args: Vec<ExprRef>,
@@ -129,23 +130,28 @@ impl<'a> Ctx<'a> {
     }
 
     pub fn definition(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, TraceError> {
-        let key = (file.to_path_buf(), pos);
-        if let Some(v) = self.defs.get(&key) {
-            return Ok(v.clone());
-        }
-        let v = self.host.definition(file, pos)?;
-        self.defs.insert(key, v.clone());
-        Ok(v)
+        let host = &mut self.host;
+        memo(&mut self.defs, (file.to_path_buf(), pos), || {
+            Ok(host.definition(file, pos)?)
+        })
     }
 
     pub fn implementation(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, TraceError> {
-        let key = (file.to_path_buf(), pos);
-        if let Some(v) = self.impls.get(&key) {
-            return Ok(v.clone());
+        let host = &mut self.host;
+        memo(&mut self.impls, (file.to_path_buf(), pos), || {
+            Ok(host.implementation(file, pos)?)
+        })
+    }
+
+    /// Every occurrence of one variable has the same definitions and occurrences as this one.
+    pub fn remember_symbol(&mut self, file: &Path, defs: &[Location], occurrences: &[Pos]) {
+        for p in occurrences {
+            let key = (file.to_path_buf(), *p);
+            self.defs
+                .entry(key.clone())
+                .or_insert_with(|| defs.to_vec());
+            self.occ.entry(key).or_insert_with(|| occurrences.to_vec());
         }
-        let v = self.host.implementation(file, pos)?;
-        self.impls.insert(key, v.clone());
-        Ok(v)
     }
 
     pub fn occurrences(&mut self, file: &Path, pos: Pos) -> Result<Vec<Pos>, TraceError> {
@@ -173,13 +179,12 @@ impl<'a> Ctx<'a> {
         pos: Pos,
         include_decl: bool,
     ) -> Result<Vec<Location>, TraceError> {
-        let key = (file.to_path_buf(), pos, include_decl);
-        if let Some(v) = self.refs.get(&key) {
-            return Ok(v.clone());
-        }
-        let v = self.host.references(file, pos, include_decl)?;
-        self.refs.insert(key, v.clone());
-        Ok(v)
+        let host = &mut self.host;
+        memo(
+            &mut self.refs,
+            (file.to_path_buf(), pos, include_decl),
+            || Ok(host.references(file, pos, include_decl)?),
+        )
     }
 
     pub fn parent(&self) -> u64 {
@@ -190,11 +195,7 @@ impl<'a> Ctx<'a> {
         let mut h = DefaultHasher::new();
         for f in &self.frames {
             f.func_id.hash(&mut h);
-            for (file, span) in &f.args {
-                self.rel(file).hash(&mut h);
-                span.start.hash(&mut h);
-            }
-            if let Some((file, span)) = &f.receiver {
+            for (file, span) in f.args.iter().chain(&f.receiver) {
                 self.rel(file).hash(&mut h);
                 span.start.hash(&mut h);
             }
@@ -211,4 +212,17 @@ impl<'a> Ctx<'a> {
     pub fn in_root(&self, file: &Path) -> bool {
         file.starts_with(self.root)
     }
+}
+
+fn memo<K: Hash + Eq + Clone, V: Clone>(
+    cache: &mut HashMap<K, V>,
+    key: K,
+    fetch: impl FnOnce() -> Result<V, TraceError>,
+) -> Result<V, TraceError> {
+    if let Some(v) = cache.get(&key) {
+        return Ok(v.clone());
+    }
+    let v = fetch()?;
+    cache.insert(key, v.clone());
+    Ok(v)
 }

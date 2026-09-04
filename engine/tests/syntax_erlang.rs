@@ -1,38 +1,15 @@
-use std::sync::OnceLock;
+use whence::syntax::{Doc, N, Role, Slot};
 
-use whence::{
-    lang::Registry,
-    pos::Pos,
-    syntax::{Doc, N, Role},
-};
+mod common;
+use common::{at, at_skip};
 
 fn parse(text: &str) -> Doc<'static> {
-    static REG: OnceLock<Registry> = OnceLock::new();
-    let reg = REG.get_or_init(|| Registry::embedded().unwrap());
-    Doc::parse(
-        reg.by_name("erlang").unwrap(),
-        "/s.erl".into(),
-        text.to_string(),
-    )
+    common::parse("erlang", "/s.erl", text)
 }
 
 fn doc() -> (Doc<'static>, &'static str) {
     let text = include_str!("fixtures/erlang/queries/sample.erl");
     (parse(text), text)
-}
-
-/// Position of the `nth` (0-based) occurrence of `needle`, offset by `skip` bytes into it.
-fn at_skip(text: &str, needle: &str, nth: usize, skip: usize) -> Pos {
-    let mut from = 0;
-    for _ in 0..nth {
-        from += text[from..].find(needle).unwrap() + needle.len();
-    }
-    let idx = from + text[from..].find(needle).unwrap() + skip;
-    whence::pos::pos_of(text, idx)
-}
-
-fn at(text: &str, needle: &str, nth: usize) -> Pos {
-    at_skip(text, needle, nth, 0)
 }
 
 /// The smallest node spanning the first occurrence of `needle`.
@@ -58,7 +35,13 @@ fn role_of_binding_param_and_branch() {
     let body = d.ident_at(at(text, "Body = ", 0)).unwrap();
     assert!(matches!(d.role_of(body), Role::BoundBy { .. }));
     let req0 = d.ident_at(at(text, "Req0, Opts", 0)).unwrap();
-    assert!(matches!(d.role_of(req0), Role::Param { index: 0, .. }));
+    assert!(matches!(
+        d.role_of(req0),
+        Role::Param {
+            slot: Slot::Arg(0),
+            ..
+        }
+    ));
     let v = d.ident_at(at_skip(text, "{ok, V}", 0, 5)).unwrap(); // the V
     assert!(matches!(d.role_of(v), Role::BranchPattern { .. }));
 }
@@ -171,7 +154,13 @@ fn enclosing_function_and_snippet() {
     // read_body/1's parameter is a record pattern: the whole pattern is one param.
     let b = d.ident_at(at(text, "B}) -> B", 0)).unwrap();
     let rb = d.enclosing_function(b).unwrap();
-    assert!(matches!(d.role_of(b), Role::Param { index: 0, .. }));
+    assert!(matches!(
+        d.role_of(b),
+        Role::Param {
+            slot: Slot::Arg(0),
+            ..
+        }
+    ));
     assert_eq!(d.text_of(rb.params[0]), "#req{body = B}");
 }
 
@@ -281,10 +270,11 @@ fn a_comment_inside_an_argument_list_is_not_an_argument() {
     assert_eq!(args, ["1", "2", "3"]);
 
     let b = d.ident_at(at(text, "B) ->", 0)).unwrap();
-    let Role::Param { func, index } = d.role_of(b) else {
+    let Role::Param { func, slot } = d.role_of(b) else {
         panic!()
     };
-    assert_eq!((func.params.len(), index), (2, 1));
+    assert_eq!(func.params.len(), 2);
+    assert!(matches!(slot, Slot::Arg(1)));
 }
 
 #[test]

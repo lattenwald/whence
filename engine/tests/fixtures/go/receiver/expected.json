@@ -51,8 +51,8 @@
             },
             "snippet": "s := S{}",
             "stop": {
-              "detail": "composite_literal",
-              "reason": "unresolved"
+              "detail": "literal_value",
+              "reason": "literal"
             },
             "truncated": 0,
             "via": null

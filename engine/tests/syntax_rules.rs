@@ -1,16 +1,7 @@
-use std::sync::OnceLock;
+use whence::syntax::{Doc, Role, Slot};
 
-use whence::{
-    lang::Registry,
-    pos::Pos,
-    syntax::{Doc, Role, Slot},
-};
-
-fn doc(lang: &str, path: &str, text: &str) -> Doc<'static> {
-    static REG: OnceLock<Registry> = OnceLock::new();
-    let reg = REG.get_or_init(|| Registry::embedded().unwrap());
-    Doc::parse(reg.by_name(lang).unwrap(), path.into(), text.to_string())
-}
+mod common;
+use common::{at, at_skip, parse as doc};
 
 const RUST: &str = include_str!("fixtures/rust/queries/sample.rs");
 
@@ -22,20 +13,6 @@ const GO: &str = include_str!("fixtures/go/queries/sample.go");
 
 fn go() -> (Doc<'static>, &'static str) {
     (doc("go", "/s.go", GO), GO)
-}
-
-/// Position of the `nth` (0-based) occurrence of `needle`, offset by `skip` bytes into it.
-fn at_skip(text: &str, needle: &str, nth: usize, skip: usize) -> Pos {
-    let mut from = 0;
-    for _ in 0..nth {
-        from += text[from..].find(needle).unwrap() + needle.len();
-    }
-    let idx = from + text[from..].find(needle).unwrap() + skip;
-    whence::pos::pos_of(text, idx)
-}
-
-fn at(text: &str, needle: &str, nth: usize) -> Pos {
-    at_skip(text, needle, nth, 0)
 }
 
 #[test]
@@ -99,7 +76,11 @@ fn positional_pattern_against_a_call_yields_an_index() {
 fn receiver_role_and_params_exclude_self() {
     let (d, text) = rust();
     let s = d.ident_at(at_skip(text, "&mut self", 0, 5)).unwrap();
-    let Role::Receiver { func } = d.role_of(s) else {
+    let Role::Param {
+        func,
+        slot: Slot::Receiver,
+    } = d.role_of(s)
+    else {
         panic!("the receiver parameter is not a positional parameter")
     };
     assert_eq!(func.name, "bump");
@@ -107,7 +88,13 @@ fn receiver_role_and_params_exclude_self() {
     assert!(d.has_mutable_receiver(&func));
 
     let first = d.ident_at(at(text, "d: i32", 0)).unwrap();
-    assert!(matches!(d.role_of(first), Role::Param { index: 0, .. }));
+    assert!(matches!(
+        d.role_of(first),
+        Role::Param {
+            slot: Slot::Arg(0),
+            ..
+        }
+    ));
 
     let by_ref = d.enclosing_function(d.ident_at(at(text, "self.y", 0)).unwrap());
     assert!(!d.has_mutable_receiver(&by_ref.unwrap()));
@@ -119,11 +106,11 @@ fn receiver_role_and_params_exclude_self() {
 fn a_destructuring_parameter_is_the_pattern_it_binds() {
     let (d, text) = rust();
     let b = d.ident_at(at(text, "b): (i32, i32)", 0)).unwrap();
-    let Role::Param { func, index } = d.role_of(b) else {
+    let Role::Param { func, slot } = d.role_of(b) else {
         panic!()
     };
     assert_eq!(func.params.len(), 1);
-    assert_eq!(index, 0);
+    assert!(matches!(slot, Slot::Arg(0)));
     assert_eq!(d.text_of(func.params[0]), "(a, b)");
     assert_eq!(d.pattern_index(func.params[0], b), Some(1));
 }
@@ -132,15 +119,19 @@ fn a_destructuring_parameter_is_the_pattern_it_binds() {
 fn go_names_sharing_one_declaration_are_separate_parameters() {
     let (d, text) = go();
     let b = d.ident_at(at(text, "b int, rest", 0)).unwrap();
-    let Role::Param { func, index } = d.role_of(b) else {
+    let Role::Param { func, slot } = d.role_of(b) else {
         panic!("each name of `a, b int` is a parameter of its own")
     };
-    assert_eq!(index, 1);
+    assert!(matches!(slot, Slot::Arg(1)));
     assert_eq!(func.params.len(), 2);
     assert!(!d.param_is_mutable(&func, 1));
 
     let q = d.ident_at(at(text, "q *S", 0)).unwrap();
-    let Role::Param { func, index } = d.role_of(q) else {
+    let Role::Param {
+        func,
+        slot: Slot::Arg(index),
+    } = d.role_of(q)
+    else {
         panic!()
     };
     assert!(d.param_is_mutable(&func, index));
@@ -195,7 +186,11 @@ fn go_short_var_decl_index_and_zero_value() {
 fn go_receiver_outside_params() {
     let (d, text) = go();
     let s = d.ident_at(at(text, "s *S", 0)).unwrap();
-    let Role::Receiver { func } = d.role_of(s) else {
+    let Role::Param {
+        func,
+        slot: Slot::Receiver,
+    } = d.role_of(s)
+    else {
         panic!("the receiver parameter is not a positional parameter")
     };
     assert_eq!(func.name, "Bump");

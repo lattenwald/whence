@@ -6,7 +6,7 @@ use std::time::Instant;
 use crate::host::{HostError, Location};
 use crate::lang::vocab;
 use crate::pos::Pos;
-use crate::syntax::{Doc, FnDecl, N, Role, Slot, Span};
+use crate::syntax::{Doc, FnDecl, N, Role, Slot, Span, index_containing};
 use crate::trace::TraceError;
 use crate::trace::frame::{Ctx, ExprRef, Frame, FuncId, Proj};
 use crate::tree::{Loc, Node, NodeKind, StopReason, Via, node_id, path_id};
@@ -212,9 +212,10 @@ pub fn expand(ctx: &mut Ctx, e: &Expr, depth: u32) -> Result<Node, TraceError> {
 }
 
 fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, TraceError> {
-    let mut defs: Vec<(PathBuf, Pos)> = distinct(&ctx.definition(file, site.pos())?)
-        .into_iter()
-        .map(|l| (l.file, l.range.start))
+    let locs = distinct(&ctx.definition(file, site.pos())?);
+    let mut defs: Vec<(PathBuf, Pos)> = locs
+        .iter()
+        .map(|l| (l.file.clone(), l.range.start))
         .collect();
     if defs.is_empty() {
         return Ok(unresolved(ctx, site, "no definition from language server"));
@@ -223,7 +224,7 @@ fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, Tr
     let mut occ = if doc.single_assignment() {
         Vec::new()
     } else {
-        occurrences(ctx, &doc, file, site, &defs)?
+        occurrences(ctx, &doc, file, site, &locs)?
     };
 
     if occ.is_empty() && defs.len() == 1 {
@@ -261,14 +262,26 @@ fn ident(ctx: &mut Ctx, file: &Path, site: &Site, depth: u32) -> Result<Node, Tr
 }
 
 enum Occ {
-    Write { occurrence: Span },
-    Escape { occurrence: Span, detail: String },
+    Write {
+        occurrence: Span,
+        assign: Span,
+        /// The `@assign.target`, `@through` already applied.
+        target: Span,
+        value: Option<Span>,
+        /// The write lands on the occurrence itself, not on a field or element of it.
+        whole: bool,
+        via: Via,
+    },
+    Escape {
+        occurrence: Span,
+        detail: String,
+    },
 }
 
 impl Occ {
     fn occurrence(&self) -> Span {
         match self {
-            Occ::Write { occurrence } | Occ::Escape { occurrence, .. } => *occurrence,
+            Occ::Write { occurrence, .. } | Occ::Escape { occurrence, .. } => *occurrence,
         }
     }
 }
@@ -279,27 +292,33 @@ fn occurrences(
     doc: &Doc,
     file: &Path,
     site: &Site,
-    defs: &[(PathBuf, Pos)],
+    defs: &[Location],
 ) -> Result<Vec<Occ>, TraceError> {
-    if defs.iter().any(|(f, _)| f != file) {
+    if defs.iter().any(|d| d.file != file) {
         return Ok(Vec::new());
     }
     let use_pos = site.pos();
     let (Some(use_off), Some(func)) = (
         doc.byte_offset(use_pos),
         doc.ident_at(use_pos)
-            .and_then(|u| doc.enclosing_function(u))
-            .map(|f| f.node.0.id()),
+            .and_then(|u| doc.enclosing_function_node(u))
+            .map(|f| f.0.id()),
     ) else {
         return Ok(Vec::new());
     };
-    let Some(def_off) = defs.iter().filter_map(|(_, p)| doc.byte_offset(*p)).min() else {
+    let Some(def_off) = defs
+        .iter()
+        .filter_map(|d| doc.byte_offset(d.range.start))
+        .min()
+    else {
         return Ok(Vec::new());
     };
 
+    let positions = ctx.occurrences(file, use_pos)?;
+    ctx.remember_symbol(file, defs, &positions);
     let mut out = Vec::new();
-    for p in ctx.occurrences(file, use_pos)? {
-        if defs.iter().any(|(_, d)| *d == p) {
+    for p in positions {
+        if defs.iter().any(|d| d.range.start == p) {
             continue;
         }
         let Some(off) = doc.byte_offset(p) else {
@@ -311,7 +330,7 @@ fn occurrences(
         let Some(o) = doc.ident_at(p) else {
             continue;
         };
-        if doc.enclosing_function(o).map(|f| f.node.0.id()) != Some(func) {
+        if doc.enclosing_function_node(o).map(|f| f.0.id()) != Some(func) {
             continue;
         }
         if let Some(occ) = classify(ctx, doc, file, o)? {
@@ -323,7 +342,8 @@ fn occurrences(
 
 fn classify(ctx: &mut Ctx, doc: &Doc, file: &Path, o: N) -> Result<Option<Occ>, TraceError> {
     if let Some(a) = doc.assign_at(o) {
-        let place = place_written(doc, a.target, o);
+        let target = doc.through(a.target).unwrap_or(a.target);
+        let place = place_written(doc, target, o);
         // Reads that live inside the target: the `i` of `x[i]`, the key of `m[k]`.
         if !doc
             .place_chain(place)
@@ -332,14 +352,24 @@ fn classify(ctx: &mut Ctx, doc: &Doc, file: &Path, o: N) -> Result<Option<Occ>, 
         {
             return Ok(None);
         }
+        let whole = Span::of(place) == Span::of(o);
         if let Some(proj) = ctx.proj.last()
-            && Span::of(place) != Span::of(o)
+            && !whole
             && !sets_projection(doc, place, o, proj)
         {
             return Ok(None);
         }
         return Ok(Some(Occ::Write {
             occurrence: Span::of(o),
+            assign: Span::of(a.node),
+            target: Span::of(target),
+            value: a.value.map(Span::of),
+            whole,
+            via: if whole && !a.compound {
+                Via::Rebind
+            } else {
+                Via::Mutation
+            },
         }));
     }
     let using = doc.call_using(o);
@@ -400,12 +430,8 @@ fn classify(ctx: &mut Ctx, doc: &Doc, file: &Path, o: N) -> Result<Option<Occ>, 
 
 /// The one target of a multi-target write that `o` belongs to: `a, b = b, a` writes `a` alone.
 fn place_written<'t>(doc: &'t Doc<'_>, target: N<'t>, o: N<'t>) -> N<'t> {
-    let target = doc.through(target).unwrap_or(target);
     doc.positional(target)
-        .and_then(|es| {
-            es.into_iter()
-                .find(|e| e.0.start_byte() <= o.0.start_byte() && o.0.end_byte() <= e.0.end_byte())
-        })
+        .and_then(|es| index_containing(&es, o).map(|i| es[i]))
         .unwrap_or(target)
 }
 
@@ -419,50 +445,75 @@ fn sets_projection(doc: &Doc, place: N, o: N, proj: &Proj) -> bool {
     })
 }
 
+/// The part of `value` the pattern binds to `ident`, else `value` under its element index.
+fn expand_pattern<'t>(
+    ctx: &mut Ctx,
+    doc: &'t Doc<'_>,
+    file: &Path,
+    pattern: N<'t>,
+    ident: N<'t>,
+    value: N<'t>,
+    depth: u32,
+) -> Result<Node, TraceError> {
+    let (source, index) = match doc.destructure(pattern, ident, value) {
+        Some(s) => (s, None),
+        None => (value, doc.pattern_index(pattern, ident)),
+    };
+    if let Some(i) = index {
+        ctx.proj.push(Proj::Index(i));
+    }
+    let child = expand(
+        ctx,
+        &Expr::Value(file.to_path_buf(), Span::of(source)),
+        depth + 1,
+    );
+    if index.is_some() {
+        ctx.proj.pop();
+    }
+    child
+}
+
 fn expand_occurrence(ctx: &mut Ctx, file: &Path, occ: Occ, depth: u32) -> Result<Node, TraceError> {
     let doc = ctx.doc(file)?;
     let o = doc
         .node(occ.occurrence())
         .expect("the occurrence was found in this document");
     let osite = Site::new(ctx, &doc, file, o);
-    if let Occ::Escape { detail, .. } = occ {
-        ctx.node_count += 1;
-        return Ok(unresolved(ctx, &osite, detail));
-    }
-    let a = doc.assign_at(o).expect("classified as a write");
-    let target = doc.through(a.target).unwrap_or(a.target);
-    let place = place_written(&doc, a.target, o);
-    let whole = Span::of(place) == Span::of(o);
-    let via = if whole && !a.compound {
-        Via::Rebind
-    } else {
-        Via::Mutation
-    };
-    let child = match a.value {
-        None => {
-            let asite = Site::new(ctx, &doc, file, a.node);
+    let (assign, target, value, whole, via) = match occ {
+        Occ::Escape { detail, .. } => {
             ctx.node_count += 1;
-            stop(ctx, &asite, StopReason::Literal, a.node.0.kind())
+            return Ok(unresolved(ctx, &osite, detail));
+        }
+        Occ::Write {
+            assign,
+            target,
+            value,
+            whole,
+            via,
+            ..
+        } => (assign, target, value, whole, via),
+    };
+    let found = "classify resolved these spans in this document";
+    let child = match value {
+        None => {
+            let a = doc.node(assign).expect(found);
+            let asite = Site::new(ctx, &doc, file, a);
+            ctx.node_count += 1;
+            stop(ctx, &asite, StopReason::Literal, a.0.kind())
         }
         Some(v) => {
-            let (source, index) = match doc.destructure(target, o, v) {
-                Some(s) => (s, None),
-                None => (v, doc.pattern_index(target, o)),
-            };
             // `o.f = v` sets the pending projection: the child is the value, the projection consumed.
-            let field_set = ctx.proj.last().is_some() && !whole;
-            let pending = if field_set { ctx.proj.pop() } else { None };
-            if let Some(i) = index {
-                ctx.proj.push(Proj::Index(i));
-            }
-            let child = expand(
+            let pending = if whole { None } else { ctx.proj.pop() };
+            let field_set = pending.is_some();
+            let child = expand_pattern(
                 ctx,
-                &Expr::Value(file.to_path_buf(), Span::of(source)),
-                depth + 1,
+                &doc,
+                file,
+                doc.node(target).expect(found),
+                o,
+                doc.node(v).expect(found),
+                depth,
             );
-            if index.is_some() {
-                ctx.proj.pop();
-            }
             ctx.proj.extend(pending);
             let mut child = child?;
             if field_set {
@@ -504,22 +555,8 @@ fn definition(
             pattern,
             subject: value,
         } => {
-            let (source, index) = match doc.destructure(pattern, ident, value) {
-                Some(s) => (s, None),
-                None => (value, doc.pattern_index(pattern, ident)),
-            };
-            if let Some(i) = index {
-                ctx.proj.push(Proj::Index(i));
-            }
-            let child = expand(
-                ctx,
-                &Expr::Value(def_file.to_path_buf(), Span::of(source)),
-                depth + 1,
-            );
-            if index.is_some() {
-                ctx.proj.pop();
-            }
-            let child = matched(child?);
+            let child = expand_pattern(ctx, &doc, def_file, pattern, ident, value, depth)?;
+            let child = matched(child);
             Ok(make(
                 ctx,
                 NodeKind::Binding,
@@ -545,26 +582,9 @@ fn definition(
                 0,
             ))
         }
-        Role::Param { func, index } => param_like(
-            ctx,
-            &doc,
-            def_file,
-            &func,
-            Slot::Arg(index),
-            ident,
-            &dsite,
-            depth,
-        ),
-        Role::Receiver { func } => param_like(
-            ctx,
-            &doc,
-            def_file,
-            &func,
-            Slot::Receiver,
-            ident,
-            &dsite,
-            depth,
-        ),
+        Role::Param { func, slot } => {
+            param_like(ctx, &doc, def_file, &func, slot, ident, &dsite, depth)
+        }
         Role::Opaque(n) => Ok(unresolved(
             ctx,
             &dsite,
@@ -912,12 +932,6 @@ fn value<'t>(
     Ok(unresolved(ctx, site, n.0.kind()))
 }
 
-struct Target {
-    id: FuncId,
-    args: Vec<ExprRef>,
-    receiver: Option<ExprRef>,
-}
-
 #[allow(clippy::too_many_arguments)]
 fn call_result(
     ctx: &mut Ctx,
@@ -990,7 +1004,7 @@ fn call_result(
     }
 
     // Distinct callees, not clauses: several definitions of one function collapse here.
-    let mut targets: Vec<Target> = Vec::new();
+    let mut targets: Vec<Frame> = Vec::new();
     for d in &defs {
         let Some(doc) = ctx.doc_if_known(&d.file)? else {
             return Ok(unresolved(ctx, site, no_language(ctx, &d.file)));
@@ -1002,35 +1016,36 @@ fn call_result(
                 format!("definition of {callee} is not a function"),
             ));
         };
-        let id = FuncId {
+        let func_id = FuncId {
             file: d.file.clone(),
             group: doc.function_group(&decl),
             name: decl.name.clone(),
             arity: decl.params.len(),
         };
+        if targets.iter().any(|t| t.func_id == func_id) {
+            continue;
+        }
         let (mut args, mut receiver) = (args.clone(), receiver.clone());
         if receiver_shift(&decl, receiver.is_some(), args.len()) {
             receiver = Some(args.remove(0));
         }
-        if !targets.iter().any(|t| t.id == id) {
-            targets.push(Target { id, args, receiver });
-        }
+        targets.push(Frame {
+            func_id,
+            args,
+            receiver,
+        });
     }
 
     let mut plan: Vec<(usize, Span)> = Vec::new();
     let mut recursive: Vec<usize> = Vec::new();
     for (i, t) in targets.iter().enumerate() {
-        if ctx
-            .frames
-            .iter()
-            .any(|f| f.func_id == t.id && f.args == t.args && f.receiver == t.receiver)
-        {
+        if ctx.frames.contains(t) {
             recursive.push(i);
             continue;
         }
-        let doc = ctx.doc(&t.id.file)?;
+        let doc = ctx.doc(&t.func_id.file)?;
         let mut returns: Vec<Span> = doc
-            .clauses_of(t.id.group, &t.id.name, t.id.arity)
+            .clauses_of(t.func_id.group, &t.func_id.name, t.func_id.arity)
             .iter()
             .flat_map(|c| doc.returns_of(c))
             .map(Span::of)
@@ -1039,7 +1054,7 @@ fn call_result(
         plan.extend(returns.into_iter().map(|s| (i, s)));
     }
     if plan.is_empty() && !recursive.is_empty() {
-        let t = &targets[recursive[0]].id;
+        let t = &targets[recursive[0]].func_id;
         return Ok(unresolved(
             ctx,
             site,
@@ -1057,21 +1072,19 @@ fn call_result(
         recursive
     };
     let mut children = Vec::new();
-    for (i, s) in plan {
-        let t = &targets[i];
-        let frame = Frame {
-            func_id: t.id.clone(),
-            args: t.args.clone(),
-            receiver: t.receiver.clone(),
-        };
-        let f = t.id.file.clone();
-        ctx.frames.push(frame);
-        let child = expand(ctx, &Expr::Value(f, s), depth + 1);
+    for group in plan.chunk_by(|a, b| a.0 == b.0) {
+        let t = &targets[group[0].0];
+        let f = t.func_id.file.clone();
+        ctx.frames.push(t.clone());
+        let expanded: Result<Vec<Node>, TraceError> = group
+            .iter()
+            .map(|(_, s)| expand(ctx, &Expr::Value(f.clone(), *s), depth + 1))
+            .collect();
         ctx.frames.pop();
-        children.push(child?);
+        children.extend(expanded?);
     }
     for (nth, i) in recursive.into_iter().enumerate() {
-        let t = &targets[i].id;
+        let t = &targets[i].func_id;
         let detail = format!("recursive call to {}/{}", t.name, t.arity);
         children.push(stop_nth(
             ctx,

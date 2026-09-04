@@ -57,7 +57,7 @@ pub const PLACE_BASE: &str = "place.base";
 
 /// An expression whose address or mutable reference is taken.
 pub const ESCAPE: &str = "escape";
-/// One parameter name; when a language defines it, positional parameters are these nodes.
+/// One parameter name: a function's positional parameters are these nodes.
 pub const PARAM: &str = "param";
 /// A parameter the callee may write through (`&mut T`, `*T`).
 pub const PARAM_MUTABLE: &str = "param.mutable";
@@ -89,6 +89,7 @@ pub fn required() -> &'static [&'static str] {
         FUNCTION_NAME,
         FUNCTION_PARAMS,
         FUNCTION_BODY,
+        PARAM,
         RETURN,
         LITERAL,
         IDENT,

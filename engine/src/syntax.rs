@@ -79,10 +79,7 @@ pub enum Role<'t> {
     },
     Param {
         func: FnDecl<'t>,
-        index: usize,
-    },
-    Receiver {
-        func: FnDecl<'t>,
+        slot: Slot,
     },
     BranchPattern {
         pattern: N<'t>,
@@ -159,9 +156,11 @@ impl<'l> Doc<'l> {
         let Some(idx) = self.cap_index(cap) else {
             return Vec::new();
         };
-        self.caps
+        let from = self.caps.partition_point(|c| c.span.start < start);
+        self.caps[from..]
             .iter()
-            .filter(|c| c.cap == idx && c.span.start >= start && c.span.end <= end)
+            .take_while(|c| c.span.start < end)
+            .filter(|c| c.cap == idx && c.span.end <= end)
             .filter_map(|c| self.node(c.span))
             .collect()
     }
@@ -189,21 +188,26 @@ impl<'l> Doc<'l> {
         self.caps_within(cap, owner.0.start_byte(), owner.0.end_byte())
             .into_iter()
             .filter(|n| {
-                self.nearest_ancestor_with_any(*n, owner_caps)
+                self.climb(n.0.parent(), owner_caps, &[])
                     .is_some_and(|a| a.0.id() == owner.0.id())
             })
             .collect()
     }
 
-    fn nearest_ancestor_with<'a>(&'a self, n: N<'a>, cap: &str) -> Option<N<'a>> {
-        self.nearest_ancestor_with_any(n, &[cap])
-    }
-
-    fn nearest_ancestor_with_any<'a>(&'a self, n: N<'a>, caps: &[&str]) -> Option<N<'a>> {
-        let mut cur = n.0.parent();
+    /// Walks up from `from` inclusive; a node carrying both `want` and `stop` is wanted.
+    fn climb<'t>(
+        &self,
+        from: Option<tree_sitter::Node<'t>>,
+        want: &[&str],
+        stop: &[&str],
+    ) -> Option<N<'t>> {
+        let mut cur = from;
         while let Some(c) = cur {
-            if caps.iter().any(|cap| self.has_cap(N(c), cap)) {
+            if want.iter().any(|cap| self.has_cap(N(c), cap)) {
                 return Some(N(c));
+            }
+            if stop.iter().any(|cap| self.has_cap(N(c), cap)) {
+                return None;
             }
             cur = c.parent();
         }
@@ -212,17 +216,7 @@ impl<'l> Doc<'l> {
 
     /// Stops at the enclosing body: an occurrence is not matched to a construct outside its function.
     fn nearest_ancestor_with_or_self<'a>(&'a self, n: N<'a>, cap: &str) -> Option<N<'a>> {
-        let mut cur = Some(n.0);
-        while let Some(c) = cur {
-            if self.has_cap(N(c), cap) {
-                return Some(N(c));
-            }
-            if self.has_cap(N(c), vocab::FUNCTION_BODY) {
-                return None;
-            }
-            cur = c.parent();
-        }
-        None
+        self.climb(Some(n.0), &[cap], &[vocab::FUNCTION_BODY])
     }
 
     pub fn caps_child_of<'a>(&'a self, cap: &str, parent: N<'a>) -> Vec<N<'a>> {
@@ -286,7 +280,7 @@ impl<'l> Doc<'l> {
     /// Start byte of the nearest `@function.group` ancestor of `f`, else of `f` itself:
     /// the key that puts a function's clauses together and keeps same-name functions apart.
     pub fn function_group(&self, f: &FnDecl) -> usize {
-        self.nearest_ancestor_with(f.node, vocab::FUNCTION_GROUP)
+        self.climb(f.node.0.parent(), &[vocab::FUNCTION_GROUP], &[])
             .map_or(f.node.0.start_byte(), |g| g.0.start_byte())
     }
 
@@ -299,24 +293,23 @@ impl<'l> Doc<'l> {
             .collect()
     }
 
-    pub fn declares_function(&self, p: Pos) -> Option<FnDecl<'_>> {
+    fn function_name_at(&self, p: Pos) -> Option<N<'_>> {
         let off = self.byte_offset(p)?;
         let name = self
             .caps_containing(vocab::FUNCTION_NAME, off)
             .first()
             .copied()?;
-        self.enclosing_function(self.node(name.span)?)
+        self.node(name.span)
+    }
+
+    pub fn declares_function(&self, p: Pos) -> Option<FnDecl<'_>> {
+        self.enclosing_function(self.function_name_at(p)?)
     }
 
     /// The bodiless (or default-bodied) declaration at `p`, if the position is on its name.
     pub fn declares_abstract(&self, p: Pos) -> Option<FnDecl<'_>> {
-        let off = self.byte_offset(p)?;
-        let name = self
-            .caps_containing(vocab::FUNCTION_NAME, off)
-            .first()
-            .copied()?;
-        let name = self.node(name.span)?;
-        let decl = self.nearest_ancestor_with(name, vocab::FUNCTION_ABSTRACT)?;
+        let name = self.function_name_at(p)?;
+        let decl = self.climb(name.0.parent(), &[vocab::FUNCTION_ABSTRACT], &[])?;
         self.fn_decl(decl)
     }
 
@@ -343,14 +336,11 @@ impl<'l> Doc<'l> {
     }
 
     pub fn enclosing_function(&self, n: N) -> Option<FnDecl<'_>> {
-        let mut cur = Some(n.0);
-        while let Some(c) = cur {
-            if self.has_cap(N(c), vocab::FUNCTION) {
-                return self.fn_decl(N(c));
-            }
-            cur = c.parent();
-        }
-        None
+        self.fn_decl(self.enclosing_function_node(n)?)
+    }
+
+    pub fn enclosing_function_node<'a>(&'a self, n: N<'a>) -> Option<N<'a>> {
+        self.climb(Some(n.0), &[vocab::FUNCTION], &[])
     }
 
     fn fn_decl(&self, func: N) -> Option<FnDecl<'_>> {
@@ -368,10 +358,7 @@ impl<'l> Doc<'l> {
             .first()
             .copied();
         // Only an abstract declaration may lack a body: elsewhere a missing one is a query bug.
-        if body.is_none()
-            && self.has_cap(func, vocab::FUNCTION)
-            && !self.has_cap(func, vocab::FUNCTION_ABSTRACT)
-        {
+        if body.is_none() && !self.has_cap(func, vocab::FUNCTION_ABSTRACT) {
             return None;
         }
         let node = self.node(Span::of(func))?;
@@ -383,13 +370,11 @@ impl<'l> Doc<'l> {
             )
             .first()
             .copied();
-        let params = match self.cap_index(vocab::PARAM) {
-            Some(_) => self.caps_owned_by(vocab::PARAM, &[vocab::FUNCTION_PARAMS], params),
-            None => named_children(params)
-                .into_iter()
-                .filter(|p| receiver.is_none_or(|r| r.0.id() != p.0.id()))
-                .collect(),
-        };
+        let params = self
+            .caps_owned_by(vocab::PARAM, &[vocab::FUNCTION_PARAMS], params)
+            .into_iter()
+            .filter(|p| !p.0.is_extra()) // a wildcard `@param` pattern also matches comments
+            .collect();
         Some(FnDecl {
             node,
             name,
@@ -449,7 +434,7 @@ impl<'l> Doc<'l> {
         if call.receiver.is_some_and(|r| contains(r.0, occ.0)) {
             return Some((call, Slot::Receiver));
         }
-        let i = call.args.iter().position(|a| contains(a.0, occ.0))?;
+        let i = index_containing(&call.args, occ)?;
         Some((call, Slot::Arg(i)))
     }
 
@@ -462,24 +447,20 @@ impl<'l> Doc<'l> {
         let Some(p) = f.params.get(index) else {
             return false;
         };
-        let mut cur = Some(p.0);
-        while let Some(c) = cur {
-            if self.has_cap(N(c), vocab::PARAM_MUTABLE) {
-                return true;
-            }
-            if self.has_cap(N(c), vocab::FUNCTION_PARAMS) {
-                return false;
-            }
-            cur = c.parent();
-        }
-        false
+        self.climb(
+            Some(p.0),
+            &[vocab::PARAM_MUTABLE],
+            &[vocab::FUNCTION_PARAMS],
+        )
+        .is_some()
     }
 
     pub fn role_of(&self, ident: N) -> Role<'_> {
         let mut cur = Some(ident.0);
         while let Some(c) = cur {
             let n = N(c);
-            if (self.has_cap(n, vocab::BINDING_PATTERN) || self.has_cap(n, vocab::BINDING_ELEMENT))
+            let element = self.has_cap(n, vocab::BINDING_ELEMENT);
+            if (self.has_cap(n, vocab::BINDING_PATTERN) || element)
                 && let Some(binding) = c.parent()
                 && self.has_cap(N(binding), vocab::BINDING)
                 && let Some(binding) = self.node(Span::of(N(binding)))
@@ -489,7 +470,7 @@ impl<'l> Doc<'l> {
                     .caps_child_of(vocab::BINDING_VALUE, binding)
                     .into_iter()
                     .next();
-                return match (value, self.has_cap(n, vocab::BINDING_ELEMENT)) {
+                return match (value, element) {
                     (Some(value), true) => Role::ElementOf { pattern, value },
                     (Some(value), false) => Role::BoundBy { pattern, value },
                     (None, _) => Role::Declared {
@@ -500,13 +481,19 @@ impl<'l> Doc<'l> {
             if self.has_cap(n, vocab::FUNCTION_RECEIVER)
                 && let Some(func) = self.enclosing_function(n)
             {
-                return Role::Receiver { func };
+                return Role::Param {
+                    func,
+                    slot: Slot::Receiver,
+                };
             }
             if self.has_cap(n, vocab::FUNCTION_PARAMS)
                 && let Some(func) = self.enclosing_function(n)
-                && let Some(index) = func.params.iter().position(|p| contains(p.0, ident.0))
+                && let Some(index) = index_containing(&func.params, ident)
             {
-                return Role::Param { func, index };
+                return Role::Param {
+                    func,
+                    slot: Slot::Arg(index),
+                };
             }
             // A branch clause need not have a subject: receive and try reuse it.
             if self.has_cap(n, vocab::BRANCH_PATTERN)
@@ -566,14 +553,16 @@ impl<'l> Doc<'l> {
         None
     }
 
+    /// Unwraps to a fixpoint: `(&x)` is `x`, not `&x`.
     pub fn through(&self, n: N) -> Option<N<'_>> {
-        if !self.has_cap(n, vocab::THROUGH) {
-            return self.node(Span::of(n));
+        let mut cur = self.node(Span::of(n))?;
+        while self.has_cap(cur, vocab::THROUGH) {
+            match self.caps_child_of(vocab::THROUGH_INNER, cur).first() {
+                Some(inner) => cur = *inner,
+                None => break,
+            }
         }
-        self.caps_within(vocab::THROUGH_INNER, n.0.start_byte(), n.0.end_byte())
-            .first()
-            .copied()
-            .or_else(|| self.node(Span::of(n)))
+        Some(cur)
     }
 
     fn call_site<'a>(&'a self, call: N<'a>) -> Option<CallSite<'a>> {
@@ -647,17 +636,7 @@ impl<'l> Doc<'l> {
     }
 
     fn owning_function<'a>(&'a self, n: N<'a>) -> Option<N<'a>> {
-        let mut cur = n.0.parent();
-        while let Some(c) = cur {
-            if self.has_cap(N(c), vocab::FUNCTION) {
-                return Some(N(c));
-            }
-            if self.has_cap(N(c), vocab::OPAQUE) {
-                return None;
-            }
-            cur = c.parent();
-        }
-        None
+        self.climb(n.0.parent(), &[vocab::FUNCTION], &[vocab::OPAQUE])
     }
 
     /// Every branch tail of a `@return.container`, nested containers expanded in turn.
@@ -686,17 +665,11 @@ impl<'l> Doc<'l> {
     /// `None` once the walk leaves the current function: a nested fun's tail is not
     /// a return of the enclosing function.
     fn nearest_return_container<'a>(&'a self, n: N<'a>) -> Option<N<'a>> {
-        let mut cur = n.0.parent();
-        while let Some(c) = cur {
-            if self.has_cap(N(c), vocab::RETURN_CONTAINER) {
-                return Some(N(c));
-            }
-            if self.has_cap(N(c), vocab::OPAQUE) || self.has_cap(N(c), vocab::FUNCTION) {
-                return None;
-            }
-            cur = c.parent();
-        }
-        None
+        self.climb(
+            n.0.parent(),
+            &[vocab::RETURN_CONTAINER],
+            &[vocab::OPAQUE, vocab::FUNCTION],
+        )
     }
 
     pub fn is_literal<'a>(&'a self, n: N<'a>) -> bool {
@@ -711,15 +684,7 @@ impl<'l> Doc<'l> {
             if self.has_cap(*c, vocab::CONSTRUCT_FIELD_NAME) {
                 return true;
             }
-            match self
-                .caps_within(
-                    vocab::CONSTRUCT_FIELD_VALUE,
-                    c.0.start_byte(),
-                    c.0.end_byte(),
-                )
-                .first()
-                .copied()
-            {
+            match self.entry_value(c.0) {
                 Some(v) => self.is_literal(v),
                 None => self.is_literal(*c),
             }
@@ -751,26 +716,36 @@ impl<'l> Doc<'l> {
             .copied()
     }
 
-    pub fn construct_field(&self, construct: N, field: &str) -> Option<N<'_>> {
+    /// `@construct.field.name` captures of this construct's own entries, not of a nested one.
+    fn direct_field_names<'a>(&'a self, construct: N<'a>) -> Vec<N<'a>> {
         let (s, e) = (construct.0.start_byte(), construct.0.end_byte());
-        for name in self.caps_within(vocab::CONSTRUCT_FIELD_NAME, s, e) {
-            let Some(entry) = name.0.parent() else {
-                continue;
-            };
-            if entry.parent().map(|p| (p.start_byte(), p.end_byte())) != Some((s, e)) {
-                continue;
-            }
+        self.caps_within(vocab::CONSTRUCT_FIELD_NAME, s, e)
+            .into_iter()
+            .filter(|n| {
+                n.0.parent()
+                    .and_then(|entry| entry.parent())
+                    .map(|p| (p.start_byte(), p.end_byte()))
+                    == Some((s, e))
+            })
+            .collect()
+    }
+
+    fn entry_value(&self, entry: tree_sitter::Node) -> Option<N<'_>> {
+        self.caps_within(
+            vocab::CONSTRUCT_FIELD_VALUE,
+            entry.start_byte(),
+            entry.end_byte(),
+        )
+        .first()
+        .copied()
+    }
+
+    pub fn construct_field(&self, construct: N, field: &str) -> Option<N<'_>> {
+        for name in self.direct_field_names(construct) {
             if self.text_of(name) != field {
                 continue;
             }
-            return self
-                .caps_within(
-                    vocab::CONSTRUCT_FIELD_VALUE,
-                    entry.start_byte(),
-                    entry.end_byte(),
-                )
-                .first()
-                .copied();
+            return self.entry_value(name.0.parent()?);
         }
         None
     }
@@ -781,17 +756,7 @@ impl<'l> Doc<'l> {
         if !self.has_cap(n, vocab::CONSTRUCT) || self.has_cap(n, vocab::CONSTRUCT_CONS) {
             return None;
         }
-        let (s, e) = (n.0.start_byte(), n.0.end_byte());
-        let keyed = self
-            .caps_within(vocab::CONSTRUCT_FIELD_NAME, s, e)
-            .iter()
-            .any(|f| {
-                f.0.parent()
-                    .and_then(|x| x.parent())
-                    .map(|p| (p.start_byte(), p.end_byte()))
-                    == Some((s, e))
-            });
-        if keyed {
+        if !self.direct_field_names(n).is_empty() {
             return None;
         }
         Some(
@@ -807,13 +772,8 @@ impl<'l> Doc<'l> {
         self.positional(construct)?.get(i).copied()
     }
 
-    /// The identifier's position inside a positional pattern, when the pattern has several elements.
     pub fn pattern_index(&self, pattern: N, ident: N) -> Option<usize> {
-        let elems = self.positional(pattern)?;
-        if elems.len() < 2 {
-            return None;
-        }
-        elems.iter().position(|e| contains(e.0, ident.0))
+        index_containing(&self.positional(pattern)?, ident)
     }
 
     pub fn destructure<'a>(&'a self, pattern: N<'a>, ident: N<'a>, value: N<'a>) -> Option<N<'a>> {
@@ -832,38 +792,18 @@ impl<'l> Doc<'l> {
             return None;
         }
 
-        let (ps, pe) = (pattern.0.start_byte(), pattern.0.end_byte());
-        let field_names = self.caps_within(vocab::CONSTRUCT_FIELD_NAME, ps, pe);
-        let direct: Vec<N> = field_names
-            .into_iter()
-            .filter(|n| {
-                n.0.parent()
-                    .and_then(|e| e.parent())
-                    .map(|p| (p.start_byte(), p.end_byte()))
-                    == Some((ps, pe))
-            })
-            .collect();
-
+        let direct = self.direct_field_names(pattern);
         if direct.is_empty() {
             let (pc, vc) = (self.positional(pattern)?, self.positional(value)?);
             if pc.len() != vc.len() {
                 return None;
             }
-            let index = pc.iter().position(|e| contains(e.0, ident.0))?;
+            let index = index_containing(&pc, ident)?;
             return self.destructure(*pc.get(index)?, ident, *vc.get(index)?);
         }
 
         for name in direct {
-            let entry = name.0.parent()?;
-            let Some(pv) = self
-                .caps_within(
-                    vocab::CONSTRUCT_FIELD_VALUE,
-                    entry.start_byte(),
-                    entry.end_byte(),
-                )
-                .first()
-                .copied()
-            else {
+            let Some(pv) = self.entry_value(name.0.parent()?) else {
                 continue;
             };
             if !contains(pv.0, ident.0) {
@@ -886,4 +826,8 @@ fn named_children<'t>(n: N<'t>) -> Vec<N<'t>> {
 
 fn contains(outer: tree_sitter::Node, inner: tree_sitter::Node) -> bool {
     outer.start_byte() <= inner.start_byte() && inner.end_byte() <= outer.end_byte()
+}
+
+pub(crate) fn index_containing(nodes: &[N], inner: N) -> Option<usize> {
+    nodes.iter().position(|n| contains(n.0, inner.0))
 }

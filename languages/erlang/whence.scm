@@ -13,6 +13,7 @@
   name: (_) @function.name
   args: (expr_args) @function.params
   body: (clause_body) @function.body) @function
+(function_clause args: (expr_args (_) @param))
 
 ;; the grammar gives each clause its own fun_decl; clauses are grouped by the module they share
 (source_file) @function.group

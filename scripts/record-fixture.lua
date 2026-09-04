@@ -12,20 +12,18 @@ require("whence").setup({ root = project })
 local servers = {
   -- the repo pins a toolchain without rust-src, and without std sources no method resolves
   rust = {
-    name = "rust-analyzer",
     cmd = { "rust-analyzer" },
-    filetype = "rust",
     ext = "rs",
     cmd_env = { RUSTUP_TOOLCHAIN = os.getenv("WHENCE_RUST_TOOLCHAIN") or "stable" },
   },
-  go = { name = "gopls", cmd = { "gopls" }, filetype = "go", ext = "go" },
+  go = { cmd = { "gopls" }, ext = "go" },
 }
 local s = servers[lang]
 vim.cmd.cd(project)
 vim.cmd.edit(file)
-vim.bo.filetype = s.filetype
+vim.bo.filetype = lang
 local client_id =
-  vim.lsp.start({ name = s.name, cmd = s.cmd, cmd_env = s.cmd_env, root_dir = project }, { bufnr = 0 })
+  vim.lsp.start({ name = s.cmd[1], cmd = s.cmd, cmd_env = s.cmd_env, root_dir = project }, { bufnr = 0 })
 assert(client_id, "lsp did not start")
 -- An editor's LSP config attaches to every buffer the host opens; stand in for it.
 vim.api.nvim_create_autocmd("BufReadPost", {
@@ -47,7 +45,8 @@ end, 1000)
 assert(ready, "server never answered a definition at the target")
 -- until indexing ends the server answers method and std lookups with nothing, silently
 vim.wait(180000, function() return vim.lsp.status() == "" end, 200)
-vim.wait(2000, function() return false end, 100)
+-- idle is reported before the last diagnostics/index publications settle; until they do a definition can still come back empty
+vim.wait(2000)
 
 local record = require("whence.record")
 local hint, err
@@ -61,7 +60,7 @@ for attempt = 1, 5 do
   hint = record.finish()
   -- rust-analyzer fails a request with "content modified" while it is still indexing
   if not err or attempt == 5 then break end
-  vim.wait(5000, function() return false end, 100)
+  vim.wait(5000, function() return vim.lsp.status() == "" end, 100)
 end
 io.stdout:write((err and ("error: " .. vim.inspect(err)) or (hint or "recorded nothing")) .. "\n")
 vim.cmd.qall({ bang = true })
