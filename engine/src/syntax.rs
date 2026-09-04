@@ -38,7 +38,7 @@ pub struct FnDecl<'t> {
     pub node: N<'t>,
     pub name: String,
     pub params: Vec<N<'t>>,
-    pub body: N<'t>,
+    pub body: Option<N<'t>>,
     pub receiver: Option<N<'t>>,
 }
 
@@ -280,6 +280,28 @@ impl<'l> Doc<'l> {
         self.enclosing_function(self.node(name.span)?)
     }
 
+    /// The bodiless (or default-bodied) declaration at `p`, if the position is on its name.
+    pub fn declares_abstract(&self, p: Pos) -> Option<FnDecl<'_>> {
+        let off = self.byte_offset(p)?;
+        let name = self
+            .caps_containing(vocab::FUNCTION_NAME, off)
+            .first()
+            .copied()?;
+        let name = self.node(name.span)?;
+        let decl = self.nearest_ancestor_with(name, vocab::FUNCTION_ABSTRACT)?;
+        self.fn_decl(decl)
+    }
+
+    pub fn name_node<'a>(&'a self, f: &FnDecl<'a>) -> Option<N<'a>> {
+        self.caps_within(
+            vocab::FUNCTION_NAME,
+            f.node.0.start_byte(),
+            f.node.0.end_byte(),
+        )
+        .into_iter()
+        .next()
+    }
+
     pub fn binding_parts<'a>(&'a self, binding: N<'a>) -> Option<(N<'a>, N<'a>)> {
         let pattern = self
             .caps_child_of(vocab::BINDING_PATTERN, binding)
@@ -316,7 +338,14 @@ impl<'l> Doc<'l> {
         let body = self
             .caps_within(vocab::FUNCTION_BODY, s, e)
             .first()
-            .copied()?;
+            .copied();
+        // Only an abstract declaration may lack a body: elsewhere a missing one is a query bug.
+        if body.is_none()
+            && self.has_cap(func, vocab::FUNCTION)
+            && !self.has_cap(func, vocab::FUNCTION_ABSTRACT)
+        {
+            return None;
+        }
         let node = self.node(Span::of(func))?;
         let receiver = self
             .caps_owned_by(
@@ -508,7 +537,10 @@ impl<'l> Doc<'l> {
 
     pub fn returns_of(&self, f: &FnDecl) -> Vec<N<'_>> {
         let mut out = Vec::new();
-        for root in self.caps_within(vocab::RETURN, f.body.0.start_byte(), f.body.0.end_byte()) {
+        let Some(body) = f.body else {
+            return out;
+        };
+        for root in self.caps_within(vocab::RETURN, body.0.start_byte(), body.0.end_byte()) {
             if self.owning_function(root).map(|o| o.0.id()) == Some(f.node.0.id()) {
                 self.expand_return(root, &mut out);
             }

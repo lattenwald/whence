@@ -40,18 +40,17 @@ only issue them.
 
 ```jsonc
 // params
-{ "root": "/abs/project", "capabilities": { "documentHighlight": false } }
+{ "root": "/abs/project",
+  "capabilities": { "documentHighlight": false, "implementation": false } }
 // result
 { "version": "0.1.0", "languages": ["erlang"] }
 ```
 
 `root` bounds the trace: a definition outside it stops as `external`, and node
 ids are hashed from root-relative paths so a tree is identical at any checkout
-path. `capabilities` is optional and each flag defaults to false;
-`capabilities.documentHighlight` declares whether the host can answer
-`host/documentHighlight`, and when false the engine never sends it. The M1
-engine has no rebinding pass and never sends it either way; the Neovim host
-declares `true` because it can answer.
+path. `capabilities` is optional and each flag defaults to false; a flag
+declares whether the host can answer the request of that name, and when false
+the engine never sends it.
 
 ### `whence/trace`
 
@@ -116,6 +115,7 @@ host/definition         { "file", "line", "col" } → Location[]
 host/references         { "file", "line", "col",
                           "includeDeclaration": bool } → Location[]
 host/documentHighlight  { "file", "line", "col" } → Highlight[]
+host/implementation     { "file", "line", "col" } → Location[]
 ```
 
 ```jsonc
@@ -129,9 +129,13 @@ Highlight = { "range": { "start": {"line","col"}, "end": {"line","col"} },
   unsaved edits, and disk content otherwise. The engine parses exactly this
   text and reports positions into it; serving stale text produces wrong
   edges.
-- `host/documentHighlight` is optional and is only sent when
-  `initialize` declared the capability. It is unused by Erlang (single
-  assignment) and exists for mutation tracking in M2.
+- `host/documentHighlight` is optional. When the host declares it, the engine
+  uses it to list a variable's occurrences in one file for the write step
+  ([M2 spec §3.1](superpowers/specs/2026-09-03-m2-rust-go-design.md#31-variable-use));
+  when it does not, the engine uses `host/references` for the same purpose.
+- `host/implementation` is optional and lists the implementations of an
+  abstract method (an interface or trait method). When the host does not
+  declare it, the trace stops at a call to such a method with `unresolved`.
 - A language-server request for a file with no server attached is answered
   with a JSON-RPC error, not an empty list: an empty list means the server
   answered and found nothing. The engine fails the trace with `E_HOST`.
@@ -269,7 +273,8 @@ used by the Neovim plugin tests). See
   "definition":        { "<rel-path>:<line>:<col>": Location[] },
   "references":        { "<rel-path>:<line>:<col>|decl"
                        | "<rel-path>:<line>:<col>|nodecl": Location[] },
-  "documentHighlight": { "<rel-path>:<line>:<col>": Highlight[] }
+  "documentHighlight": { "<rel-path>:<line>:<col>": Highlight[] },
+  "implementation":    { "<rel-path>:<line>:<col>": Location[] }
 }
 ```
 

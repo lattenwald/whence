@@ -173,6 +173,15 @@ with a receiver and one argument too many passes the receiver first — so a par
 matched to the receiver expression one place to its left (spec §3.4). The rule lives in one
 helper both call sites use.
 
+### Implementations are expanded before the outside-root verdict
+
+Plan: `call_result` expands an abstract callee inside the loop that builds targets, "then run the
+existing outside-root / not-a-function / `FuncId` logic over `here`" — a loop that only runs after
+the `external` / "some outside root" checks over the definitions. Done: the expansion is a pass
+over the definitions *before* those checks, and they see the implementations. Spec §3.3 requires an
+implementation outside the root to count toward `external`; inside the target loop it could not,
+because the verdict was already taken on the abstract declaration alone.
+
 ## M3 — VS Code extension
 
 - Plan: [2026-09-03-m3-vscode.md](superpowers/plans/2026-09-03-m3-vscode.md)

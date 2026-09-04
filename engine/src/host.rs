@@ -50,5 +50,6 @@ pub trait Host {
         include_decl: bool,
     ) -> Result<Vec<Location>, HostError>;
     fn document_highlight(&mut self, file: &Path, pos: Pos) -> Result<Vec<Highlight>, HostError>;
+    fn implementation(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, HostError>;
     fn request_count(&self) -> u32;
 }

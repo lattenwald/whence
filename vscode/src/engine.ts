@@ -80,7 +80,7 @@ export class Engine {
   }
 
   initialize(root: string): Promise<{ version: string; languages: string[] }> {
-    return this.request("initialize", { root, capabilities: { documentHighlight: true } });
+    return this.request("initialize", { root, capabilities: { documentHighlight: true, implementation: true } });
   }
 
   /** Single-flight: a second trace while one runs is rejected with `busy`. */

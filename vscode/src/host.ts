@@ -71,6 +71,10 @@ export async function documentHighlight(params: Loc): Promise<Highlight[]> {
   return (result ?? []).map((h) => ({ range: toRange(h.range), kind: KIND[h.kind ?? vscode.DocumentHighlightKind.Text] }));
 }
 
+export function implementation(params: Loc): Promise<Location[]> {
+  return locations("vscode.executeImplementationProvider", params);
+}
+
 export async function dispatch(method: string, params: any): Promise<unknown> {
   switch (method) {
     case "host/text":
@@ -81,6 +85,8 @@ export async function dispatch(method: string, params: any): Promise<unknown> {
       return references(params);
     case "host/documentHighlight":
       return documentHighlight(params);
+    case "host/implementation":
+      return implementation(params);
     default:
       throw new HostError(ErrorCodes.MethodNotFound, `unknown method ${method}`);
   }

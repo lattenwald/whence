@@ -7,6 +7,7 @@ local SECTION = {
   ["host/definition"] = "definition",
   ["host/references"] = "references",
   ["host/documentHighlight"] = "documentHighlight",
+  ["host/implementation"] = "implementation",
 }
 
 local active = nil
@@ -66,7 +67,7 @@ function M.begin(dir, root, target)
   local rec = {
     dir = dir,
     root = root,
-    recorded = { definition = {}, references = {}, documentHighlight = {} },
+    recorded = { definition = {}, references = {}, documentHighlight = {}, implementation = {} },
     conflicts = {},
     conflicting = {},
     target = target and { file = util.rel(target.file, root), line = target.line, col = target.col } or nil,

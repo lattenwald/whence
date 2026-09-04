@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use crate::host::Location;
+use crate::host::{HostError, Location};
 use crate::lang::vocab;
 use crate::pos::Pos;
 use crate::syntax::{Doc, FnDecl, N, Role, Span};
@@ -432,15 +432,7 @@ fn param_like(
         return Ok(make(ctx, NodeKind::Param, site, Via::Arg, vec![child?], 0));
     }
 
-    let Some(name) = doc
-        .caps_within(
-            vocab::FUNCTION_NAME,
-            func.node.0.start_byte(),
-            func.node.0.end_byte(),
-        )
-        .into_iter()
-        .next()
-    else {
+    let Some(name) = doc.name_node(func) else {
         return Ok(unresolved(ctx, site, "function declaration has no name"));
     };
     let refs = ctx.references(file, doc.pos_of(name), false)?;
@@ -709,6 +701,50 @@ fn call_result(
     if defs.is_empty() {
         return Ok(unresolved(ctx, site, "callee not found"));
     }
+    // An abstract declaration is not a callee: its implementations are.
+    let mut expanded: Vec<Location> = Vec::new();
+    for d in &defs {
+        if !ctx.in_root(&d.file) {
+            expanded.push(d.clone());
+            continue;
+        }
+        let Some(doc) = ctx.doc_if_known(&d.file)? else {
+            expanded.push(d.clone());
+            continue;
+        };
+        let Some(abs) = doc.declares_abstract(d.range.start) else {
+            expanded.push(d.clone());
+            continue;
+        };
+        let Some(name) = doc.name_node(&abs) else {
+            return Ok(unresolved(ctx, site, "function declaration has no name"));
+        };
+        let decl_pos = doc.pos_of(name);
+        let mut here = match ctx.implementation(&d.file, decl_pos) {
+            Ok(impls) => distinct(&impls),
+            Err(TraceError::Host(HostError::Unsupported(_))) => {
+                return Ok(unresolved(
+                    ctx,
+                    site,
+                    format!("abstract method {}", abs.name),
+                ));
+            }
+            Err(e) => return Err(e),
+        };
+        if abs.body.is_some() {
+            here.push(d.clone());
+        }
+        if here.is_empty() {
+            return Ok(unresolved(
+                ctx,
+                site,
+                format!("no implementation of {}", abs.name),
+            ));
+        }
+        expanded.extend(here);
+    }
+    let defs = distinct(&expanded);
+
     let outside = defs.iter().filter(|l| !ctx.in_root(&l.file)).count();
     if outside == defs.len() {
         return Ok(stop(ctx, site, StopReason::External, callee));

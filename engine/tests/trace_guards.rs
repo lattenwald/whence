@@ -34,6 +34,10 @@ impl Host for FakeHost {
         Err(HostError::Unsupported("documentHighlight"))
     }
 
+    fn implementation(&mut self, _: &Path, _: Pos) -> Result<Vec<Location>, HostError> {
+        Err(HostError::Unsupported("implementation"))
+    }
+
     fn request_count(&self) -> u32 {
         0
     }

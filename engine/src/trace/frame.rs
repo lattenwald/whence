@@ -64,6 +64,7 @@ pub struct Ctx<'a> {
     /// Host answers are facts about the snapshot in `docs`, so they live exactly as long.
     defs: HashMap<(PathBuf, Pos), Vec<Location>>,
     refs: HashMap<(PathBuf, Pos, bool), Vec<Location>>,
+    impls: HashMap<(PathBuf, Pos), Vec<Location>>,
     pub frames: Vec<Frame>,
     pub proj: Vec<Proj>,
     /// Path keys of the nodes being expanded, root first; ids derive from the top.
@@ -91,6 +92,7 @@ impl<'a> Ctx<'a> {
             docs: HashMap::new(),
             defs: HashMap::new(),
             refs: HashMap::new(),
+            impls: HashMap::new(),
             frames: Vec::new(),
             proj: Vec::new(),
             path: Vec::new(),
@@ -131,6 +133,16 @@ impl<'a> Ctx<'a> {
         }
         let v = self.host.definition(file, pos)?;
         self.defs.insert(key, v.clone());
+        Ok(v)
+    }
+
+    pub fn implementation(&mut self, file: &Path, pos: Pos) -> Result<Vec<Location>, TraceError> {
+        let key = (file.to_path_buf(), pos);
+        if let Some(v) = self.impls.get(&key) {
+            return Ok(v.clone());
+        }
+        let v = self.host.implementation(file, pos)?;
+        self.impls.insert(key, v.clone());
         Ok(v)
     }
 

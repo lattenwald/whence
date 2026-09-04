@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::host_replay::ReplayHost;
-use crate::host_rpc::RpcHost;
+use crate::host_rpc::{Caps, RpcHost};
 use crate::lang::Registry;
 use crate::pos::Pos;
 use crate::protocol::{
@@ -25,7 +25,7 @@ pub enum HostSource {
 
 enum Source {
     Stdio,
-    Replay(ReplayHost),
+    Replay(Box<ReplayHost>),
 }
 
 struct SharedWriter<W>(Arc<Mutex<W>>);
@@ -43,12 +43,6 @@ impl<W: Write> Write for SharedWriter<W> {
     fn flush(&mut self) -> io::Result<()> {
         self.0.lock().expect("stdout mutex").flush()
     }
-}
-
-#[derive(Deserialize, Default)]
-struct Caps {
-    #[serde(default, rename = "documentHighlight")]
-    document_highlight: bool,
 }
 
 #[derive(Deserialize)]
@@ -69,7 +63,7 @@ struct TraceParams {
 
 struct Session {
     root: PathBuf,
-    supports_highlight: bool,
+    caps: Caps,
 }
 
 pub fn serve<R, W>(reader: R, writer: W, source: HostSource) -> anyhow::Result<()>
@@ -79,7 +73,7 @@ where
 {
     let mut source = match source {
         HostSource::Stdio => Source::Stdio,
-        HostSource::Replay(dir) => Source::Replay(ReplayHost::load(&dir)?),
+        HostSource::Replay(dir) => Source::Replay(Box::new(ReplayHost::load(&dir)?)),
     };
     let reg = Registry::embedded()?;
     let out = SharedWriter(Arc::new(Mutex::new(writer)));
@@ -148,7 +142,7 @@ fn initialize(
     let p: InitParams = params(&req.params)?;
     *session = Some(Session {
         root: p.root,
-        supports_highlight: p.capabilities.document_highlight,
+        caps: p.capabilities,
     });
     Ok(json!({ "version": env!("CARGO_PKG_VERSION"), "languages": reg.names() }))
 }
@@ -175,11 +169,10 @@ fn run_trace<W: Write>(
     let tree = match source {
         Source::Replay(host) => {
             host.reset();
-            trace(host, reg, &treq)
+            trace(host.as_mut(), reg, &treq)
         }
         Source::Stdio => {
-            let mut host =
-                RpcHost::resume(out.clone(), rx, session.supports_highlight, *next_host_id);
+            let mut host = RpcHost::resume(out.clone(), rx, session.caps, *next_host_id);
             let tree = trace(&mut host, reg, &treq);
             *next_host_id = host.next_id();
             tree

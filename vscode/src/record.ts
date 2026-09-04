@@ -69,7 +69,7 @@ export async function begin(opts: { dir: string; root: string; target: Loc; engi
   }
   const rec: Recording = {
     ...opts,
-    recorded: { definition: {}, references: {}, documentHighlight: {} },
+    recorded: { definition: {}, references: {}, documentHighlight: {}, implementation: {} },
     sources: new Map(),
     conflicts: [],
     original: host.handle,
