@@ -190,24 +190,26 @@ fn go_short_var_decl_index_and_zero_value() {
 fn go_names_repeated_in_one_var_declaration_divide_the_value_list() {
     let text = "package p\nfunc h() {\n\tvar c, d = 1, 2\n\tvar e, f int\n\tvar g, i = two()\n}\n";
     let d = doc("go", "/c.go", text);
-    let bound = |needle: &str| {
+    let parts = |needle: &str| {
         let id = d.ident_at(at(text, needle, 0)).unwrap();
         let Role::BoundBy { pattern, value } = d.role_of(id) else {
             panic!("{needle} is bound by its declaration")
         };
-        (
-            d.destructure(pattern, id, value).map(|n| d.text_of(n)),
-            d.pattern_index(pattern, id),
-        )
+        (id, pattern, value)
     };
-    assert_eq!(bound("c, d = 1").0, Some("1"));
-    assert_eq!(bound("d = 1, 2").0, Some("2"));
+    let bound = |needle: &str| {
+        let (id, pattern, value) = parts(needle);
+        d.destructure(pattern, id, value).map(|n| d.text_of(n))
+    };
+    assert_eq!(bound("c, d = 1"), Some("1"));
+    assert_eq!(bound("d = 1, 2"), Some("2"));
     // one type is the zero value of every name it declares
-    assert_eq!(bound("e, f int").0, Some("int"));
-    assert_eq!(bound("f int").0, Some("int"));
+    assert_eq!(bound("e, f int"), Some("int"));
+    assert_eq!(bound("f int"), Some("int"));
     // one call feeds every name: which result is a projection, not a node
-    assert_eq!(bound("g, i = two").0, None);
-    assert_eq!(bound("i = two()").1, Some(1));
+    assert_eq!(bound("g, i = two"), None);
+    let (id, pattern, _) = parts("i = two()");
+    assert_eq!(d.pattern_index(pattern, id), Some(1));
 }
 
 #[test]

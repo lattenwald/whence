@@ -1,8 +1,6 @@
 //! The only capture names the engine reads; extend here, never per language.
 
 pub const BINDING: &str = "binding";
-/// Several per `@binding` where the grammar gives the declared names no
-/// container (Go `var c, d = 1, 2`): the nth name takes the nth element.
 pub const BINDING_PATTERN: &str = "binding.pattern";
 pub const BINDING_VALUE: &str = "binding.value";
 
@@ -78,6 +76,9 @@ pub const FUNCTION_GROUP: &str = "function.group";
 
 /// Co-captured on a `@binding` whose `@binding.value` is an iterable, not the bound value.
 pub const BINDING_ELEMENT: &str = "binding.element";
+/// Co-captured on a `@binding` whose declared names have no container of their
+/// own and divide the `@binding.value` one element each (Go `var c, d = 1, 2`).
+pub const BINDING_POSITIONAL: &str = "binding.positional";
 
 /// Captures every language must define; the rest are used only where present.
 /// `RETURN_VALUE` is not: it is read only inside a `RETURN_CONTAINER`, which a

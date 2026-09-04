@@ -204,16 +204,16 @@ Additions, all read by generic code:
 @param  @param.mutable
 @call.receiver
 @function.receiver  @function.receiver.mutable  @function.abstract  @function.group
-@binding.element
+@binding.element  @binding.positional
 @field.name.index
 ```
 
 A capture named `<base>.<marker>` and co-captured on a `<base>` node is a
 **marker**: the base keeps every obligation it had and is read through the
 same code as any other, and the marker only adds meaning. `@assign.compound`,
-`@function.receiver.mutable`, `@function.abstract`, `@field.name.index` and
-`@binding.element` are all of this shape; each entry below says only what its
-marker means.
+`@function.receiver.mutable`, `@function.abstract`, `@field.name.index`,
+`@binding.element` and `@binding.positional` are all of this shape; each entry
+below says only what its marker means.
 
 - `@assign`: a write to an existing place. `.target`/`.value` as for
   `@binding`; `.compound` for `+=`, `++`, etc.
@@ -241,14 +241,15 @@ marker means.
   as a number.
 - `@binding.element`: the `@binding.value` is an iterable, not the bound
   value, so it is not destructured against the pattern.
+- `@binding.positional`: the declared names have no container node of their own
+  and divide the `@binding.value`, one element each.
 
 One `@binding` may carry several `@binding.pattern` captures, where the grammar
 gives the declared names no container node and repeats the field instead (Go
-`var c, d = 1, 2`). The nth name then takes the nth element of a
-`@binding.value` construct of the same arity; a value that is not a construct
-(`var c, d int`, the zero value of §3.2) is what every one of them binds; and a
-construct of a different arity (`var c, d = f()`) yields the position as a
-pending projection, exactly as a positional pattern does.
+`var c, d = 1, 2`). Under `@binding.positional` the nth name takes the nth
+element of a `@binding.value` of the same arity, and any other arity leaves the
+position pending as a positional pattern does (§3.5); without the marker every
+name binds the whole value (`var c, d int`, the zero value of §3.2).
 
 Semantics change for two existing captures: `@through` is applied wherever a
 value is classified (§2) and repeated to a fixpoint, and `@construct` positional matching no longer
@@ -315,7 +316,7 @@ callee text is that name.
 |---|---|
 | identifiers | `(identifier) @ident` |
 | `a, b := v` | `(short_var_declaration left: (expression_list) @binding.pattern right: (expression_list) @binding.value) @binding` |
-| `var x T = v` / `var x T` | `(var_spec name: (identifier) @binding.pattern value: (expression_list) @binding.value) @binding`; `(var_spec name: (identifier) @binding.pattern type: (_) @binding.value @literal !value) @binding` (the zero value is the type, §3.2) |
+| `var x T = v` / `var x T` | `(var_spec name: (identifier) @binding.pattern value: (expression_list) @binding.value) @binding @binding.positional` (`name:` repeats, so `var c, d = 1, 2` divides the list); `(var_spec name: (identifier) @binding.pattern type: (_) @binding.value @literal !value) @binding` (the zero value is the type, §3.2) |
 | `for k, v := range xs` | `(range_clause left: (expression_list) @binding.pattern right: (_) @binding.value) @binding @binding.element` |
 | `a, b = v` / `a += v` | `(assignment_statement left: (expression_list) @assign.target right: (expression_list) @assign.value) @assign`; `((assignment_statement operator: _ @op) @assign.compound (#not-eq? @op "="))` |
 | `x++` / `x--` | `((inc_statement (_) @assign.target) @assign @assign.compound)`; `((dec_statement (_) @assign.target) @assign @assign.compound)` |
@@ -346,8 +347,8 @@ receiver is `parameter_declaration type: (pointer_type)` under the
 anonymous node under `operator:`. Go has no expression-level branches, so
 `@return.container`, `@return.value` and `@branch.*` are absent; a
 `switch`/`if` never appears as a value. In `var u, w = f()` each `name:` child is
-its own `@binding.pattern` against the whole `@binding.value` list; the repeated
-field is what tells the engine the names are positional (§6).
+its own `@binding.pattern` against the whole `@binding.value` list, which
+`@binding.positional` divides among them (§6).
 
 ### 6.3 Erlang
 

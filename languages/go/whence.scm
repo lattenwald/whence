@@ -7,7 +7,7 @@
 (var_spec name: (identifier) @binding.pattern type: (_) @binding.value @literal !value) @binding
 (var_spec
   name: (identifier) @binding.pattern
-  value: (expression_list) @binding.value) @binding
+  value: (expression_list) @binding.value) @binding @binding.positional
 (range_clause left: (expression_list) @binding.pattern right: (_) @binding.value) @binding @binding.element
 
 (assignment_statement
